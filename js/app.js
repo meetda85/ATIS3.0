@@ -31,7 +31,8 @@
       'additionalEs', 'additionalEn', 'includeNotams',
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
       'btnPlay', 'btnStop', 'playState', 'playDetail',
-      'voiceEs', 'voiceEn', 'rate', 'gap', 'btnTestEs', 'btnTestEn'
+      'voiceEs', 'voiceEn', 'rate', 'gap', 'sentencePause', 'btnTestEs', 'btnTestEn',
+      'voiceListEs', 'voiceListEn'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -435,7 +436,8 @@
         gap: +el.gap.value || 0,
         cycleGap: (+el.gap.value || 0) + 2,
         voices: { es: el.voiceEs.value, en: el.voiceEn.value },
-        rate: { es: +el.rate.value, en: +el.rate.value }
+        rate: { es: +el.rate.value, en: +el.rate.value },
+        sentencePause: +el.sentencePause.value || 0
       }
     );
     if (!ok) { status(el.scriptStatus, 'No hay nada que transmitir.', 'err'); return; }
@@ -451,7 +453,7 @@
     document.querySelector('.brand .dot').classList.remove('live');
     el.playState.textContent = 'Detenido';
     el.playState.classList.remove('live');
-    el.playDetail.textContent = 'Listo para transmitir en bucle: español → inglés';
+    updateVoiceReport();
   }
 
   function initVoices() {
@@ -459,6 +461,7 @@
       fillVoiceSelect(el.voiceEs, 'es');
       fillVoiceSelect(el.voiceEn, 'en');
       restoreVoices();
+      updateVoiceReport();
     });
     ATIS.speech.onState(function (st) {
       if (!st.playing) return;
@@ -470,19 +473,52 @@
   }
 
   function fillVoiceSelect(select, lang) {
-    var list = ATIS.speech.getVoices(lang);
+    var list = ATIS.speech.rankedVoices(lang);
     if (!list.length) {
       select.innerHTML = '<option value="">(sin voces ' + lang + ')</option>';
       status(el.scriptStatus, 'El sistema no tiene voces instaladas en ' +
-        (lang === 'es' ? 'español' : 'inglés') + '. Agréguelas en la configuración de voz del sistema operativo.', 'err');
+        (lang === 'es' ? 'español' : 'inglés') + '. Vea el cuadro 8, Calidad de voz.', 'err');
       return;
     }
+    /* Ya vienen de mejor a peor calidad: la primera queda seleccionada */
     select.innerHTML = list.map(function (v) {
-      return '<option value="' + v.name + '">' + v.name + ' (' + v.lang + ')</option>';
+      return '<option value="' + v.name + '">' + (v.natural ? '★ ' : '') + v.name + ' (' + v.lang + ')</option>';
     }).join('');
-    var preferred = lang === 'es' ? /es-MX/i : /en-US/i;
-    for (var i = 0; i < list.length; i++) {
-      if (preferred.test(list[i].lang)) { select.selectedIndex = i; break; }
+    select.selectedIndex = 0;
+  }
+
+  /* Cuadro 8: que voces tiene la computadora */
+  function renderVoiceList(node, lang, selectedName) {
+    var list = ATIS.speech.rankedVoices(lang);
+    if (!list.length) {
+      node.innerHTML = '<span class="status err">No hay ninguna voz en ' +
+        (lang === 'es' ? 'español' : 'inglés') + ' instalada en este equipo.</span>';
+      return;
+    }
+    node.innerHTML = list.map(function (v) {
+      return '<div class="voiceitem' + (v.natural ? ' natural' : '') +
+        (v.name === selectedName ? ' inuse' : '') + '">' +
+        '<span>' + (v.natural ? '★' : '·') + '</span>' +
+        '<span class="vname">' + escapeHtml(v.name) + '</span>' +
+        '<span class="vlang">' + escapeHtml(v.lang) + '</span></div>';
+    }).join('');
+  }
+
+  function updateVoiceReport() {
+    renderVoiceList(el.voiceListEs, 'es', el.voiceEs.value);
+    renderVoiceList(el.voiceListEn, 'en', el.voiceEn.value);
+    var esNat = /^★/.test(el.voiceEs.options[el.voiceEs.selectedIndex] ? el.voiceEs.options[el.voiceEs.selectedIndex].text : '');
+    var enNat = /^★/.test(el.voiceEn.options[el.voiceEn.selectedIndex] ? el.voiceEn.options[el.voiceEn.selectedIndex].text : '');
+    if (!ATIS.speech.state.playing) {
+      if (esNat && enNat) {
+        el.playDetail.textContent = 'Voces naturales seleccionadas. Listo para transmitir en bucle: español → inglés';
+        el.playDetail.classList.remove('warn');
+      } else {
+        el.playDetail.textContent = 'Voz robótica: no hay voz natural en ' +
+          (!esNat && !enNat ? 'español ni inglés' : (!esNat ? 'español' : 'inglés')) +
+          '. Vea el cuadro 8, Calidad de voz.';
+        el.playDetail.classList.add('warn');
+      }
     }
   }
 
@@ -503,7 +539,7 @@
           includeHpa: el.includeHpa.checked,
           notams: notams.map(function (n) { return { raw: n.raw, include: n.include }; }),
           voices: { es: el.voiceEs.value, en: el.voiceEn.value },
-          rate: el.rate.value, gap: el.gap.value
+          rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value
         }));
       } catch (e) { /* almacenamiento no disponible */ }
     }, 400);
@@ -550,6 +586,7 @@
     el.includeHpa.checked = !!data.includeHpa;
     if (data.rate) el.rate.value = data.rate;
     if (data.gap) el.gap.value = data.gap;
+    if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
     savedVoices = data.voices || null;
     savedApproachRwy = c.approachRunway || '';
     (data.notams || []).forEach(function (n) {
@@ -677,8 +714,9 @@
     });
     on(el.rate, 'input', save);
     on(el.gap, 'input', save);
-    on(el.voiceEs, 'change', save);
-    on(el.voiceEn, 'change', save);
+    on(el.sentencePause, 'input', save);
+    on(el.voiceEs, 'change', function () { save(); updateVoiceReport(); });
+    on(el.voiceEn, 'change', function () { save(); updateVoiceReport(); });
 
     on(el.btnDownload, 'click', download);
     Array.prototype.forEach.call(document.querySelectorAll('.copy'), function (b) {

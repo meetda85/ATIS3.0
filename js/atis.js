@@ -165,6 +165,19 @@
     'September', 'October', 'November', 'December'
   ].join('|') + ')\\s+$', 'i');
 
+  /* Siglas que deben seguir en mayusculas para que se lean letra por letra */
+  var SIGLAS = ('ILS RNP VOR NDB DME ATIS NOTAM PAPI RVR QNH QFE UTC CAVOK SID STAR ' +
+    'VFR IFR TWY RWY ATC TWR APP SMR ACFT ETA ETD NOSIG TEMPO BECMG').split(' ');
+
+  /* El texto libre en MAYUSCULAS hace que algunas voces deletreen palabra por palabra */
+  function softenCaps(text) {
+    return String(text || '').replace(/\b[A-ZÁÉÍÓÚÜÑ]{4,}\b/g, function (w) {
+      if (SIGLAS.indexOf(w) >= 0) return w;
+      if (!/[AEIOUÁÉÍÓÚ]/.test(w)) return w;
+      return w.charAt(0) + w.slice(1).toLowerCase();
+    });
+  }
+
   function speakNumbers(text, lang) {
     return String(text || '').replace(/(\d):(\d)/g, '$1 $2').replace(/(\d+)(\s+(?:de|of)\b)?/g, function (all, d, tail, offset, whole) {
       if (!tail && MONTH_RE.test(whole.slice(offset + d.length, offset + d.length + 12))) {
@@ -359,7 +372,7 @@
         var clean = String(line).trim();
         if (!clean) return;
         if (!/[.!?]$/.test(clean)) clean += '.';
-        b.add(clean, speakNumbers(clean, lang));
+        b.add(clean, speakNumbers(softenCaps(clean), lang));
       });
     }
 
@@ -370,7 +383,7 @@
       b.add(L ? 'Información adicional.' : 'Additional information.');
       extra.forEach(function (line) {
         if (!/[.!?]$/.test(line)) line += '.';
-        b.add(line, speakNumbers(line, lang));
+        b.add(line, speakNumbers(softenCaps(line), lang));
       });
     }
 
@@ -435,6 +448,7 @@
     build: build,
     fromMetar: fromMetar,
     speakNumbers: speakNumbers,
+    softenCaps: softenCaps,
     SKY_LABELS: SKY_LABELS,
     VIS_CAUSES: VIS_CAUSES,
     RWY_CONDITIONS: RWY_CONDITIONS,

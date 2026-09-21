@@ -210,3 +210,21 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
 .pstate-main.live { color: var(--red); }
 .pstate-sub { font-size: 12px; color: var(--muted); }
 .popts { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+
+/* ---------- Ayuda y lista de voces ---------- */
+.help { font-size: 13px; line-height: 1.6; color: var(--muted); margin: 6px 0; }
+.help b { color: var(--text); }
+ol.help { padding-left: 20px; }
+ol.help li { margin-bottom: 6px; }
+.voicelist { display: flex; flex-direction: column; gap: 4px; }
+.voiceitem {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; padding: 5px 9px; border-radius: 6px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.voiceitem .vname { flex: 1; }
+.voiceitem .vlang { color: var(--muted); font-family: "Consolas", monospace; }
+.voiceitem.natural { border-color: var(--accent); }
+.voiceitem.natural .vname { color: var(--accent); font-weight: 600; }
+.voiceitem.inuse::after { content: 'en uso'; font-size: 10px; color: var(--amber); letter-spacing: 1px; }
+.pstate-sub.warn { color: var(--amber); }

@@ -25,7 +25,8 @@
     voices: { es: null, en: null },
     rate: { es: 0.95, en: 0.95 },
     pitch: { es: 1, en: 1 },
-    volume: 1
+    volume: 1,
+    sentencePause: 250       /* milisegundos entre frases, da naturalidad */
   };
 
   var idx = 0;
@@ -53,13 +54,15 @@
   }
 
   function onVoicesReady(cb) {
-    if (voices.length) cb(voices);
-    else {
-      readyCbs.push(cb);
-      /* Algunos navegadores tardan en publicar las voces */
-      setTimeout(loadVoices, 250);
-      setTimeout(loadVoices, 1000);
-    }
+    if (voices.length) { cb(voices); return; }
+    var llamado = false;
+    function una(list) { if (!llamado) { llamado = true; cb(list); } }
+    readyCbs.push(una);
+    /* Algunos navegadores tardan en publicar las voces */
+    setTimeout(loadVoices, 250);
+    setTimeout(loadVoices, 1000);
+    /* Si el sistema no tiene ninguna voz, hay que avisarlo igual */
+    setTimeout(function () { una(voices); }, 2500);
   }
 
   function getVoices(langPrefix) {
@@ -69,16 +72,41 @@
     });
   }
 
+  /* Una voz neuronal ("natural", "neural") suena humana; las SAPI de Windows suenan roboticas */
+  function isNatural(v) {
+    return /natural|neural/i.test(v.name || '');
+  }
+
+  function voiceScore(v, langPrefix) {
+    var name = String(v.name || ''), lang = String(v.lang || '').toLowerCase();
+    var score = 0;
+    if (isNatural(v)) score += 100;
+    else if (/google/i.test(name)) score += 60;
+    if (v.localService === false) score += 20;
+    if (/desktop/i.test(name)) score -= 15;          /* voces SAPI antiguas */
+    if (lang === (langPrefix === 'es' ? 'es-mx' : 'en-us')) score += 15;
+    else if (langPrefix === 'es' && /^es-(419|us|co|ar|cl)/.test(lang)) score += 8;
+    else if (langPrefix === 'en' && /^en-(ca|gb|au)/.test(lang)) score += 5;
+    return score;
+  }
+
+  /* Voces del idioma, de mejor a peor calidad */
+  function rankedVoices(langPrefix) {
+    return getVoices(langPrefix)
+      .map(function (v) {
+        return { voice: v, name: v.name, lang: v.lang, natural: isNatural(v), score: voiceScore(v, langPrefix) };
+      })
+      .sort(function (a, b) { return b.score - a.score || a.name.localeCompare(b.name); });
+  }
+
   function findVoice(name, langPrefix) {
     var v = null;
     if (name) {
       v = voices.filter(function (x) { return x.name === name; })[0] || null;
     }
     if (!v) {
-      var list = getVoices(langPrefix);
-      /* Preferencia: es-MX / en-US */
-      var preferred = langPrefix === 'es' ? 'es-mx' : 'en-us';
-      v = list.filter(function (x) { return String(x.lang).toLowerCase() === preferred; })[0] || list[0] || null;
+      var best = rankedVoices(langPrefix)[0];
+      v = best ? best.voice : null;
     }
     return v;
   }
@@ -146,7 +174,12 @@
     u.rate = options.rate[langPrefix] || 1;
     u.pitch = options.pitch[langPrefix] || 1;
     u.volume = options.volume;
-    u.onend = function () { current = null; if (state.playing) speakNext(); };
+    u.onend = function () {
+      current = null;
+      if (!state.playing) return;
+      if (options.sentencePause > 0) timer = setTimeout(speakNext, options.sentencePause);
+      else speakNext();
+    };
     u.onerror = function (e) {
       current = null;
       if (e && (e.error === 'interrupted' || e.error === 'canceled')) return;
@@ -216,6 +249,7 @@
     if (typeof o.gap === 'number') options.gap = o.gap;
     if (typeof o.cycleGap === 'number') options.cycleGap = o.cycleGap;
     if (typeof o.volume === 'number') options.volume = o.volume;
+    if (typeof o.sentencePause === 'number') options.sentencePause = o.sentencePause;
     if (o.voices) {
       if (o.voices.es !== undefined) options.voices.es = o.voices.es;
       if (o.voices.en !== undefined) options.voices.en = o.voices.en;
@@ -249,6 +283,8 @@
     supported: !!synth,
     onVoicesReady: onVoicesReady,
     getVoices: getVoices,
+    rankedVoices: rankedVoices,
+    isNatural: isNatural,
     play: play, stop: stop, pause: pause, resume: resume,
     setOptions: setOptions, onState: onState, test: test,
     splitChunks: splitChunks,

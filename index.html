@@ -225,6 +225,43 @@
     </div>
   </section>
 
+  <!-- ============ CALIDAD DE VOZ ============ -->
+  <section class="card span2">
+    <h2>8 &middot; Calidad de voz</h2>
+    <p class="help">
+      Las voces las pone el sistema, no el programa. Las voces <b>naturales</b> (neuronales)
+      suenan como una persona; las antiguas de Windows suenan metálicas. Abajo se listan las
+      que tiene esta computadora: las marcadas con &#9733; son naturales y el programa las
+      elige solas.
+    </p>
+    <div class="grid2">
+      <div>
+        <h3>Voces en español</h3>
+        <div id="voiceListEs" class="voicelist"></div>
+      </div>
+      <div>
+        <h3>Voces en inglés</h3>
+        <div id="voiceListEn" class="voicelist"></div>
+      </div>
+    </div>
+    <h3>Cómo conseguir voces naturales</h3>
+    <ol class="help">
+      <li><b>Lo más rápido</b>: abrir el ATIS en <b>Microsoft Edge</b>. Edge trae voces naturales
+        (en español de México, <i>Dalia</i> y <i>Jorge</i>; en inglés, <i>Aria</i>, <i>Guy</i> o
+        <i>Jenny</i>) sin instalar nada. Necesitan conexión a internet.</li>
+      <li><b>Sin internet</b>: instalar las voces naturales de Windows 11 en
+        <i>Configuración &rarr; Accesibilidad &rarr; Narrador &rarr; Agregar voces naturales</i>,
+        y agregar también el idioma inglés en <i>Hora e idioma &rarr; Idioma y región</i>.
+        Después reiniciar el navegador.</li>
+      <li>Si solo aparecen voces con la palabra <i>Desktop</i> en el nombre, son las antiguas de
+        Windows: suenan robóticas aunque se baje la velocidad.</li>
+    </ol>
+    <p class="help">
+      Para que la locución no suene apresurada: velocidad entre <b>0.85</b> y <b>0.95</b>, pausa
+      entre frases de <b>250 ms</b> y pausa entre idiomas de <b>3 s</b>.
+    </p>
+  </section>
+
 </main>
 
 <!-- ============ BARRA DE REPRODUCCIÓN ============ -->
@@ -243,8 +280,11 @@
     <label class="field compact"><span>Velocidad</span>
       <input id="rate" type="range" min="0.6" max="1.4" step="0.05" value="0.95">
     </label>
-    <label class="field compact"><span>Pausa (s)</span>
+    <label class="field compact"><span>Pausa idiomas (s)</span>
       <input id="gap" type="number" min="0" max="30" step="1" value="3">
+    </label>
+    <label class="field compact"><span>Pausa frases (ms)</span>
+      <input id="sentencePause" type="number" min="0" max="1500" step="50" value="250">
     </label>
     <button id="btnTestEs" class="mini">prueba ES</button>
     <button id="btnTestEn" class="mini">prueba EN</button>

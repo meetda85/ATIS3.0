@@ -153,7 +153,7 @@ test('guion en espanol e ingles a partir del METAR', () => {
   assert.ok(es.speech.indexOf('tres cero tres nueve') > 0, es.speech);
   assert.ok(es.speech.indexOf('dos mil pies') > 0, es.speech);
   assert.ok(es.speech.indexOf('dos dos, punto de rocío uno uno') > 0, es.speech);
-  assert.ok(es.speech.indexOf('PISTA cero cinco DERECHA CERRADA') > 0, es.speech);
+  assert.ok(es.speech.indexOf('Pista cero cinco Derecha Cerrada') > 0, es.speech);
 
   assert.ok(en.text.indexOf('Mexico City International Airport, information SIERRA') === 0, en.text);
   assert.ok(en.text.indexOf('Expect RNP approach runway 05 left') > 0, en.text);

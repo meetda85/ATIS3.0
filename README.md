@@ -30,9 +30,21 @@ Para quitarlo: **`DESINSTALAR.bat`**.
 
 ### Voces
 
-Las voces las pone Windows, no el programa. Si no suena, agregarlas en
-*Configuración → Hora e idioma → Voz → Agregar voces*: hace falta una voz en **español**
-y una en **inglés**. En la barra inferior se elige cuál usa cada idioma y a qué velocidad.
+Las voces las pone el sistema, no el programa, y de ahí depende que la locución suene
+humana o metálica. El cuadro **8 · Calidad de voz** muestra las que tiene la computadora:
+las marcadas con ★ son **naturales** (neuronales) y el programa las elige solas.
+
+- **Lo más rápido**: abrir el ATIS en **Microsoft Edge**. Trae voces naturales sin instalar
+  nada — en español de México *Dalia* y *Jorge*; en inglés *Aria*, *Guy* o *Jenny*. Requieren
+  conexión a internet. El instalador usa Edge si está disponible.
+- **Sin internet**: instalar las voces naturales de Windows 11 en *Configuración →
+  Accesibilidad → Narrador → Agregar voces naturales*, y agregar el idioma inglés en
+  *Hora e idioma → Idioma y región*. Después reiniciar el navegador.
+- Las voces cuyo nombre lleva *Desktop* son las antiguas de Windows: suenan robóticas
+  por más que se baje la velocidad.
+
+Ajustes recomendados: velocidad **0.85–0.95**, pausa entre frases **250 ms**, pausa entre
+idiomas **3 s**.
 
 ## Uso rápido
 

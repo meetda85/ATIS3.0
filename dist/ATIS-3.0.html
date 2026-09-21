@@ -218,6 +218,24 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
 .pstate-sub { font-size: 12px; color: var(--muted); }
 .popts { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
 
+/* ---------- Ayuda y lista de voces ---------- */
+.help { font-size: 13px; line-height: 1.6; color: var(--muted); margin: 6px 0; }
+.help b { color: var(--text); }
+ol.help { padding-left: 20px; }
+ol.help li { margin-bottom: 6px; }
+.voicelist { display: flex; flex-direction: column; gap: 4px; }
+.voiceitem {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; padding: 5px 9px; border-radius: 6px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.voiceitem .vname { flex: 1; }
+.voiceitem .vlang { color: var(--muted); font-family: "Consolas", monospace; }
+.voiceitem.natural { border-color: var(--accent); }
+.voiceitem.natural .vname { color: var(--accent); font-weight: 600; }
+.voiceitem.inuse::after { content: 'en uso'; font-size: 10px; color: var(--amber); letter-spacing: 1px; }
+.pstate-sub.warn { color: var(--amber); }
+
 </style>
 </head>
 <body>
@@ -439,6 +457,43 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     </div>
   </section>
 
+  <!-- ============ CALIDAD DE VOZ ============ -->
+  <section class="card span2">
+    <h2>8 &middot; Calidad de voz</h2>
+    <p class="help">
+      Las voces las pone el sistema, no el programa. Las voces <b>naturales</b> (neuronales)
+      suenan como una persona; las antiguas de Windows suenan metálicas. Abajo se listan las
+      que tiene esta computadora: las marcadas con &#9733; son naturales y el programa las
+      elige solas.
+    </p>
+    <div class="grid2">
+      <div>
+        <h3>Voces en español</h3>
+        <div id="voiceListEs" class="voicelist"></div>
+      </div>
+      <div>
+        <h3>Voces en inglés</h3>
+        <div id="voiceListEn" class="voicelist"></div>
+      </div>
+    </div>
+    <h3>Cómo conseguir voces naturales</h3>
+    <ol class="help">
+      <li><b>Lo más rápido</b>: abrir el ATIS en <b>Microsoft Edge</b>. Edge trae voces naturales
+        (en español de México, <i>Dalia</i> y <i>Jorge</i>; en inglés, <i>Aria</i>, <i>Guy</i> o
+        <i>Jenny</i>) sin instalar nada. Necesitan conexión a internet.</li>
+      <li><b>Sin internet</b>: instalar las voces naturales de Windows 11 en
+        <i>Configuración &rarr; Accesibilidad &rarr; Narrador &rarr; Agregar voces naturales</i>,
+        y agregar también el idioma inglés en <i>Hora e idioma &rarr; Idioma y región</i>.
+        Después reiniciar el navegador.</li>
+      <li>Si solo aparecen voces con la palabra <i>Desktop</i> en el nombre, son las antiguas de
+        Windows: suenan robóticas aunque se baje la velocidad.</li>
+    </ol>
+    <p class="help">
+      Para que la locución no suene apresurada: velocidad entre <b>0.85</b> y <b>0.95</b>, pausa
+      entre frases de <b>250 ms</b> y pausa entre idiomas de <b>3 s</b>.
+    </p>
+  </section>
+
 </main>
 
 <!-- ============ BARRA DE REPRODUCCIÓN ============ -->
@@ -457,8 +512,11 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     <label class="field compact"><span>Velocidad</span>
       <input id="rate" type="range" min="0.6" max="1.4" step="0.05" value="0.95">
     </label>
-    <label class="field compact"><span>Pausa (s)</span>
+    <label class="field compact"><span>Pausa idiomas (s)</span>
       <input id="gap" type="number" min="0" max="30" step="1" value="3">
+    </label>
+    <label class="field compact"><span>Pausa frases (ms)</span>
+      <input id="sentencePause" type="number" min="0" max="1500" step="50" value="250">
     </label>
     <button id="btnTestEs" class="mini">prueba ES</button>
     <button id="btnTestEn" class="mini">prueba EN</button>
@@ -1646,6 +1704,19 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     'September', 'October', 'November', 'December'
   ].join('|') + ')\\s+$', 'i');
 
+  /* Siglas que deben seguir en mayusculas para que se lean letra por letra */
+  var SIGLAS = ('ILS RNP VOR NDB DME ATIS NOTAM PAPI RVR QNH QFE UTC CAVOK SID STAR ' +
+    'VFR IFR TWY RWY ATC TWR APP SMR ACFT ETA ETD NOSIG TEMPO BECMG').split(' ');
+
+  /* El texto libre en MAYUSCULAS hace que algunas voces deletreen palabra por palabra */
+  function softenCaps(text) {
+    return String(text || '').replace(/\b[A-ZÁÉÍÓÚÜÑ]{4,}\b/g, function (w) {
+      if (SIGLAS.indexOf(w) >= 0) return w;
+      if (!/[AEIOUÁÉÍÓÚ]/.test(w)) return w;
+      return w.charAt(0) + w.slice(1).toLowerCase();
+    });
+  }
+
   function speakNumbers(text, lang) {
     return String(text || '').replace(/(\d):(\d)/g, '$1 $2').replace(/(\d+)(\s+(?:de|of)\b)?/g, function (all, d, tail, offset, whole) {
       if (!tail && MONTH_RE.test(whole.slice(offset + d.length, offset + d.length + 12))) {
@@ -1840,7 +1911,7 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
         var clean = String(line).trim();
         if (!clean) return;
         if (!/[.!?]$/.test(clean)) clean += '.';
-        b.add(clean, speakNumbers(clean, lang));
+        b.add(clean, speakNumbers(softenCaps(clean), lang));
       });
     }
 
@@ -1851,7 +1922,7 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
       b.add(L ? 'Información adicional.' : 'Additional information.');
       extra.forEach(function (line) {
         if (!/[.!?]$/.test(line)) line += '.';
-        b.add(line, speakNumbers(line, lang));
+        b.add(line, speakNumbers(softenCaps(line), lang));
       });
     }
 
@@ -1916,6 +1987,7 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     build: build,
     fromMetar: fromMetar,
     speakNumbers: speakNumbers,
+    softenCaps: softenCaps,
     SKY_LABELS: SKY_LABELS,
     VIS_CAUSES: VIS_CAUSES,
     RWY_CONDITIONS: RWY_CONDITIONS,
@@ -1953,7 +2025,8 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     voices: { es: null, en: null },
     rate: { es: 0.95, en: 0.95 },
     pitch: { es: 1, en: 1 },
-    volume: 1
+    volume: 1,
+    sentencePause: 250       /* milisegundos entre frases, da naturalidad */
   };
 
   var idx = 0;
@@ -1981,13 +2054,15 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
   }
 
   function onVoicesReady(cb) {
-    if (voices.length) cb(voices);
-    else {
-      readyCbs.push(cb);
-      /* Algunos navegadores tardan en publicar las voces */
-      setTimeout(loadVoices, 250);
-      setTimeout(loadVoices, 1000);
-    }
+    if (voices.length) { cb(voices); return; }
+    var llamado = false;
+    function una(list) { if (!llamado) { llamado = true; cb(list); } }
+    readyCbs.push(una);
+    /* Algunos navegadores tardan en publicar las voces */
+    setTimeout(loadVoices, 250);
+    setTimeout(loadVoices, 1000);
+    /* Si el sistema no tiene ninguna voz, hay que avisarlo igual */
+    setTimeout(function () { una(voices); }, 2500);
   }
 
   function getVoices(langPrefix) {
@@ -1997,16 +2072,41 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     });
   }
 
+  /* Una voz neuronal ("natural", "neural") suena humana; las SAPI de Windows suenan roboticas */
+  function isNatural(v) {
+    return /natural|neural/i.test(v.name || '');
+  }
+
+  function voiceScore(v, langPrefix) {
+    var name = String(v.name || ''), lang = String(v.lang || '').toLowerCase();
+    var score = 0;
+    if (isNatural(v)) score += 100;
+    else if (/google/i.test(name)) score += 60;
+    if (v.localService === false) score += 20;
+    if (/desktop/i.test(name)) score -= 15;          /* voces SAPI antiguas */
+    if (lang === (langPrefix === 'es' ? 'es-mx' : 'en-us')) score += 15;
+    else if (langPrefix === 'es' && /^es-(419|us|co|ar|cl)/.test(lang)) score += 8;
+    else if (langPrefix === 'en' && /^en-(ca|gb|au)/.test(lang)) score += 5;
+    return score;
+  }
+
+  /* Voces del idioma, de mejor a peor calidad */
+  function rankedVoices(langPrefix) {
+    return getVoices(langPrefix)
+      .map(function (v) {
+        return { voice: v, name: v.name, lang: v.lang, natural: isNatural(v), score: voiceScore(v, langPrefix) };
+      })
+      .sort(function (a, b) { return b.score - a.score || a.name.localeCompare(b.name); });
+  }
+
   function findVoice(name, langPrefix) {
     var v = null;
     if (name) {
       v = voices.filter(function (x) { return x.name === name; })[0] || null;
     }
     if (!v) {
-      var list = getVoices(langPrefix);
-      /* Preferencia: es-MX / en-US */
-      var preferred = langPrefix === 'es' ? 'es-mx' : 'en-us';
-      v = list.filter(function (x) { return String(x.lang).toLowerCase() === preferred; })[0] || list[0] || null;
+      var best = rankedVoices(langPrefix)[0];
+      v = best ? best.voice : null;
     }
     return v;
   }
@@ -2074,7 +2174,12 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     u.rate = options.rate[langPrefix] || 1;
     u.pitch = options.pitch[langPrefix] || 1;
     u.volume = options.volume;
-    u.onend = function () { current = null; if (state.playing) speakNext(); };
+    u.onend = function () {
+      current = null;
+      if (!state.playing) return;
+      if (options.sentencePause > 0) timer = setTimeout(speakNext, options.sentencePause);
+      else speakNext();
+    };
     u.onerror = function (e) {
       current = null;
       if (e && (e.error === 'interrupted' || e.error === 'canceled')) return;
@@ -2144,6 +2249,7 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     if (typeof o.gap === 'number') options.gap = o.gap;
     if (typeof o.cycleGap === 'number') options.cycleGap = o.cycleGap;
     if (typeof o.volume === 'number') options.volume = o.volume;
+    if (typeof o.sentencePause === 'number') options.sentencePause = o.sentencePause;
     if (o.voices) {
       if (o.voices.es !== undefined) options.voices.es = o.voices.es;
       if (o.voices.en !== undefined) options.voices.en = o.voices.en;
@@ -2177,6 +2283,8 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     supported: !!synth,
     onVoicesReady: onVoicesReady,
     getVoices: getVoices,
+    rankedVoices: rankedVoices,
+    isNatural: isNatural,
     play: play, stop: stop, pause: pause, resume: resume,
     setOptions: setOptions, onState: onState, test: test,
     splitChunks: splitChunks,
@@ -2220,7 +2328,8 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
       'additionalEs', 'additionalEn', 'includeNotams',
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
       'btnPlay', 'btnStop', 'playState', 'playDetail',
-      'voiceEs', 'voiceEn', 'rate', 'gap', 'btnTestEs', 'btnTestEn'
+      'voiceEs', 'voiceEn', 'rate', 'gap', 'sentencePause', 'btnTestEs', 'btnTestEn',
+      'voiceListEs', 'voiceListEn'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -2624,7 +2733,8 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
         gap: +el.gap.value || 0,
         cycleGap: (+el.gap.value || 0) + 2,
         voices: { es: el.voiceEs.value, en: el.voiceEn.value },
-        rate: { es: +el.rate.value, en: +el.rate.value }
+        rate: { es: +el.rate.value, en: +el.rate.value },
+        sentencePause: +el.sentencePause.value || 0
       }
     );
     if (!ok) { status(el.scriptStatus, 'No hay nada que transmitir.', 'err'); return; }
@@ -2640,7 +2750,7 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     document.querySelector('.brand .dot').classList.remove('live');
     el.playState.textContent = 'Detenido';
     el.playState.classList.remove('live');
-    el.playDetail.textContent = 'Listo para transmitir en bucle: español → inglés';
+    updateVoiceReport();
   }
 
   function initVoices() {
@@ -2648,6 +2758,7 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
       fillVoiceSelect(el.voiceEs, 'es');
       fillVoiceSelect(el.voiceEn, 'en');
       restoreVoices();
+      updateVoiceReport();
     });
     ATIS.speech.onState(function (st) {
       if (!st.playing) return;
@@ -2659,19 +2770,52 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
   }
 
   function fillVoiceSelect(select, lang) {
-    var list = ATIS.speech.getVoices(lang);
+    var list = ATIS.speech.rankedVoices(lang);
     if (!list.length) {
       select.innerHTML = '<option value="">(sin voces ' + lang + ')</option>';
       status(el.scriptStatus, 'El sistema no tiene voces instaladas en ' +
-        (lang === 'es' ? 'español' : 'inglés') + '. Agréguelas en la configuración de voz del sistema operativo.', 'err');
+        (lang === 'es' ? 'español' : 'inglés') + '. Vea el cuadro 8, Calidad de voz.', 'err');
       return;
     }
+    /* Ya vienen de mejor a peor calidad: la primera queda seleccionada */
     select.innerHTML = list.map(function (v) {
-      return '<option value="' + v.name + '">' + v.name + ' (' + v.lang + ')</option>';
+      return '<option value="' + v.name + '">' + (v.natural ? '★ ' : '') + v.name + ' (' + v.lang + ')</option>';
     }).join('');
-    var preferred = lang === 'es' ? /es-MX/i : /en-US/i;
-    for (var i = 0; i < list.length; i++) {
-      if (preferred.test(list[i].lang)) { select.selectedIndex = i; break; }
+    select.selectedIndex = 0;
+  }
+
+  /* Cuadro 8: que voces tiene la computadora */
+  function renderVoiceList(node, lang, selectedName) {
+    var list = ATIS.speech.rankedVoices(lang);
+    if (!list.length) {
+      node.innerHTML = '<span class="status err">No hay ninguna voz en ' +
+        (lang === 'es' ? 'español' : 'inglés') + ' instalada en este equipo.</span>';
+      return;
+    }
+    node.innerHTML = list.map(function (v) {
+      return '<div class="voiceitem' + (v.natural ? ' natural' : '') +
+        (v.name === selectedName ? ' inuse' : '') + '">' +
+        '<span>' + (v.natural ? '★' : '·') + '</span>' +
+        '<span class="vname">' + escapeHtml(v.name) + '</span>' +
+        '<span class="vlang">' + escapeHtml(v.lang) + '</span></div>';
+    }).join('');
+  }
+
+  function updateVoiceReport() {
+    renderVoiceList(el.voiceListEs, 'es', el.voiceEs.value);
+    renderVoiceList(el.voiceListEn, 'en', el.voiceEn.value);
+    var esNat = /^★/.test(el.voiceEs.options[el.voiceEs.selectedIndex] ? el.voiceEs.options[el.voiceEs.selectedIndex].text : '');
+    var enNat = /^★/.test(el.voiceEn.options[el.voiceEn.selectedIndex] ? el.voiceEn.options[el.voiceEn.selectedIndex].text : '');
+    if (!ATIS.speech.state.playing) {
+      if (esNat && enNat) {
+        el.playDetail.textContent = 'Voces naturales seleccionadas. Listo para transmitir en bucle: español → inglés';
+        el.playDetail.classList.remove('warn');
+      } else {
+        el.playDetail.textContent = 'Voz robótica: no hay voz natural en ' +
+          (!esNat && !enNat ? 'español ni inglés' : (!esNat ? 'español' : 'inglés')) +
+          '. Vea el cuadro 8, Calidad de voz.';
+        el.playDetail.classList.add('warn');
+      }
     }
   }
 
@@ -2692,7 +2836,7 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
           includeHpa: el.includeHpa.checked,
           notams: notams.map(function (n) { return { raw: n.raw, include: n.include }; }),
           voices: { es: el.voiceEs.value, en: el.voiceEn.value },
-          rate: el.rate.value, gap: el.gap.value
+          rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value
         }));
       } catch (e) { /* almacenamiento no disponible */ }
     }, 400);
@@ -2739,6 +2883,7 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     el.includeHpa.checked = !!data.includeHpa;
     if (data.rate) el.rate.value = data.rate;
     if (data.gap) el.gap.value = data.gap;
+    if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
     savedVoices = data.voices || null;
     savedApproachRwy = c.approachRunway || '';
     (data.notams || []).forEach(function (n) {
@@ -2866,8 +3011,9 @@ button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; fon
     });
     on(el.rate, 'input', save);
     on(el.gap, 'input', save);
-    on(el.voiceEs, 'change', save);
-    on(el.voiceEn, 'change', save);
+    on(el.sentencePause, 'input', save);
+    on(el.voiceEs, 'change', function () { save(); updateVoiceReport(); });
+    on(el.voiceEn, 'change', function () { save(); updateVoiceReport(); });
 
     on(el.btnDownload, 'click', download);
     Array.prototype.forEach.call(document.querySelectorAll('.copy'), function (b) {
