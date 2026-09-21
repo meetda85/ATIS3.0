@@ -158,7 +158,7 @@
 
   function startKeepAlive() {
     stopKeepAlive();
-    /* Chrome detiene la sintesis despues de ~15 s; resume() la mantiene viva */
+    /* Chrome detiene la síntesis después de ~15 s; resume() la mantiene viva */
     keepAlive = setInterval(function () {
       if (state.playing && !state.paused && synth.speaking) {
         synth.pause(); synth.resume();
@@ -235,7 +235,7 @@
     if (!synth) return;
     synth.cancel();
     var u = new global.SpeechSynthesisUtterance(text || (lang === 'es'
-      ? 'Prueba de voz. Informacion Sierra.'
+      ? 'Prueba de voz. Información Sierra.'
       : 'Voice test. Information Sierra.'));
     var v = findVoice(options.voices[lang], lang);
     if (v) { u.voice = v; u.lang = v.lang; }

@@ -1,4 +1,4 @@
-/* ATIS 3.0 - Modelo de observacion y generador del guion ATIS (ES / EN) */
+/* ATIS 3.0 - Modelo de observación y generador del guion ATIS (ES / EN) */
 (function (global) {
   'use strict';
   var ATIS = global.ATIS = global.ATIS || {};
@@ -44,7 +44,7 @@
     'SHRA': { es: 'Chubascos de lluvia', en: 'Rain showers' },
     TS: { es: 'Tormenta', en: 'Thunderstorm' },
     TSRA: { es: 'Tormenta con lluvia', en: 'Thunderstorm with rain' },
-    VA: { es: 'Ceniza volcanica', en: 'Volcanic ash' }
+    VA: { es: 'Ceniza volcánica', en: 'Volcanic ash' }
   };
 
   var RWY_CONDITIONS = {
@@ -58,12 +58,12 @@
 
   var VIS_UNITS = {
     SM: { es: 'millas terrestres', en: 'statute miles', es1: 'milla terrestre', en1: 'statute mile' },
-    KM: { es: 'kilometros', en: 'kilometers', es1: 'kilometro', en1: 'kilometer' },
+    KM: { es: 'kilómetros', en: 'kilometers', es1: 'kilómetro', en1: 'kilometer' },
     M: { es: 'metros', en: 'meters', es1: 'metro', en1: 'meter' }
   };
 
   /* ------------------------------------------------------------------ *
-   * METAR decodificado -> modelo de observacion del ATIS
+   * METAR decodificado -> modelo de observación del ATIS
    * ------------------------------------------------------------------ */
   function fromMetar(m) {
     var obs = {
@@ -192,24 +192,24 @@
     /* 1. Encabezado */
     var name = (L ? cfg.airportNameEs : cfg.airportNameEn) || cfg.station || '';
     if (cfg.infoType === 'special') {
-      b.add(name + ', ' + (L ? 'informacion especial ' : 'special information ') + info.word + '.',
-        name + ', ' + (L ? 'informacion especial ' : 'special information ') + letterSpeech + '.');
+      b.add(name + ', ' + (L ? 'información especial ' : 'special information ') + info.word + '.',
+        name + ', ' + (L ? 'información especial ' : 'special information ') + letterSpeech + '.');
     } else {
-      b.add(name + ', ' + (L ? 'informacion ' : 'information ') + info.word + '.',
-        name + ', ' + (L ? 'informacion ' : 'information ') + letterSpeech + '.');
+      b.add(name + ', ' + (L ? 'información ' : 'information ') + info.word + '.',
+        name + ', ' + (L ? 'información ' : 'information ') + letterSpeech + '.');
     }
 
-    /* 2. Hora de la observacion */
+    /* 2. Hora de la observación */
     if (obs.time) {
-      b.add((L ? 'Observacion de las ' : 'Weather observation at ') + obs.time + ' zulu.',
-        (L ? 'Observacion de las ' : 'Weather observation at ') + N.spell(obs.time, lang) + ' zulu.');
+      b.add((L ? 'Observación de las ' : 'Weather observation at ') + obs.time + ' zulu.',
+        (L ? 'Observación de las ' : 'Weather observation at ') + N.spell(obs.time, lang) + ' zulu.');
     }
 
-    /* 3. Tipo de aproximacion */
+    /* 3. Tipo de aproximación */
     if (cfg.approach) {
       var apRwy = cfg.approachRunway ? N.runway(cfg.approachRunway, lang) : null;
       var apName = approachName(cfg.approach, lang);
-      var t = (L ? 'Esperar aproximacion ' : 'Expect ') + apName + (L ? '' : ' approach');
+      var t = (L ? 'Esperar aproximación ' : 'Expect ') + apName + (L ? '' : ' approach');
       var s = t;
       if (apRwy) {
         t += (L ? ' a pista ' : ' runway ') + apRwy.text;
@@ -228,16 +228,16 @@
         head + texts.map(function (x) { return x.speech; }).join(join) + '.');
     }
 
-    /* 5. Condicion de la pista */
+    /* 5. Condición de la pista */
     if (cfg.runwayCondition && RWY_CONDITIONS[cfg.runwayCondition]) {
       var rc = RWY_CONDITIONS[cfg.runwayCondition][lang];
       if (rc) b.add(rc + '.');
     }
 
-    /* 6. Nivel de transicion */
+    /* 6. Nivel de transición */
     if (cfg.transitionLevel) {
-      b.add((L ? 'Nivel de transicion ' : 'Transition level ') + cfg.transitionLevel + '.',
-        (L ? 'Nivel de transicion ' : 'Transition level ') + N.spell(cfg.transitionLevel, lang) + '.');
+      b.add((L ? 'Nivel de transición ' : 'Transition level ') + cfg.transitionLevel + '.',
+        (L ? 'Nivel de transición ' : 'Transition level ') + N.spell(cfg.transitionLevel, lang) + '.');
     }
 
     /* 7. Viento */
@@ -296,7 +296,7 @@
         N.cardinal(r.value, lang) + ' ' + unitR + '.');
     });
 
-    /* 10. Condicion de cielo */
+    /* 10. Condición de cielo */
     var layers = (obs.layers || []).filter(function (l) { return l && l.amount; });
     if (layers.length) {
       var lt = [], ls = [];
@@ -319,22 +319,22 @@
       if (lt.length) b.add(lt.join(', ') + '.', ls.join(', ') + '.');
     }
 
-    /* 11. Temperatura y punto de rocio */
+    /* 11. Temperatura y punto de rocío */
     if (obs.temperature !== '' && obs.temperature !== null && obs.temperature !== undefined) {
       var tt = (L ? 'Temperatura ' : 'Temperature ') + obs.temperature;
       var tsp = (L ? 'Temperatura ' : 'Temperature ') + signedSpeech(obs.temperature, lang);
       if (obs.dewpoint !== '' && obs.dewpoint !== null && obs.dewpoint !== undefined) {
-        tt += (L ? ', punto de rocio ' : ', dew point ') + obs.dewpoint;
-        tsp += (L ? ', punto de rocio ' : ', dew point ') + signedSpeech(obs.dewpoint, lang);
+        tt += (L ? ', punto de rocío ' : ', dew point ') + obs.dewpoint;
+        tsp += (L ? ', punto de rocío ' : ', dew point ') + signedSpeech(obs.dewpoint, lang);
       }
       b.add(tt + '.', tsp + '.');
     }
 
-    /* 12. Altimetro / QNH */
+    /* 12. Altímetro / QNH */
     if (obs.altimeter) {
       if (obs.altimeterUnit === 'inHg') {
-        b.add((L ? 'Altimetro ' : 'Altimeter ') + obs.altimeter + '.',
-          (L ? 'Altimetro ' : 'Altimeter ') + N.spell(obs.altimeter, lang) + '.');
+        b.add((L ? 'Altímetro ' : 'Altimeter ') + obs.altimeter + '.',
+          (L ? 'Altímetro ' : 'Altimeter ') + N.spell(obs.altimeter, lang) + '.');
         if (cfg.includeHpa && obs.qnhHpa) {
           b.add('QNH ' + obs.qnhHpa + (L ? ' hectopascales.' : ' hectopascals.'),
             'Q N H ' + N.spell(obs.qnhHpa, lang) + (L ? ' hectopascales.' : ' hectopascals.'));
@@ -363,11 +363,11 @@
       });
     }
 
-    /* 15. Informacion adicional */
+    /* 15. Información adicional */
     var extra = (L ? cfg.additionalEs : cfg.additionalEn) || '';
     extra = String(extra).replace(/\r/g, '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
     if (extra.length) {
-      b.add(L ? 'Informacion adicional.' : 'Additional information.');
+      b.add(L ? 'Información adicional.' : 'Additional information.');
       extra.forEach(function (line) {
         if (!/[.!?]$/.test(line)) line += '.';
         b.add(line, speakNumbers(line, lang));
@@ -375,9 +375,9 @@
     }
 
     /* 16. Cierre */
-    b.add((L ? 'Al establecer comunicacion informe tener informacion ' : 'On initial contact advise you have information ') +
+    b.add((L ? 'Al establecer comunicación informe tener información ' : 'On initial contact advise you have information ') +
       info.word + '.',
-      (L ? 'Al establecer comunicacion informe tener informacion ' : 'On initial contact advise you have information ') +
+      (L ? 'Al establecer comunicación informe tener información ' : 'On initial contact advise you have information ') +
       letterSpeech + '.');
 
     return b.result();

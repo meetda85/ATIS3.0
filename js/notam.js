@@ -149,7 +149,7 @@
       pieces.push((lang === 'es' ? 'Horario: ' : 'Schedule: ') + expand(result.schedule, lang));
     }
     if (result.lower && result.upper) {
-      pieces.push((lang === 'es' ? 'Limites: ' : 'Limits: ') + expand(result.lower, lang) + ' - ' + expand(result.upper, lang));
+      pieces.push((lang === 'es' ? 'Límites: ' : 'Limits: ') + expand(result.lower, lang) + ' - ' + expand(result.upper, lang));
     }
     result.summary = pieces.join('. ') + (pieces.length ? '.' : '');
 

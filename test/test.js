@@ -19,7 +19,7 @@ function test(name, fn) {
 }
 
 console.log('\nMETAR');
-test('MMMX con millas terrestres y altimetro en pulgadas', () => {
+test('MMMX con millas terrestres y altímetro en pulgadas', () => {
   const m = ATIS.metar.parse('MMMX 212145Z 05008KT 6SM HZ SCT020 BKN100 BKN220 22/11 A3039 RMK 8/522');
   assert.strictEqual(m.station, 'MMMX');
   assert.strictEqual(m.day, 21);
@@ -87,7 +87,7 @@ test('designador de pista', () => {
   assert.strictEqual(ATIS.num.runway('23R', 'en').speech, 'two three right');
 });
 
-test('letra de informacion', () => {
+test('letra de información', () => {
   const i = ATIS.num.letterInfo('S');
   assert.strictEqual(i.word, 'SIERRA');
   assert.strictEqual(i.index, 18);
@@ -135,24 +135,24 @@ test('guion en espanol e ingles a partir del METAR', () => {
   const es = ATIS.script.build('es', obs, cfg);
   const en = ATIS.script.build('en', obs, cfg);
 
-  assert.ok(es.text.indexOf('informacion SIERRA') > 0, es.text);
-  assert.ok(es.text.indexOf('Observacion de las 2145 zulu') > 0, es.text);
-  assert.ok(es.text.indexOf('Esperar aproximacion RNP a pista 05 izquierda') > 0, es.text);
+  assert.ok(es.text.indexOf('información SIERRA') > 0, es.text);
+  assert.ok(es.text.indexOf('Observación de las 2145 zulu') > 0, es.text);
+  assert.ok(es.text.indexOf('Esperar aproximación RNP a pista 05 izquierda') > 0, es.text);
   assert.ok(es.text.indexOf('Pista en uso 05 izquierda') > 0, es.text);
   assert.ok(es.text.indexOf('Pista seca') > 0, es.text);
-  assert.ok(es.text.indexOf('Nivel de transicion 200') > 0, es.text);
+  assert.ok(es.text.indexOf('Nivel de transición 200') > 0, es.text);
   assert.ok(es.text.indexOf('Viento 050 grados 8 nudos') > 0, es.text);
   assert.ok(es.text.indexOf('Visibilidad 6 millas terrestres') > 0, es.text);
   assert.ok(es.text.indexOf('Bruma') > 0, es.text);
   assert.ok(es.text.indexOf('Nublado a 2000 pies, cerrado a 10000 pies') > 0, es.text);
-  assert.ok(es.text.indexOf('Temperatura 22, punto de rocio 11') > 0, es.text);
-  assert.ok(es.text.indexOf('Altimetro 3039') > 0, es.text);
+  assert.ok(es.text.indexOf('Temperatura 22, punto de rocío 11') > 0, es.text);
+  assert.ok(es.text.indexOf('Altímetro 3039') > 0, es.text);
   assert.ok(es.text.indexOf('PISTA 05 DERECHA CERRADA') > 0, es.text);
 
   assert.ok(es.speech.indexOf('cero cinco cero grados ocho nudos') > 0, es.speech);
   assert.ok(es.speech.indexOf('tres cero tres nueve') > 0, es.speech);
   assert.ok(es.speech.indexOf('dos mil pies') > 0, es.speech);
-  assert.ok(es.speech.indexOf('dos dos, punto de rocio uno uno') > 0, es.speech);
+  assert.ok(es.speech.indexOf('dos dos, punto de rocío uno uno') > 0, es.speech);
   assert.ok(es.speech.indexOf('PISTA cero cinco DERECHA CERRADA') > 0, es.speech);
 
   assert.ok(en.text.indexOf('Mexico City International Airport, information SIERRA') === 0, en.text);
@@ -166,7 +166,7 @@ test('guion en espanol e ingles a partir del METAR', () => {
 test('viento en calma y NOTAM incluidos en el guion', () => {
   const obs = ATIS.script.fromMetar(ATIS.metar.parse('MMMX 210600Z 00000KT 10SM SKC 12/05 A3025'));
   const cfg = {
-    airportNameEs: 'Aeropuerto Internacional de la Ciudad de Mexico',
+    airportNameEs: 'Aeropuerto Internacional de la Ciudad de México',
     airportNameEn: 'Mexico City International Airport',
     letter: 'A', runwaysInUse: ['05L', '05R'],
     notamLines: ['Pista 05 derecha cerrada.']

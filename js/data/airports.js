@@ -5,7 +5,7 @@
 
   ATIS.airports = {
     MMMX: {
-      es: 'Aeropuerto Internacional de la Ciudad de Mexico',
+      es: 'Aeropuerto Internacional de la Ciudad de México',
       en: 'Mexico City International Airport',
       runways: ['05L', '05R', '23L', '23R'],
       elevation: 7316,

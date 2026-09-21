@@ -61,7 +61,7 @@
     if (parts[i] && RE.station.test(parts[i]) && !RE.time.test(parts[i])) {
       result.station = parts[i]; i++;
     } else {
-      result.errors.push('No se encontro el indicador de estacion');
+      result.errors.push('No se encontro el indicador de estación');
     }
 
     if (parts[i] && RE.time.test(parts[i])) {
@@ -127,7 +127,7 @@
         var sm = parseSM(smText);
         if (sm) { result.visibility = sm; continue; }
       }
-      if (/^\d$/.test(tok) && /SM$/.test(body[k + 1] || '')) continue; /* parte entera, se une despues */
+      if (/^\d$/.test(tok) && /SM$/.test(body[k + 1] || '')) continue; /* parte entera, se une después */
 
       if (result.visibility === null && (m = RE.visMeters.exec(tok))) {
         var meters = +m[1];
