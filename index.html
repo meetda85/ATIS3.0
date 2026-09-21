@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATIS 3.0 - Laboratorio de Torre</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <h1>ATIS 3.0</h1>
+    <span class="sub">Laboratorio de Torre</span>
+  </div>
+  <div class="topfields">
+    <label class="field compact">
+      <span>Estación</span>
+      <input id="station" list="stationList" value="MMMX" maxlength="4" autocomplete="off">
+      <datalist id="stationList"></datalist>
+    </label>
+    <div class="letterbox">
+      <span>Información</span>
+      <div class="letterctl">
+        <button id="letterPrev" class="mini" title="Letra anterior">&#9664;</button>
+        <div id="letterBig">A</div>
+        <button id="letterNext" class="mini" title="Siguiente letra">&#9654;</button>
+      </div>
+      <em id="letterWord">ALFA</em>
+    </div>
+    <div class="clock">
+      <span>UTC</span>
+      <div id="utcClock">--:--:--</div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ METAR ============ -->
+  <section class="card span2">
+    <h2>1 &middot; METAR</h2>
+    <div class="row">
+      <textarea id="metarRaw" rows="3" spellcheck="false"
+        placeholder="MMMX 212145Z 05008KT 6SM HZ SCT020 BKN100 BKN220 22/11 A3039 RMK 8/522"></textarea>
+    </div>
+    <div class="row buttons">
+      <button id="btnDecode" class="primary">Decodificar y llenar</button>
+      <button id="btnFetch">Obtener en línea</button>
+      <button id="btnSample" class="ghost">Ejemplo</button>
+      <span id="metarStatus" class="status"></span>
+    </div>
+    <div id="metarDecoded" class="decoded"></div>
+  </section>
+
+  <!-- ============ INFORMACIÓN / APROXIMACIÓN / PISTA ============ -->
+  <section class="card">
+    <h2>2 &middot; Información</h2>
+    <div class="grid2">
+      <label class="field"><span>Tipo</span>
+        <select id="infoType">
+          <option value="normal">Normal</option>
+          <option value="special">Especial</option>
+        </select>
+      </label>
+      <label class="field"><span>Hora de observación (UTC)</span>
+        <input id="obsTime" maxlength="4" inputmode="numeric" placeholder="2145">
+      </label>
+    </div>
+    <h3>Aproximación</h3>
+    <div class="grid2">
+      <label class="field"><span>Tipo</span>
+        <select id="approach">
+          <option value="">— ninguna —</option>
+          <option value="ILS">ILS</option>
+          <option value="RNP">RNP</option>
+          <option value="VOR">VOR</option>
+          <option value="NDB">NDB</option>
+          <option value="VISUAL">Visual</option>
+          <option value="RADAR">Radar</option>
+        </select>
+      </label>
+      <label class="field"><span>A pista</span>
+        <select id="approachRunway"></select>
+      </label>
+    </div>
+    <div class="field">
+      <span>Pista(s) en uso</span>
+      <div id="runwayChips" class="chips"></div>
+    </div>
+    <div class="grid2">
+      <label class="field"><span>Condición de pista</span>
+        <select id="runwayCondition">
+          <option value="">— sin mención —</option>
+          <option value="DRY">Pista seca</option>
+          <option value="WET">Pista mojada</option>
+          <option value="STANDING_WATER">Agua estancada</option>
+          <option value="SLIPPERY">Resbalosa cuando mojada</option>
+          <option value="WIP">Trabajos en la pista</option>
+        </select>
+      </label>
+      <label class="field"><span>Nivel de transición</span>
+        <input id="transitionLevel" maxlength="3" inputmode="numeric" placeholder="200">
+      </label>
+    </div>
+  </section>
+
+  <!-- ============ VIENTO / VISIBILIDAD / AMBIENTE ============ -->
+  <section class="card">
+    <h2>3 &middot; Viento</h2>
+    <div class="grid2">
+      <label class="field"><span>Modo</span>
+        <select id="windMode">
+          <option value="steady">Estable</option>
+          <option value="variable">Variable</option>
+          <option value="calm">En calma</option>
+        </select>
+      </label>
+      <label class="field"><span>Grados</span>
+        <input id="windDir" maxlength="3" inputmode="numeric" placeholder="050">
+      </label>
+      <label class="field"><span>Nudos</span>
+        <input id="windSpeed" maxlength="3" inputmode="numeric" placeholder="08">
+      </label>
+      <label class="field"><span>Rachas</span>
+        <input id="windGust" maxlength="3" inputmode="numeric" placeholder="">
+      </label>
+      <label class="field"><span>Variable de</span>
+        <input id="windVarFrom" maxlength="3" inputmode="numeric" placeholder="">
+      </label>
+      <label class="field"><span>Variable a</span>
+        <input id="windVarTo" maxlength="3" inputmode="numeric" placeholder="">
+      </label>
+    </div>
+
+    <h2>Visibilidad</h2>
+    <div class="grid3">
+      <label class="field"><span>Distancia</span>
+        <input id="visValue" placeholder="10">
+      </label>
+      <label class="field"><span>Unidad</span>
+        <select id="visUnit">
+          <option value="SM">millas terrestres</option>
+          <option value="KM">kilómetros</option>
+          <option value="M">metros</option>
+        </select>
+      </label>
+      <label class="field"><span>Causa</span>
+        <select id="visCause"></select>
+      </label>
+    </div>
+    <label class="checkline"><input type="checkbox" id="visOrMore"> <span>“o más”</span></label>
+
+    <h2>Ambiente</h2>
+    <div class="grid3">
+      <label class="field"><span>Temperatura</span>
+        <input id="temperature" maxlength="4" placeholder="22">
+      </label>
+      <label class="field"><span>Punto de rocío</span>
+        <input id="dewpoint" maxlength="4" placeholder="11">
+      </label>
+      <label class="field"><span>Altímetro</span>
+        <input id="altimeter" maxlength="4" inputmode="numeric" placeholder="3039">
+      </label>
+    </div>
+    <label class="checkline"><input type="checkbox" id="includeHpa"> <span>Incluir QNH en hectopascales</span></label>
+  </section>
+
+  <!-- ============ CONDICIÓN DE CIELO ============ -->
+  <section class="card">
+    <h2>4 &middot; Condición de cielo</h2>
+    <div id="layers" class="layers"></div>
+    <button id="btnAddLayer" class="ghost small">+ Agregar capa</button>
+  </section>
+
+  <!-- ============ NOTAM ============ -->
+  <section class="card span2">
+    <h2>5 &middot; NOTAM vigentes</h2>
+    <div class="row">
+      <textarea id="notamRaw" rows="4" spellcheck="false"
+        placeholder="A1234/25 NOTAMN&#10;Q) MMFR/QMRLC/IV/NBO/A/000/999/1926N09904W005&#10;A) MMMX B) 2509210600 C) 2509211800&#10;E) RWY 05R/23L CLSD DUE WIP"></textarea>
+    </div>
+    <div class="row buttons">
+      <button id="btnNotamAdd" class="primary">Decodificar y agregar</button>
+      <button id="btnNotamClear" class="ghost">Vaciar lista</button>
+      <span id="notamStatus" class="status"></span>
+    </div>
+    <div id="notamList" class="notamlist"></div>
+  </section>
+
+  <!-- ============ INFORMACIÓN ADICIONAL ============ -->
+  <section class="card span2">
+    <h2>6 &middot; Información adicional</h2>
+    <div class="grid2">
+      <label class="field"><span>Español (una idea por línea)</span>
+        <textarea id="additionalEs" rows="5" spellcheck="false"
+          placeholder="PISTA 05 DERECHA CERRADA&#10;DELTA 1 CERRADO ENTRE PISTA 23 IZQUIERDA Y DELTA"></textarea>
+      </label>
+      <label class="field"><span>Inglés (sin contracciones)</span>
+        <textarea id="additionalEn" rows="5" spellcheck="false"
+          placeholder="RUNWAY 05 RIGHT CLOSED&#10;DELTA 1 CLOSED BETWEEN RUNWAY 23 LEFT AND DELTA"></textarea>
+      </label>
+    </div>
+    <label class="checkline"><input type="checkbox" id="includeNotams" checked>
+      <span>Incluir en la transmisión los NOTAM marcados</span></label>
+  </section>
+
+  <!-- ============ GUION ============ -->
+  <section class="card span2">
+    <h2>7 &middot; Guion ATIS</h2>
+    <div class="grid2">
+      <div>
+        <h3>Español <button class="mini copy" data-copy="scriptEs">copiar</button></h3>
+        <div id="scriptEs" class="script"></div>
+      </div>
+      <div>
+        <h3>English <button class="mini copy" data-copy="scriptEn">copy</button></h3>
+        <div id="scriptEn" class="script"></div>
+      </div>
+    </div>
+    <div class="row buttons">
+      <button id="btnDownload" class="ghost small">Descargar guion (.txt)</button>
+      <span id="scriptStatus" class="status"></span>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ BARRA DE REPRODUCCIÓN ============ -->
+<footer class="player">
+  <div class="pcontrols">
+    <button id="btnPlay" class="play">TRANSMITIR</button>
+    <button id="btnStop" class="stop" disabled>STOP</button>
+  </div>
+  <div class="pstate">
+    <div id="playState" class="pstate-main">Detenido</div>
+    <div id="playDetail" class="pstate-sub">Listo para transmitir en bucle: español &rarr; inglés</div>
+  </div>
+  <div class="popts">
+    <label class="field compact"><span>Voz ES</span><select id="voiceEs"></select></label>
+    <label class="field compact"><span>Voz EN</span><select id="voiceEn"></select></label>
+    <label class="field compact"><span>Velocidad</span>
+      <input id="rate" type="range" min="0.6" max="1.4" step="0.05" value="0.95">
+    </label>
+    <label class="field compact"><span>Pausa (s)</span>
+      <input id="gap" type="number" min="0" max="30" step="1" value="3">
+    </label>
+    <button id="btnTestEs" class="mini">prueba ES</button>
+    <button id="btnTestEn" class="mini">prueba EN</button>
+  </div>
+</footer>
+
+<script src="js/data/dictionary.js"></script>
+<script src="js/data/airports.js"></script>
+<script src="js/lib/numbers.js"></script>
+<script src="js/metar.js"></script>
+<script src="js/notam.js"></script>
+<script src="js/atis.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "atis3",
+  "version": "3.0.0",
+  "description": "Sistema ATIS de laboratorio: decodifica METAR y NOTAM y los transmite en bucle en espanol e ingles",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes http-server . -p 8080 -c-1",
+    "test": "node test/test.js"
+  },
+  "license": "MIT"
+}
