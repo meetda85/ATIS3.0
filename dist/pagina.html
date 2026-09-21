@@ -1,0 +1,2891 @@
+<title>ATIS 3.0 - Laboratorio de Torre</title>
+<style>
+/* ATIS 3.0 - Tema oscuro de torre */
+:root {
+  color-scheme: dark;
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #1c2430;
+  --line: #2a3441;
+  --text: #e6edf3;
+  --muted: #8b98a5;
+  --accent: #33d17a;
+  --accent-dim: #1f7a4a;
+  --amber: #ffb347;
+  --red: #ff6b6b;
+  --blue: #58a6ff;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+}
+
+/* ---------- Barra superior ---------- */
+.topbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  padding: 10px 18px;
+  background: linear-gradient(180deg, #11161d, #0d1117);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { font-size: 22px; margin: 0; letter-spacing: 2px; }
+.brand .sub { color: var(--muted); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
+.brand .dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 10px var(--accent);
+  align-self: center;
+}
+.brand .dot.live { animation: blink 1.4s infinite; background: var(--red); box-shadow: 0 0 12px var(--red); }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+.topfields { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+
+.letterbox { text-align: center; }
+.letterbox > span, .clock > span {
+  display: block; font-size: 10px; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--muted); margin-bottom: 2px;
+}
+.letterctl { display: flex; align-items: center; gap: 6px; }
+#letterBig {
+  font-size: 30px; font-weight: 700; line-height: 1;
+  min-width: 46px; padding: 2px 6px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--accent);
+}
+.letterbox em { font-size: 11px; color: var(--muted); font-style: normal; letter-spacing: 1px; }
+.clock { text-align: right; }
+#utcClock { font-family: "Consolas", monospace; font-size: 22px; color: var(--amber); }
+
+/* ---------- Rejilla principal ---------- */
+main {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 14px 18px 150px;
+  max-width: 1500px; margin: 0 auto;
+}
+.span2 { grid-column: 1 / -1; }
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; }
+  .span2 { grid-column: auto; }
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px 14px;
+}
+.card h2 {
+  margin: 0 0 10px; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 1.6px; color: var(--accent);
+  border-bottom: 1px solid var(--line); padding-bottom: 6px;
+}
+.card h2:not(:first-child) { margin-top: 16px; }
+.card h3 {
+  margin: 14px 0 8px; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 1.4px; color: var(--muted);
+}
+
+/* ---------- Campos ---------- */
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.field > span {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+}
+.field.compact { margin-bottom: 0; }
+.field.compact input, .field.compact select { min-width: 90px; }
+
+input, select, textarea {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 8px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+}
+textarea { font-family: "Consolas", monospace; font-size: 13px; resize: vertical; line-height: 1.5; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+input[type="range"] { padding: 0; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 620px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+
+.row { margin-bottom: 8px; }
+.row.buttons { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.checkline { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin: 6px 0; }
+.checkline input { width: auto; }
+
+/* ---------- Botones ---------- */
+button {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 14px; cursor: pointer; font-size: 13px; font-family: inherit;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent-dim); border-color: var(--accent); color: #eafff2; font-weight: 600; }
+button.ghost { background: transparent; }
+button.small { padding: 5px 10px; font-size: 12px; }
+button.mini { padding: 3px 8px; font-size: 11px; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  padding: 6px 12px; border-radius: 20px; font-size: 13px;
+  background: var(--panel-2); border: 1px solid var(--line); cursor: pointer;
+}
+.chip.on { background: var(--accent-dim); border-color: var(--accent); color: #eafff2; font-weight: 600; }
+
+.status { font-size: 12px; color: var(--muted); }
+.status.ok { color: var(--accent); }
+.status.err { color: var(--red); }
+
+/* ---------- METAR decodificado ---------- */
+.decoded { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.tag {
+  font-size: 12px; padding: 3px 9px; border-radius: 5px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+}
+.tag b { color: var(--muted); font-weight: 500; margin-right: 5px; text-transform: uppercase; font-size: 10px; }
+.tag.warn { border-color: var(--amber); }
+
+/* ---------- Capas de cielo ---------- */
+.layers { display: flex; flex-direction: column; gap: 8px; }
+.layer { display: grid; grid-template-columns: 2fr 1fr auto; gap: 8px; align-items: end; }
+.layer .field { margin-bottom: 0; }
+
+/* ---------- NOTAM ---------- */
+.notamlist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.notam {
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel-2); padding: 10px 12px;
+}
+.notam header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;
+}
+.notam header .id { font-weight: 700; color: var(--amber); font-family: "Consolas", monospace; }
+.notam header .q { font-size: 11px; color: var(--muted); }
+.notam header .spacer { flex: 1; }
+.notam .txt { font-size: 13px; line-height: 1.5; margin: 3px 0; }
+.notam .txt.en { color: var(--blue); }
+.notam .raw {
+  font-family: "Consolas", monospace; font-size: 11px; color: var(--muted);
+  white-space: pre-wrap; margin-top: 6px; border-top: 1px dashed var(--line); padding-top: 6px;
+}
+.notam.off { opacity: .45; }
+
+/* ---------- Guion ---------- */
+.script {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px; font-size: 14px; line-height: 1.65; min-height: 140px;
+  max-height: 340px; overflow: auto; white-space: pre-wrap;
+}
+.script .sent { display: inline; }
+.script .sent.active { background: var(--accent-dim); border-radius: 3px; }
+
+/* ---------- Reproductor ---------- */
+.player {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 10px 18px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: #11161d; border-top: 2px solid var(--line);
+  box-shadow: 0 -6px 18px rgba(0,0,0,.45);
+}
+.pcontrols { display: flex; gap: 8px; }
+button.play {
+  background: var(--accent-dim); border-color: var(--accent); color: #eafff2;
+  font-weight: 700; letter-spacing: 1.5px; padding: 12px 26px; font-size: 14px;
+}
+button.stop { background: #5c1f1f; border-color: var(--red); color: #ffecec; font-weight: 700; letter-spacing: 1.5px; padding: 12px 22px; }
+.pstate { min-width: 230px; flex: 1; }
+.pstate-main { font-size: 15px; font-weight: 600; }
+.pstate-main.live { color: var(--red); }
+.pstate-sub { font-size: 12px; color: var(--muted); }
+.popts { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+
+</style>
+
+
+<header class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <h1>ATIS 3.0</h1>
+    <span class="sub">Laboratorio de Torre</span>
+  </div>
+  <div class="topfields">
+    <label class="field compact">
+      <span>Estación</span>
+      <input id="station" list="stationList" value="MMMX" maxlength="4" autocomplete="off">
+      <datalist id="stationList"></datalist>
+    </label>
+    <div class="letterbox">
+      <span>Información</span>
+      <div class="letterctl">
+        <button id="letterPrev" class="mini" title="Letra anterior">&#9664;</button>
+        <div id="letterBig">A</div>
+        <button id="letterNext" class="mini" title="Siguiente letra">&#9654;</button>
+      </div>
+      <em id="letterWord">ALFA</em>
+    </div>
+    <div class="clock">
+      <span>UTC</span>
+      <div id="utcClock">--:--:--</div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ METAR ============ -->
+  <section class="card span2">
+    <h2>1 &middot; METAR</h2>
+    <div class="row">
+      <textarea id="metarRaw" rows="3" spellcheck="false"
+        placeholder="MMMX 212145Z 05008KT 6SM HZ SCT020 BKN100 BKN220 22/11 A3039 RMK 8/522"></textarea>
+    </div>
+    <div class="row buttons">
+      <button id="btnDecode" class="primary">Decodificar y llenar</button>
+      <button id="btnFetch">Obtener en línea</button>
+      <button id="btnSample" class="ghost">Ejemplo</button>
+      <span id="metarStatus" class="status"></span>
+    </div>
+    <div id="metarDecoded" class="decoded"></div>
+  </section>
+
+  <!-- ============ INFORMACIÓN / APROXIMACIÓN / PISTA ============ -->
+  <section class="card">
+    <h2>2 &middot; Información</h2>
+    <div class="grid2">
+      <label class="field"><span>Tipo</span>
+        <select id="infoType">
+          <option value="normal">Normal</option>
+          <option value="special">Especial</option>
+        </select>
+      </label>
+      <label class="field"><span>Hora de observación (UTC)</span>
+        <input id="obsTime" maxlength="4" inputmode="numeric" placeholder="2145">
+      </label>
+    </div>
+    <h3>Aproximación</h3>
+    <div class="grid2">
+      <label class="field"><span>Tipo</span>
+        <select id="approach">
+          <option value="">— ninguna —</option>
+          <option value="ILS">ILS</option>
+          <option value="RNP">RNP</option>
+          <option value="VOR">VOR</option>
+          <option value="NDB">NDB</option>
+          <option value="VISUAL">Visual</option>
+          <option value="RADAR">Radar</option>
+        </select>
+      </label>
+      <label class="field"><span>A pista</span>
+        <select id="approachRunway"></select>
+      </label>
+    </div>
+    <div class="field">
+      <span>Pista(s) en uso</span>
+      <div id="runwayChips" class="chips"></div>
+    </div>
+    <div class="grid2">
+      <label class="field"><span>Condición de pista</span>
+        <select id="runwayCondition">
+          <option value="">— sin mención —</option>
+          <option value="DRY">Pista seca</option>
+          <option value="WET">Pista mojada</option>
+          <option value="STANDING_WATER">Agua estancada</option>
+          <option value="SLIPPERY">Resbalosa cuando mojada</option>
+          <option value="WIP">Trabajos en la pista</option>
+        </select>
+      </label>
+      <label class="field"><span>Nivel de transición</span>
+        <input id="transitionLevel" maxlength="3" inputmode="numeric" placeholder="200">
+      </label>
+    </div>
+  </section>
+
+  <!-- ============ VIENTO / VISIBILIDAD / AMBIENTE ============ -->
+  <section class="card">
+    <h2>3 &middot; Viento</h2>
+    <div class="grid2">
+      <label class="field"><span>Modo</span>
+        <select id="windMode">
+          <option value="steady">Estable</option>
+          <option value="variable">Variable</option>
+          <option value="calm">En calma</option>
+        </select>
+      </label>
+      <label class="field"><span>Grados</span>
+        <input id="windDir" maxlength="3" inputmode="numeric" placeholder="050">
+      </label>
+      <label class="field"><span>Nudos</span>
+        <input id="windSpeed" maxlength="3" inputmode="numeric" placeholder="08">
+      </label>
+      <label class="field"><span>Rachas</span>
+        <input id="windGust" maxlength="3" inputmode="numeric" placeholder="">
+      </label>
+      <label class="field"><span>Variable de</span>
+        <input id="windVarFrom" maxlength="3" inputmode="numeric" placeholder="">
+      </label>
+      <label class="field"><span>Variable a</span>
+        <input id="windVarTo" maxlength="3" inputmode="numeric" placeholder="">
+      </label>
+    </div>
+
+    <h2>Visibilidad</h2>
+    <div class="grid3">
+      <label class="field"><span>Distancia</span>
+        <input id="visValue" placeholder="10">
+      </label>
+      <label class="field"><span>Unidad</span>
+        <select id="visUnit">
+          <option value="SM">millas terrestres</option>
+          <option value="KM">kilómetros</option>
+          <option value="M">metros</option>
+        </select>
+      </label>
+      <label class="field"><span>Causa</span>
+        <select id="visCause"></select>
+      </label>
+    </div>
+    <label class="checkline"><input type="checkbox" id="visOrMore"> <span>“o más”</span></label>
+
+    <h2>Ambiente</h2>
+    <div class="grid3">
+      <label class="field"><span>Temperatura</span>
+        <input id="temperature" maxlength="4" placeholder="22">
+      </label>
+      <label class="field"><span>Punto de rocío</span>
+        <input id="dewpoint" maxlength="4" placeholder="11">
+      </label>
+      <label class="field"><span>Altímetro</span>
+        <input id="altimeter" maxlength="4" inputmode="numeric" placeholder="3039">
+      </label>
+    </div>
+    <label class="checkline"><input type="checkbox" id="includeHpa"> <span>Incluir QNH en hectopascales</span></label>
+  </section>
+
+  <!-- ============ CONDICIÓN DE CIELO ============ -->
+  <section class="card">
+    <h2>4 &middot; Condición de cielo</h2>
+    <div id="layers" class="layers"></div>
+    <button id="btnAddLayer" class="ghost small">+ Agregar capa</button>
+  </section>
+
+  <!-- ============ NOTAM ============ -->
+  <section class="card span2">
+    <h2>5 &middot; NOTAM vigentes</h2>
+    <div class="row">
+      <textarea id="notamRaw" rows="4" spellcheck="false"
+        placeholder="A1234/25 NOTAMN&#10;Q) MMFR/QMRLC/IV/NBO/A/000/999/1926N09904W005&#10;A) MMMX B) 2509210600 C) 2509211800&#10;E) RWY 05R/23L CLSD DUE WIP"></textarea>
+    </div>
+    <div class="row buttons">
+      <button id="btnNotamAdd" class="primary">Decodificar y agregar</button>
+      <button id="btnNotamClear" class="ghost">Vaciar lista</button>
+      <span id="notamStatus" class="status"></span>
+    </div>
+    <div id="notamList" class="notamlist"></div>
+  </section>
+
+  <!-- ============ INFORMACIÓN ADICIONAL ============ -->
+  <section class="card span2">
+    <h2>6 &middot; Información adicional</h2>
+    <div class="grid2">
+      <label class="field"><span>Español (una idea por línea)</span>
+        <textarea id="additionalEs" rows="5" spellcheck="false"
+          placeholder="PISTA 05 DERECHA CERRADA&#10;DELTA 1 CERRADO ENTRE PISTA 23 IZQUIERDA Y DELTA"></textarea>
+      </label>
+      <label class="field"><span>Inglés (sin contracciones)</span>
+        <textarea id="additionalEn" rows="5" spellcheck="false"
+          placeholder="RUNWAY 05 RIGHT CLOSED&#10;DELTA 1 CLOSED BETWEEN RUNWAY 23 LEFT AND DELTA"></textarea>
+      </label>
+    </div>
+    <label class="checkline"><input type="checkbox" id="includeNotams" checked>
+      <span>Incluir en la transmisión los NOTAM marcados</span></label>
+  </section>
+
+  <!-- ============ GUION ============ -->
+  <section class="card span2">
+    <h2>7 &middot; Guion ATIS</h2>
+    <div class="grid2">
+      <div>
+        <h3>Español <button class="mini copy" data-copy="scriptEs">copiar</button></h3>
+        <div id="scriptEs" class="script"></div>
+      </div>
+      <div>
+        <h3>English <button class="mini copy" data-copy="scriptEn">copy</button></h3>
+        <div id="scriptEn" class="script"></div>
+      </div>
+    </div>
+    <div class="row buttons">
+      <button id="btnDownload" class="ghost small">Descargar guion (.txt)</button>
+      <span id="scriptStatus" class="status"></span>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ BARRA DE REPRODUCCIÓN ============ -->
+<footer class="player">
+  <div class="pcontrols">
+    <button id="btnPlay" class="play">TRANSMITIR</button>
+    <button id="btnStop" class="stop" disabled>STOP</button>
+  </div>
+  <div class="pstate">
+    <div id="playState" class="pstate-main">Detenido</div>
+    <div id="playDetail" class="pstate-sub">Listo para transmitir en bucle: español &rarr; inglés</div>
+  </div>
+  <div class="popts">
+    <label class="field compact"><span>Voz ES</span><select id="voiceEs"></select></label>
+    <label class="field compact"><span>Voz EN</span><select id="voiceEn"></select></label>
+    <label class="field compact"><span>Velocidad</span>
+      <input id="rate" type="range" min="0.6" max="1.4" step="0.05" value="0.95">
+    </label>
+    <label class="field compact"><span>Pausa (s)</span>
+      <input id="gap" type="number" min="0" max="30" step="1" value="3">
+    </label>
+    <button id="btnTestEs" class="mini">prueba ES</button>
+    <button id="btnTestEn" class="mini">prueba EN</button>
+  </div>
+</footer>
+
+<script>
+/* js/data/dictionary.js */
+/* ATIS 3.0 - Diccionarios de codigos aeronauticos (METAR / NOTAM)
+ * Cada entrada tiene forma { es: '...', en: '...' }
+ */
+(function (global) {
+  'use strict';
+  var ATIS = global.ATIS = global.ATIS || {};
+
+  /* ------------------------------------------------------------------ *
+   * METAR: fenomenos meteorologicos presentes
+   * ------------------------------------------------------------------ */
+  var INTENSITY = {
+    '-': { es: 'ligera', en: 'light' },
+    '+': { es: 'fuerte', en: 'heavy' },
+    'VC': { es: 'en las cercanias', en: 'in the vicinity' }
+  };
+
+  var DESCRIPTOR = {
+    MI: { es: 'banco bajo de', en: 'shallow' },
+    BC: { es: 'bancos de', en: 'patches of' },
+    PR: { es: 'parcial', en: 'partial' },
+    DR: { es: 'baja levantada por el viento', en: 'low drifting' },
+    BL: { es: 'levantada por el viento', en: 'blowing' },
+    SH: { es: 'chubascos de', en: 'showers of' },
+    TS: { es: 'tormenta con', en: 'thunderstorm with' },
+    FZ: { es: 'engelante', en: 'freezing' }
+  };
+
+  var PHENOMENON = {
+    DZ: { es: 'llovizna', en: 'drizzle' },
+    RA: { es: 'lluvia', en: 'rain' },
+    SN: { es: 'nieve', en: 'snow' },
+    SG: { es: 'cinarra', en: 'snow grains' },
+    IC: { es: 'cristales de hielo', en: 'ice crystals' },
+    PL: { es: 'gránulos de hielo', en: 'ice pellets' },
+    GR: { es: 'granizo', en: 'hail' },
+    GS: { es: 'granizo menudo', en: 'small hail' },
+    UP: { es: 'precipitación desconocida', en: 'unknown precipitation' },
+    BR: { es: 'neblina', en: 'mist' },
+    FG: { es: 'niebla', en: 'fog' },
+    FU: { es: 'humo', en: 'smoke' },
+    VA: { es: 'ceniza volcánica', en: 'volcanic ash' },
+    DU: { es: 'polvo extendido', en: 'widespread dust' },
+    SA: { es: 'arena', en: 'sand' },
+    HZ: { es: 'bruma', en: 'haze' },
+    PY: { es: 'rocío de agua', en: 'spray' },
+    PO: { es: 'remolinos de polvo o arena', en: 'dust or sand whirls' },
+    SQ: { es: 'turbonada', en: 'squall' },
+    FC: { es: 'tromba o tornado', en: 'funnel cloud or tornado' },
+    SS: { es: 'tempestad de arena', en: 'sandstorm' },
+    DS: { es: 'tempestad de polvo', en: 'duststorm' },
+    TS: { es: 'tormenta', en: 'thunderstorm' }
+  };
+
+  var CLOUD_AMOUNT = {
+    FEW: { es: 'pocas nubes', en: 'few clouds', short_es: 'pocas', short_en: 'few' },
+    SCT: { es: 'nubosidad dispersa', en: 'scattered clouds', short_es: 'dispersas', short_en: 'scattered' },
+    BKN: { es: 'cielo fragmentado', en: 'broken clouds', short_es: 'fragmentado', short_en: 'broken' },
+    OVC: { es: 'cielo cubierto', en: 'overcast', short_es: 'cubierto', short_en: 'overcast' }
+  };
+
+  var CLOUD_TYPE = {
+    CB: { es: 'cumulonimbus', en: 'cumulonimbus' },
+    TCU: { es: 'cumulos en torre', en: 'towering cumulus' }
+  };
+
+  var SKY_STATE = {
+    NSC: { es: 'sin nubes de importancia operacional', en: 'no significant cloud' },
+    NCD: { es: 'sin nubes detectadas', en: 'no cloud detected' },
+    SKC: { es: 'cielo despejado', en: 'sky clear' },
+    CLR: { es: 'cielo despejado por debajo de 12 mil pies', en: 'clear below one two thousand feet' }
+  };
+
+  var TREND = {
+    NOSIG: { es: 'sin cambios significativos', en: 'no significant change' },
+    BECMG: { es: 'cambiando a', en: 'becoming' },
+    TEMPO: { es: 'temporalmente', en: 'temporarily' }
+  };
+
+  /* ------------------------------------------------------------------ *
+   * NOTAM: contracciones ICAO Doc 8400 (las de uso mas frecuente)
+   * ------------------------------------------------------------------ */
+  var CONTRACTIONS = {
+    ABN: { es: 'faro de aeródromo', en: 'aerodrome beacon' },
+    ABV: { es: 'arriba de', en: 'above' },
+    ACFT: { es: 'aeronave', en: 'aircraft' },
+    ACT: { es: 'activo', en: 'active' },
+    AD: { es: 'aeródromo', en: 'aerodrome' },
+    ADJ: { es: 'adyacente', en: 'adjacent' },
+    AFT: { es: 'después de', en: 'after' },
+    AGL: { es: 'sobre el nivel del terreno', en: 'above ground level' },
+    AMSL: { es: 'sobre el nivel medio del mar', en: 'above mean sea level' },
+    APCH: { es: 'aproximación', en: 'approach' },
+    APN: { es: 'plataforma', en: 'apron' },
+    APP: { es: 'control de aproximación', en: 'approach control' },
+    ARP: { es: 'punto de referencia del aeródromo', en: 'aerodrome reference point' },
+    ARR: { es: 'llegada', en: 'arrival' },
+    ASPH: { es: 'asfalto', en: 'asphalt' },
+    ATS: { es: 'servicios de transito aereo', en: 'air traffic services' },
+    AVBL: { es: 'disponible', en: 'available' },
+    AWY: { es: 'aerovia', en: 'airway' },
+    BCN: { es: 'faro', en: 'beacon' },
+    BLW: { es: 'debajo de', en: 'below' },
+    BTN: { es: 'entre', en: 'between' },
+    CL: { es: 'eje de pista', en: 'runway centre line' },
+    CLSD: { es: 'cerrada', en: 'closed' },
+    CTN: { es: 'precaucion', en: 'caution' },
+    DEP: { es: 'salida', en: 'departure' },
+    DME: { es: 'equipo radiotelemétrico DME', en: 'distance measuring equipment' },
+    DRG: { es: 'durante', en: 'during' },
+    DTHR: { es: 'umbral desplazado', en: 'displaced threshold' },
+    DUE: { es: 'debido a', en: 'due to' },
+    EXC: { es: 'excepto', en: 'except' },
+    FATO: { es: 'área de aproximación final y despegue', en: 'final approach and take-off area' },
+    FLW: { es: 'siguiente', en: 'following' },
+    FM: { es: 'desde', en: 'from' },
+    FREQ: { es: 'frecuencia', en: 'frequency' },
+    GLD: { es: 'planeador', en: 'glider' },
+    GP: { es: 'senda de planeo', en: 'glide path' },
+    GND: { es: 'terreno', en: 'ground' },
+    HEL: { es: 'helicoptero', en: 'helicopter' },
+    HGT: { es: 'altura', en: 'height' },
+    HJ: { es: 'del orto al ocaso', en: 'sunrise to sunset' },
+    HN: { es: 'del ocaso al orto', en: 'sunset to sunrise' },
+    HOL: { es: 'dia feriado', en: 'holiday' },
+    HR: { es: 'horas', en: 'hours' },
+    ILS: { es: 'sistema de aterrizaje por instrumentos', en: 'instrument landing system' },
+    INOP: { es: 'inoperativo', en: 'inoperative' },
+    INSTR: { es: 'instrumento', en: 'instrument' },
+    LDG: { es: 'aterrizaje', en: 'landing' },
+    LGT: { es: 'luces', en: 'lighting' },
+    LLZ: { es: 'localizador', en: 'localizer' },
+    MAINT: { es: 'mantenimiento', en: 'maintenance' },
+    MIL: { es: 'militar', en: 'military' },
+    NDB: { es: 'radiofaro no direccional', en: 'non-directional radio beacon' },
+    NML: { es: 'normal', en: 'normal' },
+    NR: { es: 'número', en: 'number' },
+    OBST: { es: 'obstaculo', en: 'obstacle' },
+    OPR: { es: 'operar u operador', en: 'operate or operator' },
+    PAPI: { es: 'indicador de trayectoria de aproximación de precision', en: 'precision approach path indicator' },
+    PARL: { es: 'paralelo', en: 'parallel' },
+    PERM: { es: 'permanente', en: 'permanent' },
+    PJE: { es: 'salto en paracaídas', en: 'parachute jumping exercise' },
+    PSN: { es: 'posición', en: 'position' },
+    RTE: { es: 'ruta', en: 'route' },
+    RVR: { es: 'alcance visual en la pista', en: 'runway visual range' },
+    RWY: { es: 'pista', en: 'runway' },
+    SFC: { es: 'superficie', en: 'surface' },
+    SID: { es: 'salida normalizada por instrumentos', en: 'standard instrument departure' },
+    STAR: { es: 'llegada normalizada por instrumentos', en: 'standard instrument arrival' },
+    SVC: { es: 'servicio', en: 'service' },
+    TAR: { es: 'radar de área terminal', en: 'terminal area surveillance radar' },
+    TFC: { es: 'transito', en: 'traffic' },
+    THR: { es: 'umbral', en: 'threshold' },
+    TIL: { es: 'hasta', en: 'until' },
+    TKOF: { es: 'despegue', en: 'take-off' },
+    TWR: { es: 'torre de control', en: 'control tower' },
+    TWY: { es: 'calle de rodaje', en: 'taxiway' },
+    UFN: { es: 'hasta nuevo aviso', en: 'until further notice' },
+    UNL: { es: 'ilimitado', en: 'unlimited' },
+    'U/S': { es: 'fuera de servicio', en: 'unserviceable' },
+    VOR: { es: 'radiofaro omnidireccional VHF', en: 'VHF omnidirectional radio range' },
+    WDI: { es: 'indicador de direccion del viento', en: 'wind direction indicator' },
+    WIE: { es: 'con efecto inmediato', en: 'with immediate effect' },
+    WIP: { es: 'trabajos en curso', en: 'work in progress' },
+    WI: { es: 'dentro de', en: 'within' }
+  };
+
+  /* Codigos Q: materia (letras 2 y 3) */
+  var Q_SUBJECT = {
+    FA: { es: 'aeródromo', en: 'aerodrome' },
+    FF: { es: 'servicio de salvamento y extinción de incendios', en: 'fire fighting and rescue' },
+    FM: { es: 'servicio meteorológico', en: 'meteorological service' },
+    FU: { es: 'disponibilidad de combustible', en: 'fuel availability' },
+    MR: { es: 'pista', en: 'runway' },
+    MS: { es: 'zona de parada', en: 'stopway' },
+    MT: { es: 'umbral', en: 'threshold' },
+    MU: { es: 'bahia de viraje en pista', en: 'runway turning bay' },
+    MW: { es: 'franja o margen de pista', en: 'strip or shoulder' },
+    MX: { es: 'calle de rodaje', en: 'taxiway' },
+    MN: { es: 'plataforma', en: 'apron' },
+    MP: { es: 'puestos de estacionamiento de aeronaves', en: 'aircraft stands' },
+    MK: { es: 'área de estacionamiento', en: 'parking area' },
+    LA: { es: 'sistema de iluminación de aproximación', en: 'approach lighting system' },
+    LB: { es: 'faro de aeródromo', en: 'aerodrome beacon' },
+    LC: { es: 'luces de eje de pista', en: 'runway centre line lights' },
+    LE: { es: 'luces de borde de pista', en: 'runway edge lights' },
+    LP: { es: 'indicador PAPI', en: 'precision approach path indicator' },
+    LT: { es: 'luces de umbral', en: 'threshold lights' },
+    LZ: { es: 'luces de zona de toma de contacto', en: 'runway touchdown zone lights' },
+    IC: { es: 'sistema ILS', en: 'instrument landing system' },
+    ID: { es: 'equipo DME del ILS', en: 'ILS DME' },
+    IG: { es: 'senda de planeo del ILS', en: 'glide path' },
+    IL: { es: 'localizador del ILS', en: 'localizer' },
+    IM: { es: 'radiobaliza intermedia', en: 'middle marker' },
+    IO: { es: 'radiobaliza exterior', en: 'outer marker' },
+    NA: { es: 'todas las radioayudas para la navegación', en: 'all radio navigation facilities' },
+    NB: { es: 'radiofaro no direccional', en: 'non-directional radio beacon' },
+    ND: { es: 'equipo DME', en: 'distance measuring equipment' },
+    NM: { es: 'VOR/DME', en: 'VOR/DME' },
+    NV: { es: 'radiofaro VOR', en: 'VOR' },
+    CA: { es: 'instalacion aire-tierra', en: 'air/ground facility' },
+    CE: { es: 'radar de vigilancia en ruta', en: 'en-route surveillance radar' },
+    PI: { es: 'procedimiento de aproximación por instrumentos', en: 'instrument approach procedure' },
+    PA: { es: 'llegada normalizada por instrumentos', en: 'standard instrument arrival' },
+    PD: { es: 'salida normalizada por instrumentos', en: 'standard instrument departure' },
+    PH: { es: 'procedimiento de espera', en: 'holding procedure' },
+    PM: { es: 'mínimos de operación de aeródromo', en: 'aerodrome operating minima' },
+    PT: { es: 'altitud o nivel de transición', en: 'transition altitude or level' },
+    PU: { es: 'procedimiento de aproximación frustrada', en: 'missed approach procedure' },
+    RA: { es: 'reserva de espacio aereo', en: 'airspace reservation' },
+    RD: { es: 'zona peligrosa', en: 'danger area' },
+    RP: { es: 'zona prohibida', en: 'prohibited area' },
+    RR: { es: 'zona restringida', en: 'restricted area' },
+    RT: { es: 'zona restringida temporal', en: 'temporary restricted area' },
+    WA: { es: 'exhibicion aerea', en: 'air display' },
+    WE: { es: 'ejercicios', en: 'exercises' },
+    WM: { es: 'lanzamiento de cohetes o disparos', en: 'missile, gun or rocket firing' },
+    WP: { es: 'salto en paracaídas', en: 'parachute jumping' },
+    WU: { es: 'aeronave no tripulada', en: 'unmanned aircraft' },
+    WW: { es: 'actividad volcánica significativa', en: 'significant volcanic activity' },
+    WZ: { es: 'vuelo de aeromodelos', en: 'model flying' },
+    OB: { es: 'obstaculo', en: 'obstacle' },
+    OL: { es: 'iluminación de obstaculo', en: 'obstacle lighting' }
+  };
+
+  /* Codigos Q: condición (letras 4 y 5) */
+  var Q_CONDITION = {
+    AC: { es: 'retirado por mantenimiento', en: 'withdrawn for maintenance' },
+    AD: { es: 'disponible para operación diurna', en: 'available for daylight operation' },
+    AH: { es: 'horario de servicio ahora', en: 'hours of service now' },
+    AK: { es: 'reanudo operaciones normales', en: 'resumed normal operations' },
+    AL: { es: 'operativo sujeto a condiciones publicadas', en: 'operative subject to published conditions' },
+    AM: { es: 'solo operaciones militares', en: 'military operations only' },
+    AN: { es: 'disponible para operación nocturna', en: 'available for night operation' },
+    AO: { es: 'operacional', en: 'operational' },
+    AP: { es: 'disponible con permiso previo', en: 'available, prior permission required' },
+    AR: { es: 'disponible a solicitud', en: 'available on request' },
+    AS: { es: 'fuera de servicio', en: 'unserviceable' },
+    AU: { es: 'no disponible', en: 'not available' },
+    AW: { es: 'retirado completamente', en: 'completely withdrawn' },
+    AX: { es: 'se cancela el cierre publicado', en: 'previously announced shutdown cancelled' },
+    CA: { es: 'activado', en: 'activated' },
+    CC: { es: 'terminado', en: 'completed' },
+    CD: { es: 'desactivado', en: 'deactivated' },
+    CE: { es: 'erigido', en: 'erected' },
+    CF: { es: 'frecuencia de operación cambiada a', en: 'operating frequency changed to' },
+    CH: { es: 'modificado', en: 'changed' },
+    CI: { es: 'identificación o distintivo de llamada cambiado a', en: 'identification or radio call sign changed to' },
+    CL: { es: 'realineado', en: 'realigned' },
+    CM: { es: 'desplazado', en: 'displaced' },
+    CN: { es: 'cancelado', en: 'cancelled' },
+    CO: { es: 'en operación', en: 'operating' },
+    CP: { es: 'operando con potencia reducida', en: 'operating on reduced power' },
+    CR: { es: 'reemplazado temporalmente por', en: 'temporarily replaced by' },
+    CS: { es: 'instalado', en: 'installed' },
+    CT: { es: 'en prueba, no utilizar', en: 'on test, do not use' },
+    HA: { es: 'accion de frenado', en: 'braking action' },
+    HB: { es: 'coeficiente de fricción', en: 'friction coefficient' },
+    HE: { es: 'cubierto de agua', en: 'covered by water' },
+    HH: { es: 'peligro debido a', en: 'hazard due to' },
+    HK: { es: 'migración de aves en curso', en: 'bird migration in progress' },
+    HM: { es: 'marcado por', en: 'marked by' },
+    HQ: { es: 'operación cancelada', en: 'operation cancelled' },
+    HR: { es: 'agua estancada', en: 'standing water' },
+    HV: { es: 'trabajos terminados', en: 'work completed' },
+    HW: { es: 'trabajos en curso', en: 'work in progress' },
+    HX: { es: 'concentración de aves', en: 'concentration of birds' },
+    LA: { es: 'operando con fuente de energía auxiliar', en: 'operating on auxiliary power supply' },
+    LC: { es: 'cerrada', en: 'closed' },
+    LD: { es: 'inseguro', en: 'unsafe' },
+    LF: { es: 'interferencia de', en: 'interference from' },
+    LG: { es: 'operando sin identificación', en: 'operating without identification' },
+    LH: { es: 'inutilizable para aeronaves mas pesadas que', en: 'unusable for aircraft heavier than' },
+    LI: { es: 'cerrado a operaciones IFR', en: 'closed to IFR operations' },
+    LL: { es: 'utilizable con longitud y anchura de', en: 'usable for length and width of' },
+    LN: { es: 'cerrado a operaciones nocturnas', en: 'closed to all night operations' },
+    LP: { es: 'prohibido a', en: 'prohibited to' },
+    LR: { es: 'aeronaves restringidas a pistas y calles de rodaje', en: 'aircraft restricted to runways and taxiways' },
+    LS: { es: 'sujeto a interrupcion', en: 'subject to interruption' },
+    LT: { es: 'limitado a', en: 'limited to' },
+    LV: { es: 'cerrado a operaciones VFR', en: 'closed to VFR operations' },
+    LW: { es: 'se llevara a cabo', en: 'will take place' },
+    LX: { es: 'operando pero se recomienda precaucion', en: 'operating but caution advised' },
+    XX: { es: 'lenguaje claro', en: 'plain language' }
+  };
+
+  var Q_TRAFFIC = {
+    I: { es: 'IFR', en: 'IFR' },
+    V: { es: 'VFR', en: 'VFR' },
+    IV: { es: 'IFR y VFR', en: 'IFR and VFR' },
+    K: { es: 'lista de verificación', en: 'checklist' }
+  };
+
+  var Q_PURPOSE = {
+    N: { es: 'atención inmediata', en: 'immediate attention' },
+    B: { es: 'de importancia operacional', en: 'operational significance' },
+    O: { es: 'para operaciones de vuelo', en: 'flight operations' },
+    M: { es: 'diverso', en: 'miscellaneous' },
+    K: { es: 'lista de verificación', en: 'checklist' }
+  };
+
+  var Q_SCOPE = {
+    A: { es: 'aeródromo', en: 'aerodrome' },
+    E: { es: 'en ruta', en: 'en-route' },
+    W: { es: 'aviso a la navegación', en: 'navigation warning' },
+    AE: { es: 'aeródromo y en ruta', en: 'aerodrome and en-route' },
+    AW: { es: 'aeródromo y aviso a la navegación', en: 'aerodrome and navigation warning' },
+    K: { es: 'lista de verificación', en: 'checklist' }
+  };
+
+  ATIS.dict = {
+    INTENSITY: INTENSITY,
+    DESCRIPTOR: DESCRIPTOR,
+    PHENOMENON: PHENOMENON,
+    CLOUD_AMOUNT: CLOUD_AMOUNT,
+    CLOUD_TYPE: CLOUD_TYPE,
+    SKY_STATE: SKY_STATE,
+    TREND: TREND,
+    CONTRACTIONS: CONTRACTIONS,
+    Q_SUBJECT: Q_SUBJECT,
+    Q_CONDITION: Q_CONDITION,
+    Q_TRAFFIC: Q_TRAFFIC,
+    Q_PURPOSE: Q_PURPOSE,
+    Q_SCOPE: Q_SCOPE
+  };
+})(this);
+
+</script>
+<script>
+/* js/data/airports.js */
+/* ATIS 3.0 - Base de aerodromos (editable) */
+(function (global) {
+  'use strict';
+  var ATIS = global.ATIS = global.ATIS || {};
+
+  ATIS.airports = {
+    MMMX: {
+      es: 'Aeropuerto Internacional de la Ciudad de México',
+      en: 'Mexico City International Airport',
+      runways: ['05L', '05R', '23L', '23R'],
+      elevation: 7316,
+      transitionLevel: '200',
+      approaches: ['ILS', 'RNP', 'VOR', 'Visual']
+    },
+    MMTO: {
+      es: 'Aeropuerto Internacional de Toluca',
+      en: 'Toluca International Airport',
+      runways: ['15', '33'], elevation: 8466, transitionLevel: '200', approaches: ['ILS', 'RNP', 'VOR', 'Visual']
+    },
+    MMSM: {
+      es: 'Aeropuerto Internacional Felipe Angeles',
+      en: 'Felipe Angeles International Airport',
+      runways: ['04L', '04R', '22L', '22R'], elevation: 7503, transitionLevel: '200', approaches: ['ILS', 'RNP', 'Visual']
+    },
+    MMGL: {
+      es: 'Aeropuerto Internacional de Guadalajara',
+      en: 'Guadalajara International Airport',
+      runways: ['02', '20'], elevation: 5016, transitionLevel: '180', approaches: ['ILS', 'RNP', 'VOR', 'Visual']
+    },
+    MMMY: {
+      es: 'Aeropuerto Internacional de Monterrey',
+      en: 'Monterrey International Airport',
+      runways: ['11', '29'], elevation: 1278, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+    },
+    MMUN: {
+      es: 'Aeropuerto Internacional de Cancun',
+      en: 'Cancun International Airport',
+      runways: ['12L', '12R', '30L', '30R'], elevation: 22, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+    },
+    MMTJ: {
+      es: 'Aeropuerto Internacional de Tijuana',
+      en: 'Tijuana International Airport',
+      runways: ['09', '27'], elevation: 489, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+    },
+    MMPR: {
+      es: 'Aeropuerto Internacional de Puerto Vallarta',
+      en: 'Puerto Vallarta International Airport',
+      runways: ['04', '22'], elevation: 23, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+    },
+    MMMD: {
+      es: 'Aeropuerto Internacional de Merida',
+      en: 'Merida International Airport',
+      runways: ['10', '28'], elevation: 38, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+    },
+    MMBT: {
+      es: 'Aeropuerto Internacional de Bajio',
+      en: 'Bajio International Airport',
+      runways: ['13', '31'], elevation: 5956, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+    }
+  };
+
+  ATIS.getAirport = function (icao) {
+    var code = String(icao || '').toUpperCase();
+    return ATIS.airports[code] || null;
+  };
+})(this);
+
+</script>
+<script>
+/* js/lib/numbers.js */
+/* ATIS 3.0 - Conversion de numeros a palabras para locucion aeronautica */
+(function (global) {
+  'use strict';
+  var ATIS = global.ATIS = global.ATIS || {};
+
+  var DIGITS = {
+    es: ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve'],
+    en: ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'],
+    en_icao: ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'niner']
+  };
+
+  var SYMBOLS = {
+    es: { '.': 'punto', ',': 'punto', '/': 'diagonal', '-': 'menos', 'M': 'menos', ':': '' },
+    en: { '.': 'point', ',': 'point', '/': 'slash', '-': 'minus', 'M': 'minus', ':': '' }
+  };
+
+  /* Alfabeto ICAO: forma escrita y forma para el sintetizador de voz */
+  var ALPHABET = [
+    ['ALFA', 'Alfa', 'Alfa'],
+    ['BRAVO', 'Bravo', 'Bravo'],
+    ['CHARLIE', 'Charli', 'Charlie'],
+    ['DELTA', 'Delta', 'Delta'],
+    ['ECHO', 'Eco', 'Echo'],
+    ['FOXTROT', 'Foxtrot', 'Foxtrot'],
+    ['GOLF', 'Golf', 'Golf'],
+    ['HOTEL', 'Hotel', 'Hotel'],
+    ['INDIA', 'India', 'India'],
+    ['JULIETT', 'Julieta', 'Juliett'],
+    ['KILO', 'Kilo', 'Kilo'],
+    ['LIMA', 'Lima', 'Lima'],
+    ['MIKE', 'Maik', 'Mike'],
+    ['NOVEMBER', 'November', 'November'],
+    ['OSCAR', 'Oscar', 'Oscar'],
+    ['PAPA', 'Papa', 'Papa'],
+    ['QUEBEC', 'Quebec', 'Quebec'],
+    ['ROMEO', 'Romeo', 'Romeo'],
+    ['SIERRA', 'Sierra', 'Sierra'],
+    ['TANGO', 'Tango', 'Tango'],
+    ['UNIFORM', 'Uniform', 'Uniform'],
+    ['VICTOR', 'Victor', 'Victor'],
+    ['WHISKEY', 'Wiski', 'Whiskey'],
+    ['XRAY', 'Ex Rey', 'X-ray'],
+    ['YANKEE', 'Yanki', 'Yankee'],
+    ['ZULU', 'Zulu', 'Zulu']
+  ];
+
+  var opts = { icaoEnglish: true };
+
+  function setOptions(o) {
+    if (o && typeof o.icaoEnglish === 'boolean') opts.icaoEnglish = o.icaoEnglish;
+  }
+
+  function digitTable(lang) {
+    if (lang === 'es') return DIGITS.es;
+    return opts.icaoEnglish ? DIGITS.en_icao : DIGITS.en;
+  }
+
+  /* Deletrea una cadena digito por digito: "050" -> "cero cinco cero" */
+  function spell(value, lang) {
+    var str = String(value === null || value === undefined ? '' : value);
+    var table = digitTable(lang);
+    var syms = SYMBOLS[lang] || SYMBOLS.en;
+    var out = [];
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charAt(i);
+      if (c >= '0' && c <= '9') out.push(table[+c]);
+      else if (syms[c] !== undefined) { if (syms[c]) out.push(syms[c]); }
+      else if (c === ' ') continue;
+      else out.push(c);
+    }
+    return out.join(' ');
+  }
+
+  /* Cardinal en espanol (0 - 999 999) */
+  var ES_UNITS = ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve',
+    'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve',
+    'veinte', 'veintiuno', 'veintidós', 'veintitrés', 'veinticuatro', 'veinticinco', 'veintiséis',
+    'veintisiete', 'veintiocho', 'veintinueve'];
+  var ES_TENS = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+  var ES_HUNDREDS = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos',
+    'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
+
+  function esCardinal(n) {
+    n = Math.round(Number(n));
+    if (isNaN(n)) return '';
+    if (n < 0) return 'menos ' + esCardinal(-n);
+    if (n < 30) return ES_UNITS[n];
+    if (n < 100) {
+      var t = Math.floor(n / 10), u = n % 10;
+      return ES_TENS[t] + (u ? ' y ' + ES_UNITS[u] : '');
+    }
+    if (n === 100) return 'cien';
+    if (n < 1000) {
+      var h = Math.floor(n / 100), r = n % 100;
+      return ES_HUNDREDS[h] + (r ? ' ' + esCardinal(r) : '');
+    }
+    if (n < 1000000) {
+      var th = Math.floor(n / 1000), rem = n % 1000;
+      var head = th === 1 ? 'mil' : esCardinal(th) + ' mil';
+      return head + (rem ? ' ' + esCardinal(rem) : '');
+    }
+    return spell(n, 'es');
+  }
+
+  /* Cardinal en ingles (0 - 999 999) */
+  var EN_UNITS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+    'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  var EN_TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+  function enCardinal(n) {
+    n = Math.round(Number(n));
+    if (isNaN(n)) return '';
+    if (n < 0) return 'minus ' + enCardinal(-n);
+    if (n < 20) return EN_UNITS[n];
+    if (n < 100) {
+      var t = Math.floor(n / 10), u = n % 10;
+      return EN_TENS[t] + (u ? ' ' + EN_UNITS[u] : '');
+    }
+    if (n < 1000) {
+      var h = Math.floor(n / 100), r = n % 100;
+      return EN_UNITS[h] + ' hundred' + (r ? ' ' + enCardinal(r) : '');
+    }
+    if (n < 1000000) {
+      var th = Math.floor(n / 1000), rem = n % 1000;
+      return enCardinal(th) + ' thousand' + (rem ? ' ' + enCardinal(rem) : '');
+    }
+    return spell(n, 'en');
+  }
+
+  function cardinal(n, lang) {
+    return lang === 'es' ? esCardinal(n) : enCardinal(n);
+  }
+
+  /* Altitudes y alturas de nubes: 2500 -> "dos mil quinientos" / "two thousand five hundred" */
+  function altitude(feet, lang) {
+    var n = Math.round(Number(feet));
+    if (isNaN(n)) return '';
+    return cardinal(n, lang);
+  }
+
+  /* Letra ATIS: indice 0-25 o caracter */
+  function letterInfo(letter) {
+    var idx;
+    if (typeof letter === 'number') idx = letter;
+    else idx = String(letter || 'A').toUpperCase().charCodeAt(0) - 65;
+    if (idx < 0 || idx > 25) idx = 0;
+    return {
+      index: idx,
+      letter: String.fromCharCode(65 + idx),
+      word: ALPHABET[idx][0],
+      speech_es: ALPHABET[idx][1],
+      speech_en: ALPHABET[idx][2]
+    };
+  }
+
+  /* Designador de pista: "05L" -> texto y locucion */
+  var SIDE = {
+    L: { es: 'izquierda', en: 'left', speech_es: 'izquierda', speech_en: 'left' },
+    R: { es: 'derecha', en: 'right', speech_es: 'derecha', speech_en: 'right' },
+    C: { es: 'central', en: 'center', speech_es: 'central', speech_en: 'center' }
+  };
+
+  function runway(designator, lang) {
+    var d = String(designator || '').toUpperCase().replace(/[^0-9LRC]/g, '');
+    var m = /^(\d{1,2})([LRC])?$/.exec(d);
+    if (!m) return { text: designator || '', speech: spell(String(designator || ''), lang) };
+    var num = m[1].length === 1 ? '0' + m[1] : m[1];
+    var side = m[2] ? SIDE[m[2]] : null;
+    var text = num + (side ? ' ' + (lang === 'es' ? side.es : side.en) : '');
+    var speech = spell(num, lang) + (side ? ' ' + (lang === 'es' ? side.speech_es : side.speech_en) : '');
+    return { text: text, speech: speech, number: num, side: m[2] || '' };
+  }
+
+  ATIS.num = {
+    setOptions: setOptions,
+    spell: spell,
+    cardinal: cardinal,
+    altitude: altitude,
+    letterInfo: letterInfo,
+    runway: runway,
+    ALPHABET: ALPHABET
+  };
+})(this);
+
+</script>
+<script>
+/* js/metar.js */
+/* ATIS 3.0 - Decodificador METAR / SPECI */
+(function (global) {
+  'use strict';
+  var ATIS = global.ATIS = global.ATIS || {};
+
+  var RE = {
+    station: /^[A-Z][A-Z0-9]{3}$/,
+    time: /^(\d{2})(\d{2})(\d{2})Z$/,
+    wind: /^(\d{3}|VRB|\/{3})(\d{2,3}|\/\/)(?:G(\d{2,3}))?(KT|MPS|KMH)$/,
+    windVar: /^(\d{3})V(\d{3})$/,
+    visMeters: /^(\d{4})(NDV|[NSEW]{1,2})?$/,
+    visSM: /^(M|P)?(\d{1,2})?(?:\s)?(\d\/\d)?SM$/,
+    rvr: /^R(\d{2}[LRC]?)\/([MP])?(\d{4})(?:V([MP])?(\d{4}))?(FT)?([UDN])?$/,
+    weather: /^(-|\+|VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?((?:DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+)$/,
+    recent: /^RE(.+)$/,
+    cloud: /^(FEW|SCT|BKN|OVC)(\d{3}|\/{3})(CB|TCU)?$/,
+    vv: /^VV(\d{3}|\/{3})$/,
+    temp: /^(M?\d{2})\/(M?\d{2})?$/,
+    qnhHpa: /^Q(\d{4})$/,
+    qnhInHg: /^A(\d{4})$/,
+    windshear: /^WS(?:\s|$)/,
+    runwayState: /^(\d{2}|88|99)(\d{6}|CLRD\d{2}|\/{6})$/
+  };
+
+  function parse(raw) {
+    var text = String(raw || '').toUpperCase().replace(/=+\s*$/, '').replace(/\s+/g, ' ').trim();
+    var result = {
+      raw: text,
+      valid: false,
+      type: 'METAR',
+      station: '',
+      day: null, hour: null, minute: null,
+      auto: false, cor: false, nil: false,
+      wind: null,
+      cavok: false,
+      visibility: null,
+      rvr: [],
+      weather: [],
+      recent: [],
+      clouds: [],
+      verticalVisibility: null,
+      skyState: null,
+      temperature: null,
+      dewpoint: null,
+      qnh: null,
+      windshear: [],
+      trend: '',
+      remarks: '',
+      unparsed: [],
+      errors: []
+    };
+    if (!text) { result.errors.push('METAR vacio'); return result; }
+
+    var parts = text.split(' ');
+    var i = 0;
+
+    /* Encabezado */
+    if (parts[i] === 'METAR' || parts[i] === 'SPECI') { result.type = parts[i]; i++; }
+    if (parts[i] === 'COR') { result.cor = true; i++; }
+
+    if (parts[i] && RE.station.test(parts[i]) && !RE.time.test(parts[i])) {
+      result.station = parts[i]; i++;
+    } else {
+      result.errors.push('No se encontro el indicador de estación');
+    }
+
+    if (parts[i] && RE.time.test(parts[i])) {
+      var t = RE.time.exec(parts[i]);
+      result.day = +t[1]; result.hour = +t[2]; result.minute = +t[3];
+      i++;
+    } else {
+      result.errors.push('No se encontro el grupo dia/hora');
+    }
+
+    /* Cuerpo: separar tendencia y comentarios */
+    var body = [], trend = [], rmk = [], mode = 'body';
+    for (; i < parts.length; i++) {
+      var p = parts[i];
+      if (p === 'RMK' || p === 'RMKS') { mode = 'rmk'; continue; }
+      if (mode === 'body' && (p === 'NOSIG' || p === 'BECMG' || p === 'TEMPO')) mode = 'trend';
+      if (mode === 'body') body.push(p);
+      else if (mode === 'trend') trend.push(p);
+      else rmk.push(p);
+    }
+    result.trend = trend.join(' ');
+    result.remarks = rmk.join(' ');
+
+    for (var k = 0; k < body.length; k++) {
+      var tok = body[k], m;
+
+      if (tok === 'AUTO') { result.auto = true; continue; }
+      if (tok === 'COR') { result.cor = true; continue; }
+      if (tok === 'NIL') { result.nil = true; continue; }
+      if (tok === 'CAVOK') { result.cavok = true; continue; }
+
+      if ((m = RE.wind.exec(tok))) {
+        result.wind = {
+          direction: m[1] === 'VRB' ? null : (m[1] === '///' ? null : +m[1]),
+          variable: m[1] === 'VRB',
+          missing: m[1] === '///' || m[2] === '//',
+          speed: m[2] === '//' ? null : +m[2],
+          gust: m[3] ? +m[3] : null,
+          unit: m[4],
+          varFrom: null, varTo: null
+        };
+        result.wind.calm = result.wind.speed === 0;
+        continue;
+      }
+      if ((m = RE.windVar.exec(tok)) && result.wind) {
+        result.wind.varFrom = +m[1]; result.wind.varTo = +m[2];
+        continue;
+      }
+      if (tok === 'WS' || RE.windshear.test(tok)) {
+        var ws = [tok];
+        while (k + 1 < body.length && /^(ALL|RWY|R\d{2}[LRC]?|RWY\d{2}[LRC]?)$/.test(body[k + 1])) {
+          ws.push(body[++k]);
+        }
+        result.windshear.push(ws.join(' '));
+        continue;
+      }
+      /* Visibilidad en millas terrestres, puede venir en dos tokens: "1 1/2SM" */
+      if (/SM$/.test(tok)) {
+        var smText = tok;
+        if (/^\d$/.test(body[k - 1] || '') && result.visibility === null) {
+          smText = body[k - 1] + ' ' + tok;
+        }
+        var sm = parseSM(smText);
+        if (sm) { result.visibility = sm; continue; }
+      }
+      if (/^\d$/.test(tok) && /SM$/.test(body[k + 1] || '')) continue; /* parte entera, se une después */
+
+      if (result.visibility === null && (m = RE.visMeters.exec(tok))) {
+        var meters = +m[1];
+        result.visibility = {
+          unit: 'm',
+          meters: meters,
+          tenKmOrMore: meters === 9999,
+          below50: meters === 0,
+          direction: m[2] && m[2] !== 'NDV' ? m[2] : null
+        };
+        continue;
+      }
+      if ((m = RE.rvr.exec(tok))) {
+        result.rvr.push({
+          runway: m[1], prefix: m[2] || '', value: +m[3],
+          varPrefix: m[4] || '', varValue: m[5] ? +m[5] : null,
+          unit: m[6] ? 'ft' : 'm', trend: m[7] || ''
+        });
+        continue;
+      }
+      if ((m = RE.recent.exec(tok)) && RE.weather.test(m[1])) {
+        result.recent.push(parseWeather(m[1]));
+        continue;
+      }
+      if (RE.weather.test(tok) && tok !== 'VV' ) {
+        var wx = parseWeather(tok);
+        if (wx) { result.weather.push(wx); continue; }
+      }
+      if ((m = RE.cloud.exec(tok))) {
+        result.clouds.push({
+          amount: m[1],
+          height: m[2] === '///' ? null : +m[2] * 100,
+          type: m[3] || ''
+        });
+        continue;
+      }
+      if ((m = RE.vv.exec(tok))) {
+        result.verticalVisibility = m[1] === '///' ? null : +m[1] * 100;
+        continue;
+      }
+      if (tok === 'NSC' || tok === 'NCD' || tok === 'SKC' || tok === 'CLR') {
+        result.skyState = tok; continue;
+      }
+      if ((m = RE.temp.exec(tok))) {
+        result.temperature = toSigned(m[1]);
+        result.dewpoint = m[2] ? toSigned(m[2]) : null;
+        continue;
+      }
+      if ((m = RE.qnhHpa.exec(tok))) {
+        result.qnh = { hpa: +m[1], inHg: Math.round((+m[1]) * 100 / 33.8639) / 100, source: 'hPa' };
+        continue;
+      }
+      if ((m = RE.qnhInHg.exec(tok))) {
+        var inHg = (+m[1]) / 100;
+        result.qnh = { inHg: inHg, hpa: Math.round(inHg * 33.8639), source: 'inHg', digits: m[1] };
+        continue;
+      }
+      if (RE.runwayState.test(tok)) { result.unparsed.push(tok); continue; }
+      if (tok) result.unparsed.push(tok);
+    }
+
+    result.valid = !!(result.station && result.hour !== null);
+    return result;
+  }
+
+  function toSigned(v) {
+    if (!v) return null;
+    return v.charAt(0) === 'M' ? -(+v.slice(1)) : +v;
+  }
+
+  function parseSM(token) {
+    var t = String(token).replace(/\s+/g, ' ').trim();
+    var prefix = '';
+    var pm = /^([MP])/.exec(t);
+    if (pm) { prefix = pm[1]; t = t.slice(1); }
+    if (!/SM$/.test(t)) return null;
+    t = t.replace(/SM$/, '').trim();
+
+    var whole = 0, num = 0, den = 0, mm;
+    if ((mm = /^(\d{1,3})\s(\d{1,2})\/(\d{1,2})$/.exec(t))) { whole = +mm[1]; num = +mm[2]; den = +mm[3]; }
+    else if ((mm = /^(\d{1,2})\/(\d{1,2})$/.exec(t))) { num = +mm[1]; den = +mm[2]; }
+    else if ((mm = /^(\d{1,3})$/.exec(t))) { whole = +mm[1]; }
+    else return null;
+
+    var text = (prefix === 'M' ? 'M' : '') +
+      (whole ? String(whole) : '') + (whole && den ? ' ' : '') + (den ? num + '/' + den : '');
+    return {
+      unit: 'SM',
+      whole: whole, numerator: num, denominator: den,
+      value: whole + (den ? num / den : 0),
+      less: prefix === 'M', more: prefix === 'P',
+      text: text
+    };
+  }
+
+  function parseWeather(token) {
+    var m = RE.weather.exec(token);
+    if (!m) return null;
+    var phenomena = [];
+    var rest = m[3] || '';
+    for (var i = 0; i < rest.length; i += 2) phenomena.push(rest.substr(i, 2));
+    return {
+      raw: token,
+      intensity: m[1] || '',
+      descriptor: m[2] || '',
+      phenomena: phenomena
+    };
+  }
+
+  ATIS.metar = { parse: parse, parseWeather: parseWeather };
+})(this);
+
+</script>
+<script>
+/* js/notam.js */
+/* ATIS 3.0 - Decodificador de NOTAM */
+(function (global) {
+  'use strict';
+  var ATIS = global.ATIS = global.ATIS || {};
+  var D = ATIS.dict;
+
+  var MONTHS = {
+    es: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto',
+      'septiembre', 'octubre', 'noviembre', 'diciembre'],
+    en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+      'September', 'October', 'November', 'December']
+  };
+
+  /* Expande contracciones ICAO dentro de un texto libre */
+  function expand(text, lang) {
+    var out = String(text || '').replace(/\s+/g, ' ').trim();
+    /* Casos con diagonal, antes de la sustitucion general */
+    out = out.replace(/\bU\/S\b/g, D.CONTRACTIONS['U/S'][lang]);
+    out = out.replace(/\b(\d{2})([LRC])\/(\d{2})([LRC])\b/g, function (m, n1, s1, n2, s2) {
+      var side = { L: { es: 'izquierda', en: 'left' }, R: { es: 'derecha', en: 'right' }, C: { es: 'central', en: 'center' } };
+      return n1 + ' ' + side[s1][lang] + (lang === 'es' ? ' y ' : ' and ') + n2 + ' ' + side[s2][lang];
+    });
+    out = out.replace(/\b([A-Z]{2,5})\b/g, function (match) {
+      var entry = D.CONTRACTIONS[match];
+      if (!entry) return match;
+      return entry[lang] || match;
+    });
+    /* Designadores de pista: RWY 05L -> pista cero cinco izquierda (texto legible) */
+    out = out.replace(/\b(\d{2})([LRC])\b/g, function (m, num, side) {
+      var s = { L: { es: 'izquierda', en: 'left' }, R: { es: 'derecha', en: 'right' }, C: { es: 'central', en: 'center' } }[side];
+      return num + ' ' + (s ? s[lang] : side);
+    });
+    return out;
+  }
+
+  function parseDT(raw) {
+    var m = /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(String(raw || '').trim());
+    if (!m) return null;
+    return { year: 2000 + (+m[1]), month: (+m[2]) - 1, day: +m[3], hhmm: m[4] + ':' + m[5] };
+  }
+
+  function fmtDate(raw, lang) {
+    var d = parseDT(raw);
+    if (!d) {
+      var t = String(raw || '').trim().toUpperCase();
+      if (/^PERM/.test(t)) return lang === 'es' ? 'permanente' : 'permanent';
+      if (/^(EST|UFN)/.test(t)) return lang === 'es' ? 'hasta nuevo aviso' : 'until further notice';
+      return raw || '';
+    }
+    var month = (MONTHS[lang] || MONTHS.en)[d.month];
+    return lang === 'es'
+      ? d.day + ' de ' + month + ' a las ' + d.hhmm + ' UTC'
+      : month + ' ' + d.day + ' at ' + d.hhmm + ' UTC';
+  }
+
+  /* Frase de vigencia compacta: si es el mismo dia se menciona una sola vez */
+  function validity(from, to, lang) {
+    var a = parseDT(from), b = parseDT(to);
+    if (a && b && a.year === b.year && a.month === b.month && a.day === b.day) {
+      var month = (MONTHS[lang] || MONTHS.en)[a.month];
+      return lang === 'es'
+        ? 'Vigente el ' + a.day + ' de ' + month + ' de ' + a.hhmm + ' a ' + b.hhmm + ' UTC'
+        : 'Valid on ' + month + ' ' + a.day + ' from ' + a.hhmm + ' to ' + b.hhmm + ' UTC';
+    }
+    var head = lang === 'es' ? 'Vigente desde el ' : 'Valid from ';
+    var mid = lang === 'es' ? ' hasta el ' : ' until ';
+    return head + fmtDate(from, lang) + (to ? mid + fmtDate(to, lang) : '');
+  }
+
+  function parseQLine(q, lang) {
+    var fields = String(q || '').split('/');
+    if (fields.length < 8) return null;
+    var code = fields[1] || '';
+    var subject = code.substr(1, 2);
+    var condition = code.substr(3, 2);
+    return {
+      fir: fields[0],
+      code: code,
+      subject: D.Q_SUBJECT[subject] ? D.Q_SUBJECT[subject][lang] : null,
+      subjectCode: subject,
+      condition: D.Q_CONDITION[condition] ? D.Q_CONDITION[condition][lang] : null,
+      conditionCode: condition,
+      traffic: D.Q_TRAFFIC[fields[2]] ? D.Q_TRAFFIC[fields[2]][lang] : fields[2],
+      purpose: D.Q_PURPOSE[fields[3]] ? D.Q_PURPOSE[fields[3]][lang] : fields[3],
+      scope: D.Q_SCOPE[fields[4]] ? D.Q_SCOPE[fields[4]][lang] : fields[4],
+      lower: fields[5],
+      upper: fields[6],
+      coordinates: fields[7]
+    };
+  }
+
+  /* Acepta NOTAM en formato ICAO completo o texto libre */
+  function parse(raw, lang) {
+    lang = lang || 'es';
+    var text = String(raw || '').replace(/\r/g, '').trim();
+    var result = {
+      raw: text,
+      id: '',
+      kind: '',
+      series: '',
+      q: null,
+      location: '',
+      from: '', to: '', schedule: '',
+      body: '',
+      lower: '', upper: '',
+      plain: '',
+      summary: '',
+      structured: false
+    };
+    if (!text) return result;
+
+    var idMatch = /\b([A-Z]\d{4}\/\d{2})\s*(NOTAM[NRC])?\s*(?:([A-Z]\d{4}\/\d{2}))?/.exec(text);
+    if (idMatch) {
+      result.id = idMatch[1];
+      result.kind = idMatch[2] || '';
+      if (idMatch[3]) result.replaces = idMatch[3];
+    }
+
+    var flat = text.replace(/\n/g, ' ');
+    function item(letter) {
+      var re = new RegExp('(?:^|\\s)' + letter + '\\)\\s*([\\s\\S]*?)(?=\\s[A-GQ]\\)\\s|$)');
+      var m = re.exec(' ' + flat);
+      return m ? m[1].trim() : '';
+    }
+
+    var qRaw = item('Q');
+    if (qRaw) { result.q = parseQLine(qRaw, lang); result.structured = true; }
+    result.location = item('A');
+    result.from = item('B');
+    result.to = item('C');
+    result.schedule = item('D');
+    result.body = item('E');
+    result.lower = item('F');
+    result.upper = item('G');
+
+    if (!result.body) {
+      /* Texto libre: todo el contenido es el cuerpo */
+      result.body = flat.replace(/\b[A-Z]\d{4}\/\d{2}\b\s*(NOTAM[NRC])?/g, '').trim();
+    } else {
+      result.structured = true;
+    }
+
+    result.plain = expand(result.body, lang);
+
+    var pieces = [];
+    if (result.plain) pieces.push(capitalize(result.plain));
+    if (result.from) pieces.push(validity(result.from, result.to, lang));
+    if (result.schedule) {
+      pieces.push((lang === 'es' ? 'Horario: ' : 'Schedule: ') + expand(result.schedule, lang));
+    }
+    if (result.lower && result.upper) {
+      pieces.push((lang === 'es' ? 'Límites: ' : 'Limits: ') + expand(result.lower, lang) + ' - ' + expand(result.upper, lang));
+    }
+    result.summary = pieces.join('. ') + (pieces.length ? '.' : '');
+
+    return result;
+  }
+
+  function capitalize(s) {
+    s = String(s || '').toLowerCase();
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  /* Divide un bloque con varios NOTAM (separados por linea en blanco o por ID) */
+  function split(raw) {
+    var text = String(raw || '').replace(/\r/g, '').trim();
+    if (!text) return [];
+    if (/\n\s*\n/.test(text)) {
+      return text.split(/\n\s*\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+    }
+    var byId = text.split(/\n(?=[A-Z]\d{4}\/\d{2}\b)/);
+    return byId.map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  ATIS.notam = { parse: parse, expand: expand, split: split, fmtDate: fmtDate, validity: validity };
+})(this);
+
+</script>
+<script>
+/* js/atis.js */
+/* ATIS 3.0 - Modelo de observación y generador del guion ATIS (ES / EN) */
+(function (global) {
+  'use strict';
+  var ATIS = global.ATIS = global.ATIS || {};
+  var N = ATIS.num, D = ATIS.dict;
+
+  /* ------------------------------------------------------------------ *
+   * Constructor de guion: mantiene en paralelo el texto escrito
+   * y el texto para el sintetizador de voz.
+   * ------------------------------------------------------------------ */
+  function Builder() { this.t = []; this.s = []; }
+  Builder.prototype.add = function (text, speech) {
+    if (text === null || text === undefined || text === '') return this;
+    this.t.push(text);
+    this.s.push(speech === null || speech === undefined ? text : speech);
+    return this;
+  };
+  Builder.prototype.result = function () {
+    return { text: this.t.join(' '), speech: this.s.join(' '), sentences: this.t.slice() };
+  };
+
+  /* Catalogo de capas de cielo (clave -> texto ATIS) */
+  var SKY_LABELS = {
+    SKC: { es: 'Despejado', en: 'Sky clear', noHeight: true },
+    FEW: { es: 'Pocas nubes a', en: 'Few clouds at' },
+    SCT: { es: 'Nublado a', en: 'Scattered at' },
+    BKN: { es: 'Cerrado a', en: 'Broken at' },
+    OVC: { es: 'Cielo cubierto a', en: 'Overcast at' },
+    VV: { es: 'Visibilidad vertical', en: 'Vertical visibility' },
+    NSC: { es: 'Sin nubes de importancia', en: 'No significant cloud', noHeight: true },
+    CAVOK: { es: 'CAVOK', en: 'CAVOK', noHeight: true }
+  };
+
+  /* Causas de restriccion de visibilidad */
+  var VIS_CAUSES = {
+    '': { es: '', en: '' },
+    HZ: { es: 'Bruma', en: 'Haze' },
+    BR: { es: 'Neblina', en: 'Mist' },
+    FG: { es: 'Niebla', en: 'Fog' },
+    FU: { es: 'Humo', en: 'Smoke' },
+    DU: { es: 'Polvo', en: 'Dust' },
+    SA: { es: 'Arena', en: 'Sand' },
+    RA: { es: 'Lluvia', en: 'Rain' },
+    'SHRA': { es: 'Chubascos de lluvia', en: 'Rain showers' },
+    TS: { es: 'Tormenta', en: 'Thunderstorm' },
+    TSRA: { es: 'Tormenta con lluvia', en: 'Thunderstorm with rain' },
+    VA: { es: 'Ceniza volcánica', en: 'Volcanic ash' }
+  };
+
+  var RWY_CONDITIONS = {
+    '': { es: '', en: '' },
+    DRY: { es: 'Pista seca', en: 'Runway dry' },
+    WET: { es: 'Pista mojada', en: 'Runway wet' },
+    STANDING_WATER: { es: 'Agua estancada en la pista', en: 'Standing water on the runway' },
+    SLIPPERY: { es: 'Pista resbalosa cuando esta mojada', en: 'Runway slippery when wet' },
+    WIP: { es: 'Trabajos en la pista', en: 'Work in progress on the runway' }
+  };
+
+  var VIS_UNITS = {
+    SM: { es: 'millas terrestres', en: 'statute miles', es1: 'milla terrestre', en1: 'statute mile' },
+    KM: { es: 'kilómetros', en: 'kilometers', es1: 'kilómetro', en1: 'kilometer' },
+    M: { es: 'metros', en: 'meters', es1: 'metro', en1: 'meter' }
+  };
+
+  /* ------------------------------------------------------------------ *
+   * METAR decodificado -> modelo de observación del ATIS
+   * ------------------------------------------------------------------ */
+  function fromMetar(m) {
+    var obs = {
+      station: m.station || '',
+      time: pad2(m.hour) + pad2(m.minute),
+      wind: { mode: 'steady', direction: '', speed: '', gust: '', varFrom: '', varTo: '' },
+      visibility: { value: '', unit: 'SM', orMore: false, less: false, cause: '' },
+      rvr: [],
+      layers: [],
+      temperature: '', dewpoint: '',
+      altimeter: '', altimeterUnit: 'inHg', qnhHpa: '',
+      windshear: (m.windshear || []).join(', ')
+    };
+
+    if (m.wind) {
+      if (m.wind.calm) obs.wind.mode = 'calm';
+      else if (m.wind.variable) obs.wind.mode = 'variable';
+      else obs.wind.mode = 'steady';
+      obs.wind.direction = m.wind.direction === null ? '' : pad3(m.wind.direction);
+      obs.wind.speed = m.wind.speed === null ? '' : String(m.wind.speed);
+      obs.wind.gust = m.wind.gust ? String(m.wind.gust) : '';
+      obs.wind.varFrom = m.wind.varFrom === null ? '' : pad3(m.wind.varFrom);
+      obs.wind.varTo = m.wind.varTo === null ? '' : pad3(m.wind.varTo);
+      obs.wind.unit = m.wind.unit || 'KT';
+    }
+
+    if (m.cavok) {
+      obs.visibility.value = '10'; obs.visibility.unit = 'KM'; obs.visibility.orMore = true;
+      obs.layers.push({ amount: 'CAVOK', height: '' });
+    } else if (m.visibility) {
+      if (m.visibility.unit === 'SM') {
+        obs.visibility.unit = 'SM';
+        obs.visibility.value = m.visibility.text || String(m.visibility.value);
+        obs.visibility.less = !!m.visibility.less;
+        obs.visibility.orMore = !!m.visibility.more;
+      } else {
+        if (m.visibility.tenKmOrMore) {
+          obs.visibility.unit = 'KM'; obs.visibility.value = '10'; obs.visibility.orMore = true;
+        } else if (m.visibility.meters >= 1000 && m.visibility.meters % 1000 === 0) {
+          obs.visibility.unit = 'KM'; obs.visibility.value = String(m.visibility.meters / 1000);
+        } else {
+          obs.visibility.unit = 'M'; obs.visibility.value = String(m.visibility.meters);
+        }
+      }
+    }
+
+    /* Causa de la restriccion: primer fenomeno significativo */
+    if (m.weather && m.weather.length) {
+      var w = m.weather[0];
+      var key = (w.descriptor || '') + (w.phenomena[0] || '');
+      obs.visibility.cause = VIS_CAUSES[key] ? key : (VIS_CAUSES[w.phenomena[0]] ? w.phenomena[0] : '');
+      obs.weatherRaw = m.weather.map(function (x) { return x.raw; }).join(' ');
+    }
+
+    (m.rvr || []).forEach(function (r) {
+      obs.rvr.push({ runway: r.runway, value: r.value, unit: r.unit, prefix: r.prefix });
+    });
+
+    if (m.skyState === 'SKC' || m.skyState === 'CLR') obs.layers.push({ amount: 'SKC', height: '' });
+    else if (m.skyState === 'NSC' || m.skyState === 'NCD') obs.layers.push({ amount: 'NSC', height: '' });
+    (m.clouds || []).forEach(function (c) {
+      obs.layers.push({ amount: c.amount, height: c.height === null ? '' : String(c.height), type: c.type || '' });
+    });
+    if (m.verticalVisibility !== null && m.verticalVisibility !== undefined) {
+      obs.layers.push({ amount: 'VV', height: String(m.verticalVisibility) });
+    }
+    while (obs.layers.length < 3) obs.layers.push({ amount: '', height: '' });
+
+    if (m.temperature !== null) obs.temperature = String(m.temperature);
+    if (m.dewpoint !== null) obs.dewpoint = String(m.dewpoint);
+
+    if (m.qnh) {
+      if (m.qnh.source === 'inHg') {
+        obs.altimeterUnit = 'inHg';
+        obs.altimeter = m.qnh.digits || String(Math.round(m.qnh.inHg * 100));
+        obs.qnhHpa = String(m.qnh.hpa);
+      } else {
+        obs.altimeterUnit = 'hPa';
+        obs.altimeter = String(m.qnh.hpa);
+        obs.qnhHpa = String(m.qnh.hpa);
+      }
+    }
+    return obs;
+  }
+
+  function pad2(n) { return (n === null || n === undefined) ? '00' : ('0' + n).slice(-2); }
+  function pad3(n) { return ('00' + n).slice(-3); }
+
+  /* Numeros dentro de texto libre: 1-2 digitos se deletrean, 3 o mas se leen como cantidad */
+  var MONTH_RE = new RegExp('\\s+(?:' + [
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto',
+    'septiembre', 'octubre', 'noviembre', 'diciembre',
+    'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+    'September', 'October', 'November', 'December'
+  ].join('|') + ')\\b', 'i');
+
+  var MONTH_BEFORE_RE = new RegExp('(?:' + [
+    'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+    'September', 'October', 'November', 'December'
+  ].join('|') + ')\\s+$', 'i');
+
+  function speakNumbers(text, lang) {
+    return String(text || '').replace(/(\d):(\d)/g, '$1 $2').replace(/(\d+)(\s+(?:de|of)\b)?/g, function (all, d, tail, offset, whole) {
+      if (!tail && MONTH_RE.test(whole.slice(offset + d.length, offset + d.length + 12))) {
+        return N.cardinal(+d, lang);
+      }
+      if (!tail && MONTH_BEFORE_RE.test(whole.slice(Math.max(0, offset - 12), offset))) {
+        return N.cardinal(+d, lang);
+      }
+      /* "21 de septiembre" se lee como cantidad; los grupos aeronauticos se deletrean */
+      if (tail) return N.cardinal(+d, lang) + tail;
+      if (d.length <= 2) return N.spell(d, lang);
+      return N.cardinal(+d, lang);
+    });
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Generador del guion
+   * ------------------------------------------------------------------ */
+  function build(lang, obs, cfg) {
+    var b = new Builder();
+    var L = lang === 'es';
+    var info = N.letterInfo(cfg.letter || 'A');
+    var letterSpeech = L ? info.speech_es : info.speech_en;
+
+    /* 1. Encabezado */
+    var name = (L ? cfg.airportNameEs : cfg.airportNameEn) || cfg.station || '';
+    if (cfg.infoType === 'special') {
+      b.add(name + ', ' + (L ? 'información especial ' : 'special information ') + info.word + '.',
+        name + ', ' + (L ? 'información especial ' : 'special information ') + letterSpeech + '.');
+    } else {
+      b.add(name + ', ' + (L ? 'información ' : 'information ') + info.word + '.',
+        name + ', ' + (L ? 'información ' : 'information ') + letterSpeech + '.');
+    }
+
+    /* 2. Hora de la observación */
+    if (obs.time) {
+      b.add((L ? 'Observación de las ' : 'Weather observation at ') + obs.time + ' zulu.',
+        (L ? 'Observación de las ' : 'Weather observation at ') + N.spell(obs.time, lang) + ' zulu.');
+    }
+
+    /* 3. Tipo de aproximación */
+    if (cfg.approach) {
+      var apRwy = cfg.approachRunway ? N.runway(cfg.approachRunway, lang) : null;
+      var apName = approachName(cfg.approach, lang);
+      var t = (L ? 'Esperar aproximación ' : 'Expect ') + apName + (L ? '' : ' approach');
+      var s = t;
+      if (apRwy) {
+        t += (L ? ' a pista ' : ' runway ') + apRwy.text;
+        s += (L ? ' a pista ' : ' runway ') + apRwy.speech;
+      }
+      b.add(t + '.', s + '.');
+    }
+
+    /* 4. Pista o pistas en uso */
+    var rwys = (cfg.runwaysInUse || []).filter(Boolean);
+    if (rwys.length) {
+      var texts = rwys.map(function (r) { return N.runway(r, lang); });
+      var join = L ? ' y ' : ' and ';
+      var head = rwys.length > 1 ? (L ? 'Pistas en uso ' : 'Runways in use ') : (L ? 'Pista en uso ' : 'Runway in use ');
+      b.add(head + texts.map(function (x) { return x.text; }).join(join) + '.',
+        head + texts.map(function (x) { return x.speech; }).join(join) + '.');
+    }
+
+    /* 5. Condición de la pista */
+    if (cfg.runwayCondition && RWY_CONDITIONS[cfg.runwayCondition]) {
+      var rc = RWY_CONDITIONS[cfg.runwayCondition][lang];
+      if (rc) b.add(rc + '.');
+    }
+
+    /* 6. Nivel de transición */
+    if (cfg.transitionLevel) {
+      b.add((L ? 'Nivel de transición ' : 'Transition level ') + cfg.transitionLevel + '.',
+        (L ? 'Nivel de transición ' : 'Transition level ') + N.spell(cfg.transitionLevel, lang) + '.');
+    }
+
+    /* 7. Viento */
+    var w = obs.wind || {};
+    if (w.mode === 'calm') {
+      b.add(L ? 'Viento en calma.' : 'Wind calm.');
+    } else if (w.speed !== '' && w.speed !== undefined && w.speed !== null) {
+      var wt, ws;
+      var unit = (w.unit === 'MPS') ? (L ? 'metros por segundo' : 'meters per second') : (L ? 'nudos' : 'knots');
+      if (w.mode === 'variable' || !w.direction) {
+        wt = (L ? 'Viento variable ' : 'Wind variable ') + w.speed + ' ' + unit;
+        ws = (L ? 'Viento variable ' : 'Wind variable ') + N.spell(w.speed, lang) + ' ' + unit;
+      } else {
+        wt = (L ? 'Viento ' : 'Wind ') + w.direction + (L ? ' grados ' : ' degrees ') + w.speed + ' ' + unit;
+        ws = (L ? 'Viento ' : 'Wind ') + N.spell(w.direction, lang) + (L ? ' grados ' : ' degrees ') +
+          N.spell(w.speed, lang) + ' ' + unit;
+      }
+      if (w.gust) {
+        wt += (L ? ', con rachas de ' : ', gusting ') + w.gust + ' ' + unit;
+        ws += (L ? ', con rachas de ' : ', gusting ') + N.spell(w.gust, lang) + ' ' + unit;
+      }
+      b.add(wt + '.', ws + '.');
+      if (w.varFrom && w.varTo) {
+        b.add((L ? 'Viento variable entre ' : 'Wind variable between ') + w.varFrom + (L ? ' y ' : ' and ') +
+          w.varTo + (L ? ' grados.' : ' degrees.'),
+          (L ? 'Viento variable entre ' : 'Wind variable between ') + N.spell(w.varFrom, lang) +
+          (L ? ' y ' : ' and ') + N.spell(w.varTo, lang) + (L ? ' grados.' : ' degrees.'));
+      }
+    }
+
+    /* 8. Visibilidad */
+    var v = obs.visibility || {};
+    if (v.value !== '' && v.value !== undefined && v.value !== null) {
+      var u = VIS_UNITS[v.unit] || VIS_UNITS.SM;
+      var singular = String(v.value) === '1';
+      var unitText = L ? (singular ? u.es1 : u.es) : (singular ? u.en1 : u.en);
+      var vt = (L ? 'Visibilidad ' : 'Visibility ');
+      var vs = vt;
+      if (v.less) { vt += L ? 'menor de ' : 'less than '; vs += L ? 'menor de ' : 'less than '; }
+      vt += v.value + ' ' + unitText;
+      vs += visValueSpeech(v.value, v.unit, lang) + ' ' + unitText;
+      if (v.orMore) { vt += L ? ' o mas' : ' or more'; vs += L ? ' o mas' : ' or more'; }
+      b.add(vt + '.', vs + '.');
+    }
+    if (v.cause && VIS_CAUSES[v.cause]) {
+      var cz = VIS_CAUSES[v.cause][lang];
+      if (cz) b.add(cz + '.');
+    }
+
+    /* 9. RVR */
+    (obs.rvr || []).forEach(function (r) {
+      var rr = N.runway(r.runway, lang);
+      var unitR = r.unit === 'ft' ? (L ? 'pies' : 'feet') : (L ? 'metros' : 'meters');
+      b.add((L ? 'Alcance visual en la pista ' : 'Runway visual range runway ') + rr.text + ' ' + r.value + ' ' + unitR + '.',
+        (L ? 'Alcance visual en la pista ' : 'Runway visual range runway ') + rr.speech + ' ' +
+        N.cardinal(r.value, lang) + ' ' + unitR + '.');
+    });
+
+    /* 10. Condición de cielo */
+    var layers = (obs.layers || []).filter(function (l) { return l && l.amount; });
+    if (layers.length) {
+      var lt = [], ls = [];
+      layers.forEach(function (l, li) {
+        var lab = SKY_LABELS[l.amount];
+        if (!lab) return;
+        var label = li === 0 ? lab[lang] : lowerFirst(lab[lang]);
+        if (lab.noHeight || !l.height) {
+          lt.push(label); ls.push(label);
+        } else {
+          var ft = L ? 'pies' : 'feet';
+          lt.push(label + ' ' + l.height + ' ' + ft);
+          ls.push(label + ' ' + N.altitude(l.height, lang) + ' ' + ft);
+        }
+        if (l.type && D.CLOUD_TYPE[l.type]) {
+          lt[lt.length - 1] += ' ' + (L ? 'con ' : 'with ') + D.CLOUD_TYPE[l.type][lang];
+          ls[ls.length - 1] += ' ' + (L ? 'con ' : 'with ') + D.CLOUD_TYPE[l.type][lang];
+        }
+      });
+      if (lt.length) b.add(lt.join(', ') + '.', ls.join(', ') + '.');
+    }
+
+    /* 11. Temperatura y punto de rocío */
+    if (obs.temperature !== '' && obs.temperature !== null && obs.temperature !== undefined) {
+      var tt = (L ? 'Temperatura ' : 'Temperature ') + obs.temperature;
+      var tsp = (L ? 'Temperatura ' : 'Temperature ') + signedSpeech(obs.temperature, lang);
+      if (obs.dewpoint !== '' && obs.dewpoint !== null && obs.dewpoint !== undefined) {
+        tt += (L ? ', punto de rocío ' : ', dew point ') + obs.dewpoint;
+        tsp += (L ? ', punto de rocío ' : ', dew point ') + signedSpeech(obs.dewpoint, lang);
+      }
+      b.add(tt + '.', tsp + '.');
+    }
+
+    /* 12. Altímetro / QNH */
+    if (obs.altimeter) {
+      if (obs.altimeterUnit === 'inHg') {
+        b.add((L ? 'Altímetro ' : 'Altimeter ') + obs.altimeter + '.',
+          (L ? 'Altímetro ' : 'Altimeter ') + N.spell(obs.altimeter, lang) + '.');
+        if (cfg.includeHpa && obs.qnhHpa) {
+          b.add('QNH ' + obs.qnhHpa + (L ? ' hectopascales.' : ' hectopascals.'),
+            'Q N H ' + N.spell(obs.qnhHpa, lang) + (L ? ' hectopascales.' : ' hectopascals.'));
+        }
+      } else {
+        b.add('QNH ' + obs.altimeter + (L ? ' hectopascales.' : ' hectopascals.'),
+          'Q N H ' + N.spell(obs.altimeter, lang) + (L ? ' hectopascales.' : ' hectopascals.'));
+      }
+    }
+
+    /* 13. Cizalladura */
+    if (obs.windshear) {
+      b.add((L ? 'Cizalladura del viento reportada: ' : 'Wind shear reported: ') + obs.windshear + '.',
+        (L ? 'Cizalladura del viento reportada: ' : 'Wind shear reported: ') + speakNumbers(obs.windshear, lang) + '.');
+    }
+
+    /* 14. NOTAM vigentes */
+    var notams = (cfg.notamLines || []).filter(Boolean);
+    if (notams.length) {
+      b.add(L ? 'NOTAM vigentes.' : 'Current NOTAMs.');
+      notams.forEach(function (line) {
+        var clean = String(line).trim();
+        if (!clean) return;
+        if (!/[.!?]$/.test(clean)) clean += '.';
+        b.add(clean, speakNumbers(clean, lang));
+      });
+    }
+
+    /* 15. Información adicional */
+    var extra = (L ? cfg.additionalEs : cfg.additionalEn) || '';
+    extra = String(extra).replace(/\r/g, '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+    if (extra.length) {
+      b.add(L ? 'Información adicional.' : 'Additional information.');
+      extra.forEach(function (line) {
+        if (!/[.!?]$/.test(line)) line += '.';
+        b.add(line, speakNumbers(line, lang));
+      });
+    }
+
+    /* 16. Cierre */
+    b.add((L ? 'Al establecer comunicación informe tener información ' : 'On initial contact advise you have information ') +
+      info.word + '.',
+      (L ? 'Al establecer comunicación informe tener información ' : 'On initial contact advise you have information ') +
+      letterSpeech + '.');
+
+    return b.result();
+  }
+
+  function approachName(code, lang) {
+    var map = {
+      ILS: { es: 'ILS', en: 'ILS' },
+      RNP: { es: 'RNP', en: 'RNP' },
+      VOR: { es: 'VOR', en: 'VOR' },
+      NDB: { es: 'NDB', en: 'NDB' },
+      VISUAL: { es: 'visual', en: 'visual' },
+      RADAR: { es: 'radar', en: 'radar' }
+    };
+    var e = map[String(code).toUpperCase()];
+    return e ? e[lang] : code;
+  }
+
+  function signedSpeech(value, lang) {
+    var str = String(value).trim();
+    var neg = str.charAt(0) === '-' || str.charAt(0) === 'M';
+    var digits = str.replace(/^[-M]/, '');
+    var head = neg ? (lang === 'es' ? 'menos ' : 'minus ') : '';
+    return head + N.spell(digits, lang);
+  }
+
+  function visValueSpeech(value, unit, lang) {
+    var str = String(value).trim();
+    var frac = /^(?:(\d+)\s)?(\d+)\/(\d+)$/.exec(str);
+    if (frac) {
+      var names = {
+        '1/2': { es: 'un medio', en: 'one half' },
+        '1/4': { es: 'un cuarto', en: 'one quarter' },
+        '3/4': { es: 'tres cuartos', en: 'three quarters' },
+        '1/8': { es: 'un octavo', en: 'one eighth' },
+        '3/8': { es: 'tres octavos', en: 'three eighths' },
+        '5/8': { es: 'cinco octavos', en: 'five eighths' },
+        '7/8': { es: 'siete octavos', en: 'seven eighths' },
+        '1/16': { es: 'un dieciseisavo', en: 'one sixteenth' }
+      };
+      var key = frac[2] + '/' + frac[3];
+      var fracText = names[key] ? names[key][lang] : N.cardinal(+frac[2], lang) + ' / ' + N.cardinal(+frac[3], lang);
+      return (frac[1] ? N.cardinal(+frac[1], lang) + (lang === 'es' ? ' y ' : ' and ') : '') + fracText;
+    }
+    var n = Number(str);
+    if (isNaN(n)) return speakNumbers(str, lang);
+    return N.cardinal(n, lang);
+  }
+
+  function lowerFirst(s) {
+    return String(s || '').charAt(0).toLowerCase() + String(s || '').slice(1);
+  }
+
+  ATIS.script = {
+    build: build,
+    fromMetar: fromMetar,
+    speakNumbers: speakNumbers,
+    SKY_LABELS: SKY_LABELS,
+    VIS_CAUSES: VIS_CAUSES,
+    RWY_CONDITIONS: RWY_CONDITIONS,
+    VIS_UNITS: VIS_UNITS
+  };
+})(this);
+
+</script>
+<script>
+/* js/speech.js */
+/* ATIS 3.0 - Motor de locucion en bucle (Web Speech API) */
+(function (global) {
+  'use strict';
+  var ATIS = global.ATIS = global.ATIS || {};
+
+  var synth = global.speechSynthesis;
+  var voices = [];
+  var readyCbs = [];
+  var stateCbs = [];
+
+  var state = {
+    playing: false,
+    paused: false,
+    cycle: 0,
+    lang: '',
+    chunk: 0,
+    total: 0
+  };
+
+  var queue = [];          /* [{lang, text}] */
+  var options = {
+    loop: true,
+    gap: 3,                /* segundos entre idiomas */
+    cycleGap: 5,           /* segundos entre repeticiones completas */
+    voices: { es: null, en: null },
+    rate: { es: 0.95, en: 0.95 },
+    pitch: { es: 1, en: 1 },
+    volume: 1
+  };
+
+  var idx = 0;
+  var chunks = [];
+  var timer = null;
+  var keepAlive = null;
+  var current = null;
+
+  function loadVoices() {
+    if (!synth) return;
+    voices = synth.getVoices() || [];
+    if (voices.length) {
+      readyCbs.forEach(function (cb) { cb(voices); });
+      readyCbs = [];
+    }
+  }
+
+  if (synth) {
+    loadVoices();
+    if (typeof synth.addEventListener === 'function') {
+      synth.addEventListener('voiceschanged', loadVoices);
+    } else {
+      synth.onvoiceschanged = loadVoices;
+    }
+  }
+
+  function onVoicesReady(cb) {
+    if (voices.length) cb(voices);
+    else {
+      readyCbs.push(cb);
+      /* Algunos navegadores tardan en publicar las voces */
+      setTimeout(loadVoices, 250);
+      setTimeout(loadVoices, 1000);
+    }
+  }
+
+  function getVoices(langPrefix) {
+    if (!langPrefix) return voices.slice();
+    return voices.filter(function (v) {
+      return String(v.lang || '').toLowerCase().indexOf(langPrefix) === 0;
+    });
+  }
+
+  function findVoice(name, langPrefix) {
+    var v = null;
+    if (name) {
+      v = voices.filter(function (x) { return x.name === name; })[0] || null;
+    }
+    if (!v) {
+      var list = getVoices(langPrefix);
+      /* Preferencia: es-MX / en-US */
+      var preferred = langPrefix === 'es' ? 'es-mx' : 'en-us';
+      v = list.filter(function (x) { return String(x.lang).toLowerCase() === preferred; })[0] || list[0] || null;
+    }
+    return v;
+  }
+
+  /* Divide el guion en fragmentos cortos: los motores TTS cortan textos largos */
+  function splitChunks(text, max) {
+    max = max || 180;
+    var sentences = String(text || '').replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]*/g) || [];
+    var out = [], buf = '';
+    sentences.forEach(function (s) {
+      s = s.trim();
+      if (!s) return;
+      if ((buf + ' ' + s).trim().length > max && buf) { out.push(buf.trim()); buf = s; }
+      else buf = (buf + ' ' + s).trim();
+    });
+    if (buf) out.push(buf.trim());
+    return out;
+  }
+
+  function buildChunks() {
+    chunks = [];
+    queue.forEach(function (item, qi) {
+      splitChunks(item.text).forEach(function (c) {
+        chunks.push({ lang: item.lang, text: c, part: qi });
+      });
+      chunks.push({ lang: item.lang, text: '', pause: qi === queue.length - 1 ? options.cycleGap : options.gap, part: qi });
+    });
+    state.total = chunks.length;
+  }
+
+  function emit() {
+    stateCbs.forEach(function (cb) {
+      cb({
+        playing: state.playing, paused: state.paused, cycle: state.cycle,
+        lang: state.lang, chunk: state.chunk, total: state.total
+      });
+    });
+  }
+
+  function onState(cb) { stateCbs.push(cb); }
+
+  function speakNext() {
+    if (!state.playing) return;
+    if (idx >= chunks.length) {
+      state.cycle++;
+      if (!options.loop) { stop(); return; }
+      idx = 0;
+      emit();
+    }
+    var item = chunks[idx++];
+    state.chunk = idx;
+    state.lang = item.lang;
+    emit();
+
+    if (!item.text) {
+      timer = setTimeout(speakNext, Math.max(0, (item.pause || 0) * 1000));
+      return;
+    }
+
+    var u = new global.SpeechSynthesisUtterance(item.text);
+    var langPrefix = item.lang;
+    var voice = findVoice(options.voices[langPrefix], langPrefix);
+    if (voice) { u.voice = voice; u.lang = voice.lang; }
+    else u.lang = langPrefix === 'es' ? 'es-MX' : 'en-US';
+    u.rate = options.rate[langPrefix] || 1;
+    u.pitch = options.pitch[langPrefix] || 1;
+    u.volume = options.volume;
+    u.onend = function () { current = null; if (state.playing) speakNext(); };
+    u.onerror = function (e) {
+      current = null;
+      if (e && (e.error === 'interrupted' || e.error === 'canceled')) return;
+      if (state.playing) setTimeout(speakNext, 200);
+    };
+    current = u;
+    synth.speak(u);
+  }
+
+  function startKeepAlive() {
+    stopKeepAlive();
+    /* Chrome detiene la síntesis después de ~15 s; resume() la mantiene viva */
+    keepAlive = setInterval(function () {
+      if (state.playing && !state.paused && synth.speaking) {
+        synth.pause(); synth.resume();
+      }
+    }, 9000);
+  }
+  function stopKeepAlive() { if (keepAlive) { clearInterval(keepAlive); keepAlive = null; } }
+
+  function play(sequence, opts) {
+    if (!synth) return false;
+    stop();
+    queue = (sequence || []).filter(function (s) { return s && s.text; });
+    if (!queue.length) return false;
+    if (opts) setOptions(opts);
+    buildChunks();
+    idx = 0;
+    state.playing = true;
+    state.paused = false;
+    state.cycle = 1;
+    emit();
+    startKeepAlive();
+    speakNext();
+    return true;
+  }
+
+  function stop() {
+    state.playing = false;
+    state.paused = false;
+    state.lang = '';
+    state.chunk = 0;
+    if (timer) { clearTimeout(timer); timer = null; }
+    stopKeepAlive();
+    if (synth) { try { synth.cancel(); } catch (e) { /* ignorado */ } }
+    current = null;
+    emit();
+  }
+
+  function pause() {
+    if (!synth || !state.playing) return;
+    state.paused = true;
+    try { synth.pause(); } catch (e) { /* ignorado */ }
+    emit();
+  }
+
+  function resume() {
+    if (!synth || !state.playing) return;
+    state.paused = false;
+    try { synth.resume(); } catch (e) { /* ignorado */ }
+    emit();
+  }
+
+  function setOptions(o) {
+    o = o || {};
+    if (typeof o.loop === 'boolean') options.loop = o.loop;
+    if (typeof o.gap === 'number') options.gap = o.gap;
+    if (typeof o.cycleGap === 'number') options.cycleGap = o.cycleGap;
+    if (typeof o.volume === 'number') options.volume = o.volume;
+    if (o.voices) {
+      if (o.voices.es !== undefined) options.voices.es = o.voices.es;
+      if (o.voices.en !== undefined) options.voices.en = o.voices.en;
+    }
+    if (o.rate) {
+      if (o.rate.es !== undefined) options.rate.es = o.rate.es;
+      if (o.rate.en !== undefined) options.rate.en = o.rate.en;
+    }
+    if (o.pitch) {
+      if (o.pitch.es !== undefined) options.pitch.es = o.pitch.es;
+      if (o.pitch.en !== undefined) options.pitch.en = o.pitch.en;
+    }
+  }
+
+  /* Prueba corta de voz */
+  function test(lang, text) {
+    if (!synth) return;
+    synth.cancel();
+    var u = new global.SpeechSynthesisUtterance(text || (lang === 'es'
+      ? 'Prueba de voz. Información Sierra.'
+      : 'Voice test. Information Sierra.'));
+    var v = findVoice(options.voices[lang], lang);
+    if (v) { u.voice = v; u.lang = v.lang; }
+    u.rate = options.rate[lang] || 1;
+    u.pitch = options.pitch[lang] || 1;
+    u.volume = options.volume;
+    synth.speak(u);
+  }
+
+  ATIS.speech = {
+    supported: !!synth,
+    onVoicesReady: onVoicesReady,
+    getVoices: getVoices,
+    play: play, stop: stop, pause: pause, resume: resume,
+    setOptions: setOptions, onState: onState, test: test,
+    splitChunks: splitChunks,
+    get state() { return state; }
+  };
+})(this);
+
+</script>
+<script>
+/* js/app.js */
+/* ATIS 3.0 - Interfaz y control */
+(function (global) {
+  'use strict';
+  var ATIS = global.ATIS;
+  var S = ATIS.script, N = ATIS.num;
+  var STORE_KEY = 'atis3.state';
+
+  var el = {};
+  var notams = [];
+  var runwaysInUse = [];
+  var lastMetar = '';
+  var lastScripts = { es: null, en: null };
+  var saveTimer = null, renderTimer = null;
+
+  function $(id) { return document.getElementById(id); }
+  function on(node, ev, fn) { if (node) node.addEventListener(ev, fn); }
+
+  /* ================================================================== *
+   * Arranque
+   * ================================================================== */
+  function init() {
+    [
+      'station', 'stationList', 'letterBig', 'letterWord', 'letterPrev', 'letterNext', 'utcClock',
+      'metarRaw', 'btnDecode', 'btnFetch', 'btnSample', 'metarStatus', 'metarDecoded',
+      'infoType', 'obsTime', 'approach', 'approachRunway', 'runwayChips', 'runwayCondition', 'transitionLevel',
+      'windMode', 'windDir', 'windSpeed', 'windGust', 'windVarFrom', 'windVarTo',
+      'visValue', 'visUnit', 'visCause', 'visOrMore',
+      'temperature', 'dewpoint', 'altimeter', 'includeHpa',
+      'layers', 'btnAddLayer',
+      'notamRaw', 'btnNotamAdd', 'btnNotamClear', 'notamStatus', 'notamList',
+      'additionalEs', 'additionalEn', 'includeNotams',
+      'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
+      'btnPlay', 'btnStop', 'playState', 'playDetail',
+      'voiceEs', 'voiceEn', 'rate', 'gap', 'btnTestEs', 'btnTestEn'
+    ].forEach(function (id) { el[id] = $(id); });
+
+    fillStations();
+    fillCauses();
+    ensureLayerRows(3);
+    bindEvents();
+    restore();
+    applyAirport(el.station.value, true);
+    if (savedApproachRwy) selectIfPresent(el.approachRunway, savedApproachRwy);
+    setLetter(el.letterBig.textContent || 'A');
+    startClock();
+    initVoices();
+    render();
+  }
+
+  function fillStations() {
+    var html = '';
+    Object.keys(ATIS.airports).forEach(function (code) {
+      html += '<option value="' + code + '">' + ATIS.airports[code].es + '</option>';
+    });
+    el.stationList.innerHTML = html;
+  }
+
+  function fillCauses() {
+    var html = '';
+    Object.keys(S.VIS_CAUSES).forEach(function (k) {
+      var label = S.VIS_CAUSES[k].es || '— sin causa —';
+      html += '<option value="' + k + '">' + label + '</option>';
+    });
+    el.visCause.innerHTML = html;
+  }
+
+  /* ================================================================== *
+   * Aerodromo, pistas y letra
+   * ================================================================== */
+  function applyAirport(code, keepFields) {
+    var ap = ATIS.getAirport(code);
+    var runways = ap ? ap.runways : [];
+
+    el.approachRunway.innerHTML = '<option value="">— sin pista —</option>' +
+      runways.map(function (r) { return '<option value="' + r + '">' + r + '</option>'; }).join('');
+
+    el.runwayChips.innerHTML = runways.map(function (r) {
+      return '<button type="button" class="chip" data-rwy="' + r + '">' + r + '</button>';
+    }).join('') || '<span class="status">Estación sin pistas registradas; use Información adicional.</span>';
+    paintChips();
+
+    if (ap && !keepFields) {
+      el.transitionLevel.value = ap.transitionLevel || '';
+    } else if (ap && !el.transitionLevel.value) {
+      el.transitionLevel.value = ap.transitionLevel || '';
+    }
+  }
+
+  function airportNames(code) {
+    var ap = ATIS.getAirport(code);
+    if (ap) return { es: ap.es, en: ap.en };
+    var spelled = String(code || '').toUpperCase().split('').join(' ');
+    return { es: 'Aeropuerto ' + spelled, en: 'Airport ' + spelled };
+  }
+
+  function paintChips() {
+    Array.prototype.forEach.call(el.runwayChips.querySelectorAll('.chip'), function (c) {
+      if (runwaysInUse.indexOf(c.dataset.rwy) >= 0) c.classList.add('on');
+      else c.classList.remove('on');
+    });
+  }
+
+  function setLetter(letter) {
+    var info = N.letterInfo(letter);
+    el.letterBig.textContent = info.letter;
+    el.letterWord.textContent = info.word;
+    scheduleRender();
+  }
+
+  function stepLetter(delta) {
+    var info = N.letterInfo(el.letterBig.textContent);
+    var next = (info.index + delta + 26) % 26;
+    setLetter(String.fromCharCode(65 + next));
+  }
+
+  /* ================================================================== *
+   * Capas de cielo
+   * ================================================================== */
+  function layerRow(amount, height) {
+    var opts = '<option value="">— sin capa —</option>' +
+      Object.keys(S.SKY_LABELS).map(function (k) {
+        return '<option value="' + k + '"' + (k === amount ? ' selected' : '') + '>' + S.SKY_LABELS[k].es + '</option>';
+      }).join('');
+    var div = document.createElement('div');
+    div.className = 'layer';
+    div.innerHTML =
+      '<label class="field"><span>Condición</span><select class="l-amount">' + opts + '</select></label>' +
+      '<label class="field"><span>Altura (ft)</span><input class="l-height" inputmode="numeric" value="' +
+        (height || '') + '" placeholder="2000"></label>' +
+      '<button type="button" class="mini l-del" title="Quitar capa">&times;</button>';
+    on(div.querySelector('.l-del'), 'click', function () { div.remove(); scheduleRender(); });
+    on(div.querySelector('.l-amount'), 'change', scheduleRender);
+    on(div.querySelector('.l-height'), 'input', scheduleRender);
+    return div;
+  }
+
+  function ensureLayerRows(n) {
+    while (el.layers.children.length < n) el.layers.appendChild(layerRow('', ''));
+  }
+
+  function setLayers(list) {
+    el.layers.innerHTML = '';
+    (list || []).forEach(function (l) { el.layers.appendChild(layerRow(l.amount, l.height)); });
+    ensureLayerRows(3);
+  }
+
+  function readLayers() {
+    return Array.prototype.map.call(el.layers.querySelectorAll('.layer'), function (row) {
+      return {
+        amount: row.querySelector('.l-amount').value,
+        height: row.querySelector('.l-height').value.replace(/\D/g, '')
+      };
+    }).filter(function (l) { return l.amount; });
+  }
+
+  /* ================================================================== *
+   * METAR
+   * ================================================================== */
+  function decodeMetar() {
+    var raw = el.metarRaw.value.trim();
+    if (!raw) { status(el.metarStatus, 'Pegue un METAR para decodificar.', 'err'); return; }
+    var m = ATIS.metar.parse(raw);
+    if (!m.valid) {
+      status(el.metarStatus, 'METAR no reconocido: ' + (m.errors.join('; ') || 'formato inválido'), 'err');
+      showDecoded(m);
+      return;
+    }
+
+    if (m.station) {
+      el.station.value = m.station;
+      applyAirport(m.station, true);
+    }
+
+    var obs = S.fromMetar(m);
+    el.obsTime.value = obs.time;
+    el.windMode.value = obs.wind.mode;
+    el.windDir.value = obs.wind.direction;
+    el.windSpeed.value = obs.wind.speed;
+    el.windGust.value = obs.wind.gust;
+    el.windVarFrom.value = obs.wind.varFrom;
+    el.windVarTo.value = obs.wind.varTo;
+    el.visValue.value = obs.visibility.value;
+    el.visUnit.value = obs.visibility.unit;
+    el.visCause.value = obs.visibility.cause || '';
+    el.visOrMore.checked = !!obs.visibility.orMore;
+    el.temperature.value = obs.temperature;
+    el.dewpoint.value = obs.dewpoint;
+    el.altimeter.value = obs.altimeter;
+    el.altimeter.dataset.unit = obs.altimeterUnit;
+    el.altimeter.dataset.hpa = obs.qnhHpa || '';
+    setLayers(obs.layers.filter(function (l) { return l.amount; }));
+
+    var advanced = false;
+    if (lastMetar && lastMetar !== m.raw) { stepLetter(1); advanced = true; }
+    lastMetar = m.raw;
+
+    showDecoded(m);
+    status(el.metarStatus, 'METAR decodificado' +
+      (advanced ? ' · letra avanzada a ' + N.letterInfo(el.letterBig.textContent).word : '') +
+      (m.unparsed.length ? ' · grupos sin decodificar: ' + m.unparsed.join(' ') : ''), 'ok');
+    render();
+  }
+
+  function showDecoded(m) {
+    var tags = [];
+    function tag(label, value, warn) {
+      if (value === '' || value === null || value === undefined) return;
+      tags.push('<span class="tag' + (warn ? ' warn' : '') + '"><b>' + label + '</b>' + value + '</span>');
+    }
+    tag('estación', m.station);
+    if (m.hour !== null) tag('observación', 'día ' + m.day + ' ' + ('0' + m.hour).slice(-2) + ':' + ('0' + m.minute).slice(-2) + 'Z');
+    if (m.auto) tag('tipo', 'automático');
+    if (m.wind) {
+      var dirTxt = m.wind.variable || m.wind.direction === null
+        ? 'variable' : ('00' + m.wind.direction).slice(-3) + '°';
+      var w = m.wind.calm ? 'en calma'
+        : dirTxt + ' ' + m.wind.speed + ' kt' + (m.wind.gust ? ' rachas ' + m.wind.gust + ' kt' : '');
+      tag('viento', w);
+    }
+    if (m.cavok) tag('cielo', 'CAVOK');
+    if (m.visibility) {
+      tag('visibilidad', m.visibility.unit === 'SM'
+        ? m.visibility.text + ' SM'
+        : (m.visibility.tenKmOrMore ? '10 km o más' : m.visibility.meters + ' m'));
+    }
+    m.weather.forEach(function (w) {
+      tag('tiempo', describeWeather(w, 'es') + ' (' + w.raw + ')');
+    });
+    m.clouds.forEach(function (c) {
+      var lab = ATIS.dict.CLOUD_AMOUNT[c.amount];
+      tag('nubes', (lab ? lab.es : c.amount) + ' a ' + c.height + ' ft' +
+        (c.type ? ' ' + ATIS.dict.CLOUD_TYPE[c.type].es : ''));
+    });
+    if (m.verticalVisibility !== null) tag('vis. vertical', m.verticalVisibility + ' ft');
+    if (m.temperature !== null) tag('temperatura', m.temperature + ' °C');
+    if (m.dewpoint !== null) tag('punto de rocío', m.dewpoint + ' °C');
+    if (m.qnh) tag('altímetro', m.qnh.inHg.toFixed(2) + ' inHg / ' + m.qnh.hpa + ' hPa');
+    m.rvr.forEach(function (r) { tag('RVR', r.runway + ' ' + r.value + ' ' + r.unit); });
+    if (m.windshear.length) tag('cizalladura', m.windshear.join(', '), true);
+    if (m.trend) tag('tendencia', m.trend);
+    if (m.remarks) tag('comentarios', m.remarks);
+    if (m.unparsed.length) tag('sin decodificar', m.unparsed.join(' '), true);
+    el.metarDecoded.innerHTML = tags.join('');
+  }
+
+  function describeWeather(w, lang) {
+    var D = ATIS.dict, parts = [];
+    if (w.intensity && D.INTENSITY[w.intensity]) parts.push(D.INTENSITY[w.intensity][lang]);
+    if (w.descriptor && D.DESCRIPTOR[w.descriptor]) parts.push(D.DESCRIPTOR[w.descriptor][lang]);
+    w.phenomena.forEach(function (p) { if (D.PHENOMENON[p]) parts.push(D.PHENOMENON[p][lang]); });
+    return parts.join(' ');
+  }
+
+  function fetchMetar() {
+    var code = (el.station.value || '').toUpperCase().trim();
+    if (!/^[A-Z]{4}$/.test(code)) { status(el.metarStatus, 'Indique un código OACI de 4 letras.', 'err'); return; }
+    status(el.metarStatus, 'Consultando METAR de ' + code + '…');
+    var url = 'https://aviationweather.gov/api/data/metar?ids=' + code + '&format=raw&hours=2';
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function (txt) {
+        var line = String(txt).trim().split('\n')[0];
+        if (!line) throw new Error('sin datos');
+        el.metarRaw.value = line.trim();
+        decodeMetar();
+      })
+      .catch(function (e) {
+        status(el.metarStatus, 'No fue posible obtener el METAR (' + e.message + '). Péguelo manualmente.', 'err');
+      });
+  }
+
+  /* ================================================================== *
+   * NOTAM
+   * ================================================================== */
+  function addNotam() {
+    var raw = el.notamRaw.value.trim();
+    if (!raw) { status(el.notamStatus, 'Pegue uno o varios NOTAM.', 'err'); return; }
+    var blocks = ATIS.notam.split(raw);
+    blocks.forEach(function (b) {
+      notams.push({
+        raw: b,
+        es: ATIS.notam.parse(b, 'es'),
+        en: ATIS.notam.parse(b, 'en'),
+        include: true
+      });
+    });
+    el.notamRaw.value = '';
+    status(el.notamStatus, blocks.length + ' NOTAM agregado(s).', 'ok');
+    renderNotams();
+    render();
+  }
+
+  function renderNotams() {
+    if (!notams.length) {
+      el.notamList.innerHTML = '<span class="status">Sin NOTAM cargados.</span>';
+      return;
+    }
+    el.notamList.innerHTML = notams.map(function (n, i) {
+      var q = n.es.q;
+      var qtxt = q ? [q.subject, q.condition].filter(Boolean).join(' · ') : '';
+      return '<div class="notam' + (n.include ? '' : ' off') + '">' +
+        '<header>' +
+          '<span class="id">' + (n.es.id || 'NOTAM ' + (i + 1)) + '</span>' +
+          (n.es.location ? '<span class="q">' + n.es.location + '</span>' : '') +
+          (qtxt ? '<span class="q">' + escapeHtml(qtxt) + '</span>' : '') +
+          '<span class="spacer"></span>' +
+          '<label class="checkline"><input type="checkbox" data-n="' + i + '" class="n-inc"' +
+            (n.include ? ' checked' : '') + '> <span>transmitir</span></label>' +
+          '<button class="mini n-del" data-n="' + i + '">quitar</button>' +
+        '</header>' +
+        '<div class="txt">' + escapeHtml(n.es.summary || n.es.plain) + '</div>' +
+        '<div class="txt en">' + escapeHtml(n.en.summary || n.en.plain) + '</div>' +
+        '<div class="raw">' + escapeHtml(n.raw) + '</div>' +
+      '</div>';
+    }).join('');
+
+    Array.prototype.forEach.call(el.notamList.querySelectorAll('.n-inc'), function (c) {
+      on(c, 'change', function () {
+        notams[+c.dataset.n].include = c.checked;
+        renderNotams(); render();
+      });
+    });
+    Array.prototype.forEach.call(el.notamList.querySelectorAll('.n-del'), function (b) {
+      on(b, 'click', function () {
+        notams.splice(+b.dataset.n, 1);
+        renderNotams(); render();
+      });
+    });
+  }
+
+  function notamLines(lang) {
+    if (!el.includeNotams.checked) return [];
+    return notams.filter(function (n) { return n.include; })
+      .map(function (n) { return n[lang].summary || n[lang].plain; })
+      .filter(Boolean);
+  }
+
+  function escapeHtml(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /* ================================================================== *
+   * Generacion del guion
+   * ================================================================== */
+  function readModel() {
+    var code = (el.station.value || '').toUpperCase().trim();
+    var names = airportNames(code);
+    var obs = {
+      station: code,
+      time: el.obsTime.value.replace(/\D/g, ''),
+      wind: {
+        mode: el.windMode.value,
+        direction: el.windDir.value.replace(/\D/g, ''),
+        speed: el.windSpeed.value.replace(/\D/g, ''),
+        gust: el.windGust.value.replace(/\D/g, ''),
+        varFrom: el.windVarFrom.value.replace(/\D/g, ''),
+        varTo: el.windVarTo.value.replace(/\D/g, ''),
+        unit: 'KT'
+      },
+      visibility: {
+        value: el.visValue.value.trim(),
+        unit: el.visUnit.value,
+        orMore: el.visOrMore.checked,
+        cause: el.visCause.value
+      },
+      rvr: [],
+      layers: readLayers(),
+      temperature: el.temperature.value.trim(),
+      dewpoint: el.dewpoint.value.trim(),
+      altimeter: el.altimeter.value.replace(/\D/g, ''),
+      altimeterUnit: el.altimeter.dataset.unit || 'inHg',
+      qnhHpa: el.altimeter.dataset.hpa || '',
+      windshear: ''
+    };
+    var cfg = {
+      station: code,
+      airportNameEs: names.es,
+      airportNameEn: names.en,
+      letter: el.letterBig.textContent,
+      infoType: el.infoType.value,
+      approach: el.approach.value,
+      approachRunway: el.approachRunway.value,
+      runwaysInUse: runwaysInUse.slice(),
+      runwayCondition: el.runwayCondition.value,
+      transitionLevel: el.transitionLevel.value.replace(/\D/g, ''),
+      includeHpa: el.includeHpa.checked,
+      additionalEs: el.additionalEs.value,
+      additionalEn: el.additionalEn.value
+    };
+    return { obs: obs, cfg: cfg };
+  }
+
+  function render() {
+    var m = readModel();
+    var cfgEs = Object.create(m.cfg); cfgEs.notamLines = notamLines('es');
+    var cfgEn = Object.create(m.cfg); cfgEn.notamLines = notamLines('en');
+    lastScripts.es = S.build('es', m.obs, cfgEs);
+    lastScripts.en = S.build('en', m.obs, cfgEn);
+    el.scriptEs.textContent = lastScripts.es.text;
+    el.scriptEn.textContent = lastScripts.en.text;
+    var words = lastScripts.es.text.split(/\s+/).length + lastScripts.en.text.split(/\s+/).length;
+    status(el.scriptStatus, 'Guion listo · ' + words + ' palabras · duración aproximada ' +
+      estimateDuration(words) + ' por ciclo');
+    if (ATIS.speech.state.playing) {
+      el.playDetail.textContent = 'El guion cambió: pulse TRANSMITIR para reiniciar el bucle con la información nueva.';
+    }
+    save();
+  }
+
+  function estimateDuration(words) {
+    var secs = Math.round(words / 2.2);   /* ~2.2 palabras por segundo a velocidad ATIS */
+    var m = Math.floor(secs / 60), s = secs % 60;
+    return (m ? m + ' min ' : '') + s + ' s';
+  }
+
+  function scheduleRender() {
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(render, 180);
+  }
+
+  /* ================================================================== *
+   * Reproduccion
+   * ================================================================== */
+  function play() {
+    if (!ATIS.speech.supported) {
+      status(el.scriptStatus, 'Este navegador no soporta síntesis de voz. Use Chrome o Edge.', 'err');
+      return;
+    }
+    render();
+    var ok = ATIS.speech.play(
+      [{ lang: 'es', text: lastScripts.es.speech }, { lang: 'en', text: lastScripts.en.speech }],
+      {
+        loop: true,
+        gap: +el.gap.value || 0,
+        cycleGap: (+el.gap.value || 0) + 2,
+        voices: { es: el.voiceEs.value, en: el.voiceEn.value },
+        rate: { es: +el.rate.value, en: +el.rate.value }
+      }
+    );
+    if (!ok) { status(el.scriptStatus, 'No hay nada que transmitir.', 'err'); return; }
+    el.btnPlay.disabled = true;
+    el.btnStop.disabled = false;
+    document.querySelector('.brand .dot').classList.add('live');
+  }
+
+  function stop() {
+    ATIS.speech.stop();
+    el.btnPlay.disabled = false;
+    el.btnStop.disabled = true;
+    document.querySelector('.brand .dot').classList.remove('live');
+    el.playState.textContent = 'Detenido';
+    el.playState.classList.remove('live');
+    el.playDetail.textContent = 'Listo para transmitir en bucle: español → inglés';
+  }
+
+  function initVoices() {
+    ATIS.speech.onVoicesReady(function () {
+      fillVoiceSelect(el.voiceEs, 'es');
+      fillVoiceSelect(el.voiceEn, 'en');
+      restoreVoices();
+    });
+    ATIS.speech.onState(function (st) {
+      if (!st.playing) return;
+      el.playState.textContent = 'TRANSMITIENDO · ' + (st.lang === 'es' ? 'ESPAÑOL' : 'INGLÉS');
+      el.playState.classList.add('live');
+      el.playDetail.textContent = 'Ciclo ' + st.cycle + ' · fragmento ' + st.chunk + ' de ' + st.total +
+        ' · información ' + N.letterInfo(el.letterBig.textContent).word;
+    });
+  }
+
+  function fillVoiceSelect(select, lang) {
+    var list = ATIS.speech.getVoices(lang);
+    if (!list.length) {
+      select.innerHTML = '<option value="">(sin voces ' + lang + ')</option>';
+      status(el.scriptStatus, 'El sistema no tiene voces instaladas en ' +
+        (lang === 'es' ? 'español' : 'inglés') + '. Agréguelas en la configuración de voz del sistema operativo.', 'err');
+      return;
+    }
+    select.innerHTML = list.map(function (v) {
+      return '<option value="' + v.name + '">' + v.name + ' (' + v.lang + ')</option>';
+    }).join('');
+    var preferred = lang === 'es' ? /es-MX/i : /en-US/i;
+    for (var i = 0; i < list.length; i++) {
+      if (preferred.test(list[i].lang)) { select.selectedIndex = i; break; }
+    }
+  }
+
+  /* ================================================================== *
+   * Persistencia
+   * ================================================================== */
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      try {
+        var m = readModel();
+        localStorage.setItem(STORE_KEY, JSON.stringify({
+          metar: el.metarRaw.value,
+          letter: el.letterBig.textContent,
+          obs: m.obs, cfg: m.cfg,
+          runwaysInUse: runwaysInUse,
+          includeNotams: el.includeNotams.checked,
+          includeHpa: el.includeHpa.checked,
+          notams: notams.map(function (n) { return { raw: n.raw, include: n.include }; }),
+          voices: { es: el.voiceEs.value, en: el.voiceEn.value },
+          rate: el.rate.value, gap: el.gap.value
+        }));
+      } catch (e) { /* almacenamiento no disponible */ }
+    }, 400);
+  }
+
+  function restore() {
+    var data;
+    try { data = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { data = null; }
+    if (!data) { renderNotams(); return; }
+    var o = data.obs || {}, c = data.cfg || {};
+    el.metarRaw.value = data.metar || '';
+    lastMetar = data.metar || '';
+    if (c.station) el.station.value = c.station;
+    if (data.letter) el.letterBig.textContent = data.letter;
+    el.infoType.value = c.infoType || 'normal';
+    el.obsTime.value = o.time || '';
+    if (o.wind) {
+      el.windMode.value = o.wind.mode || 'steady';
+      el.windDir.value = o.wind.direction || '';
+      el.windSpeed.value = o.wind.speed || '';
+      el.windGust.value = o.wind.gust || '';
+      el.windVarFrom.value = o.wind.varFrom || '';
+      el.windVarTo.value = o.wind.varTo || '';
+    }
+    if (o.visibility) {
+      el.visValue.value = o.visibility.value || '';
+      el.visUnit.value = o.visibility.unit || 'SM';
+      el.visCause.value = o.visibility.cause || '';
+      el.visOrMore.checked = !!o.visibility.orMore;
+    }
+    el.temperature.value = o.temperature || '';
+    el.dewpoint.value = o.dewpoint || '';
+    el.altimeter.value = o.altimeter || '';
+    el.altimeter.dataset.unit = o.altimeterUnit || 'inHg';
+    el.altimeter.dataset.hpa = o.qnhHpa || '';
+    if (o.layers && o.layers.length) setLayers(o.layers);
+    runwaysInUse = data.runwaysInUse || [];
+    el.runwayCondition.value = c.runwayCondition || '';
+    el.transitionLevel.value = c.transitionLevel || '';
+    el.approach.value = c.approach || '';
+    el.additionalEs.value = c.additionalEs || '';
+    el.additionalEn.value = c.additionalEn || '';
+    el.includeNotams.checked = data.includeNotams !== false;
+    el.includeHpa.checked = !!data.includeHpa;
+    if (data.rate) el.rate.value = data.rate;
+    if (data.gap) el.gap.value = data.gap;
+    savedVoices = data.voices || null;
+    savedApproachRwy = c.approachRunway || '';
+    (data.notams || []).forEach(function (n) {
+      notams.push({ raw: n.raw, es: ATIS.notam.parse(n.raw, 'es'), en: ATIS.notam.parse(n.raw, 'en'), include: n.include !== false });
+    });
+    renderNotams();
+  }
+
+  var savedVoices = null, savedApproachRwy = '';
+  function restoreVoices() {
+    if (!savedVoices) return;
+    if (savedVoices.es) selectIfPresent(el.voiceEs, savedVoices.es);
+    if (savedVoices.en) selectIfPresent(el.voiceEn, savedVoices.en);
+  }
+  function selectIfPresent(select, value) {
+    for (var i = 0; i < select.options.length; i++) {
+      if (select.options[i].value === value) { select.selectedIndex = i; return; }
+    }
+  }
+
+  /* ================================================================== *
+   * Utilidades de interfaz
+   * ================================================================== */
+  function status(node, msg, cls) {
+    if (!node) return;
+    node.textContent = msg;
+    node.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  function startClock() {
+    function tick() {
+      var d = new Date();
+      el.utcClock.textContent = ('0' + d.getUTCHours()).slice(-2) + ':' +
+        ('0' + d.getUTCMinutes()).slice(-2) + ':' + ('0' + d.getUTCSeconds()).slice(-2);
+    }
+    tick();
+    setInterval(tick, 1000);
+  }
+
+  function download() {
+    var code = (el.station.value || 'ATIS').toUpperCase();
+    var letter = N.letterInfo(el.letterBig.textContent);
+    var body =
+      'ATIS ' + code + ' - INFORMACION ' + letter.word + '\n' +
+      new Date().toISOString() + '\n\n' +
+      '--- ESPANOL ---\n' + lastScripts.es.text + '\n\n' +
+      '--- ENGLISH ---\n' + lastScripts.en.text + '\n';
+    var blob = new Blob([body], { type: 'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ATIS_' + code + '_' + letter.letter + '.txt';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+
+  /* ================================================================== *
+   * Eventos
+   * ================================================================== */
+  function bindEvents() {
+    on(el.btnDecode, 'click', decodeMetar);
+    on(el.btnFetch, 'click', fetchMetar);
+    on(el.btnSample, 'click', function () {
+      el.metarRaw.value = 'MMMX 212145Z 05008KT 6SM HZ SCT020 BKN100 BKN220 22/11 A3039 RMK 8/522 HZY';
+      decodeMetar();
+    });
+    on(el.metarRaw, 'keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); decodeMetar(); }
+    });
+
+    on(el.station, 'change', function () {
+      el.station.value = el.station.value.toUpperCase();
+      runwaysInUse = [];
+      applyAirport(el.station.value, false);
+      render();
+    });
+
+    on(el.letterPrev, 'click', function () { stepLetter(-1); });
+    on(el.letterNext, 'click', function () { stepLetter(1); });
+
+    on(el.runwayChips, 'click', function (e) {
+      var chip = e.target.closest ? e.target.closest('.chip') : null;
+      if (!chip) return;
+      var r = chip.dataset.rwy;
+      var i = runwaysInUse.indexOf(r);
+      if (i >= 0) runwaysInUse.splice(i, 1); else runwaysInUse.push(r);
+      paintChips();
+      if (runwaysInUse.length === 1 && !el.approachRunway.value) {
+        selectIfPresent(el.approachRunway, runwaysInUse[0]);
+      }
+      render();
+    });
+
+    on(el.btnAddLayer, 'click', function () { el.layers.appendChild(layerRow('', '')); });
+
+    ['infoType', 'obsTime', 'approach', 'approachRunway', 'runwayCondition', 'transitionLevel',
+      'windMode', 'windDir', 'windSpeed', 'windGust', 'windVarFrom', 'windVarTo',
+      'visValue', 'visUnit', 'visCause', 'visOrMore',
+      'temperature', 'dewpoint', 'altimeter', 'includeHpa',
+      'additionalEs', 'additionalEn', 'includeNotams'].forEach(function (id) {
+        on(el[id], 'input', scheduleRender);
+        on(el[id], 'change', scheduleRender);
+      });
+
+    on(el.altimeter, 'input', function () {
+      /* Altimetro escrito a mano: 4 digitos en pulgadas, o 4 digitos >= 0800 en hPa */
+      var v = el.altimeter.value.replace(/\D/g, '');
+      el.altimeter.dataset.unit = (v.length === 4 && +v >= 2500 && +v <= 3200) ? 'inHg' : el.altimeter.dataset.unit || 'inHg';
+    });
+
+    on(el.btnNotamAdd, 'click', addNotam);
+    on(el.btnNotamClear, 'click', function () {
+      notams = []; renderNotams(); render();
+      status(el.notamStatus, 'Lista vacía.');
+    });
+
+    on(el.btnPlay, 'click', play);
+    on(el.btnStop, 'click', stop);
+    on(el.btnTestEs, 'click', function () {
+      ATIS.speech.setOptions({ voices: { es: el.voiceEs.value }, rate: { es: +el.rate.value } });
+      ATIS.speech.test('es');
+    });
+    on(el.btnTestEn, 'click', function () {
+      ATIS.speech.setOptions({ voices: { en: el.voiceEn.value }, rate: { en: +el.rate.value } });
+      ATIS.speech.test('en');
+    });
+    on(el.rate, 'input', save);
+    on(el.gap, 'input', save);
+    on(el.voiceEs, 'change', save);
+    on(el.voiceEn, 'change', save);
+
+    on(el.btnDownload, 'click', download);
+    Array.prototype.forEach.call(document.querySelectorAll('.copy'), function (b) {
+      on(b, 'click', function () {
+        var txt = $(b.dataset.copy).textContent;
+        if (navigator.clipboard) navigator.clipboard.writeText(txt);
+        b.textContent = 'copiado';
+        setTimeout(function () { b.textContent = b.dataset.copy === 'scriptEs' ? 'copiar' : 'copy'; }, 1200);
+      });
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { stop(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (ATIS.speech.state.playing) stop(); else play();
+      }
+    });
+
+    global.addEventListener('beforeunload', function () { ATIS.speech.stop(); });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})(this);
+
+</script>

@@ -5,13 +5,38 @@ Sistema ATIS para laboratorio de torre de control. Se pega el METAR de la estaci
 campos, se agregan los NOTAM vigentes —que también se decodifican— y se transmite
 el mensaje en **bucle infinito: primero en español y después en inglés**.
 
-No requiere instalación, servidor ni conexión a internet: es una página HTML que se
-abre directamente en el navegador (Chrome o Edge, que son los que traen voces de
-síntesis en español e inglés).
+No necesita instalar programas ni tener internet: es una página que se abre en el
+navegador (Chrome o Edge, que son los que traen las voces).
+
+## Instalar en la PC
+
+1. Descargar el proyecto: en GitHub, botón verde **Code → Download ZIP**.
+2. Descomprimir el ZIP (clic derecho → *Extraer todo*). **Importante**: hay que
+   extraerlo, no trabajar dentro del ZIP.
+3. Doble clic en **`INSTALAR.bat`**.
+   Si Windows muestra el aviso azul de SmartScreen: *Más información → Ejecutar de todas formas*.
+
+El instalador copia el programa a `%LOCALAPPDATA%\Programs\ATIS3.0` y crea el acceso
+directo **ATIS 3.0** en el Escritorio y en el Menú Inicio. Abre en ventana propia, sin
+barra de direcciones, como cualquier programa.
+
+Para quitarlo: **`DESINSTALAR.bat`**.
+
+### Sin instalar
+
+- **Probarlo sin más**: doble clic en `index.html`.
+- **Llevarlo en USB o copiarlo a otra PC**: el archivo `dist/ATIS-3.0.html` lleva todo
+  adentro (un solo archivo). Se copia donde sea y se abre con doble clic.
+
+### Voces
+
+Las voces las pone Windows, no el programa. Si no suena, agregarlas en
+*Configuración → Hora e idioma → Voz → Agregar voces*: hace falta una voz en **español**
+y una en **inglés**. En la barra inferior se elige cuál usa cada idioma y a qué velocidad.
 
 ## Uso rápido
 
-1. Abrir `index.html` con doble clic (o `npm start` para servirlo en `http://localhost:8080`).
+1. Abrir **ATIS 3.0** desde el Escritorio (o `index.html` con doble clic).
 2. Pegar el METAR en el cuadro 1 y pulsar **Decodificar y llenar** (o `Enter`).
    También está **Obtener en línea**, que consulta el METAR vigente de la estación.
 3. Marcar la(s) pista(s) en uso y el tipo de aproximación.
@@ -61,6 +86,9 @@ avanza sola cada vez que se decodifica un METAR distinto al anterior.
 ## Archivos
 
 ```
+INSTALAR.bat          instalador para Windows
+DESINSTALAR.bat       desinstalador
+install/              scripts del instalador
 index.html            interfaz
 css/styles.css        tema oscuro de torre
 js/data/dictionary.js códigos METAR, contracciones y códigos Q de NOTAM
@@ -72,6 +100,9 @@ js/atis.js            modelo de observación y generación del guion ES/EN
 js/speech.js          motor de voz y bucle
 js/app.js             interfaz y control
 test/test.js          pruebas (node test/test.js)
+build/build.js        genera dist/ATIS-3.0.html (un solo archivo)
+dist/ATIS-3.0.html    version portable, todo en un archivo
+assets/atis.ico       icono del acceso directo
 ```
 
 Para agregar un aeródromo basta con añadirlo en `js/data/airports.js` con su nombre en

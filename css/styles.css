@@ -1,5 +1,6 @@
 /* ATIS 3.0 - Tema oscuro de torre */
 :root {
+  color-scheme: dark;
   --bg: #0d1117;
   --panel: #161b22;
   --panel-2: #1c2430;
@@ -25,7 +26,7 @@ html, body {
 
 /* ---------- Barra superior ---------- */
 .topbar {
-  position: sticky; top: 0; z-index: 20;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; flex-wrap: wrap;
   padding: 10px 18px;
@@ -194,7 +195,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .player {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
   display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
-  padding: 10px 18px;
+  padding: 10px 18px calc(10px + env(safe-area-inset-bottom, 0px));
   background: #11161d; border-top: 2px solid var(--line);
   box-shadow: 0 -6px 18px rgba(0,0,0,.45);
 }
