@@ -289,6 +289,21 @@ ol.help li { margin-bottom: 6px; }
 .langsel input { width: auto; }
 .langsel label.sinvoz { color: var(--red); text-decoration: line-through; }
 
+/* ---------- Registro de la transmisión ---------- */
+.loglist {
+  font-family: "Consolas", monospace; font-size: 12px; line-height: 1.5;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 10px; max-height: 280px; overflow: auto;
+}
+.logrow { display: flex; gap: 10px; white-space: nowrap; }
+.logrow .lt { color: var(--muted); }
+.logrow .ltipo { min-width: 120px; color: var(--blue); }
+.logrow .ldet { white-space: pre-wrap; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.logrow.mal .ltipo, .logrow.mal .ldet { color: var(--red); }
+.logrow.aviso .ltipo, .logrow.aviso .ldet { color: var(--amber); }
+.logrow.bien .ltipo { color: var(--accent); }
+.logvacio { color: var(--muted); }
+
 </style>
 </head>
 <body>
@@ -563,6 +578,24 @@ ol.help li { margin-bottom: 6px; }
       Para que la locución no suene apresurada: velocidad entre <b>0.85</b> y <b>0.95</b>, pausa
       entre frases de <b>250 ms</b> y pausa entre idiomas de <b>3 s</b>.
     </p>
+  </section>
+
+  <!-- ============ REGISTRO DE LA TRANSMISIÓN ============ -->
+  <section class="card span2">
+    <h2>9 &middot; Registro de la transmisión</h2>
+    <p class="help">
+      Cada fragmento que sale al aire, con la voz que lo locutó y el tiempo que tardó.
+      Si la transmisión se interrumpe, aquí queda el motivo. Se llena solo mientras se
+      transmite; los renglones en rojo son fallas.
+    </p>
+    <div class="row buttons">
+      <button id="btnLogCopy" class="small ghost">Copiar registro</button>
+      <button id="btnLogClear" class="small ghost">Limpiar</button>
+      <label class="checkline"><input type="checkbox" id="logAuto" checked>
+        <span>Seguir el último renglón</span></label>
+      <span id="logStatus" class="status"></span>
+    </div>
+    <div id="logList" class="loglist"></div>
   </section>
 
 </main>
@@ -2488,6 +2521,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   var voices = [];
   var readyCbs = [];
   var stateCbs = [];
+  var logCbs = [];
+
+  /* Bitácora de la transmisión: lo que pasó, cuándo y por qué */
+  var registro = [];
+  var MAX_REGISTRO = 400;
+
+  function anotar(tipo, datos) {
+    var e = { t: Date.now(), tipo: tipo };
+    for (var k in datos) if (Object.prototype.hasOwnProperty.call(datos, k)) e[k] = datos[k];
+    registro.push(e);
+    if (registro.length > MAX_REGISTRO) registro.shift();
+    logCbs.forEach(function (cb) { try { cb(e); } catch (err) { /* ignorado */ } });
+    return e;
+  }
 
   var state = {
     playing: false,
@@ -2673,12 +2720,21 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   /* Vigilancia de arranque: si en dos segundos y medio el motor ni empezó a
      hablar, es que se murió. Así la recuperación es inmediata y no hay que
      esperar a que se agote la duración completa del fragmento. */
-  function armarArranque(item) {
+  var MAX_ESPERAS_ARRANQUE = 4;   /* hasta 4 prórrogas de 2.5 s */
+  function armarArranque(item, prorroga) {
     limpiarWatchdog();
+    prorroga = prorroga || 0;
     watchdog = setTimeout(function () {
       watchdog = null;
-      /* Hay motores que no avisan onstart aunque sí estén hablando */
-      if (synth.speaking) { armarFin(item); return; }
+      /* Hay motores que no avisan onstart aunque ya estén hablando */
+      if (synth.speaking) { anotar('vigilancia', { detalle: 'ya hablaba sin avisar' }); armarFin(item); return; }
+      /* Una voz en línea puede tardar en traer el audio: si sigue en cola, se le da tiempo */
+      if (synth.pending && prorroga < MAX_ESPERAS_ARRANQUE) {
+        anotar('espera', { detalle: 'la voz aún no arranca, prórroga ' + (prorroga + 1), lang: item.lang });
+        armarArranque(item, prorroga + 1);
+        return;
+      }
+      anotar('vigilancia', { detalle: 'el motor no arrancó', lang: item.lang });
       try { synth.cancel(); } catch (e) { /* ignorado */ }
       fallo(item, 'no inició');
     }, 2500);
@@ -2691,6 +2747,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     var esperado = 4000 + (item.text.length * 140) / rate;
     watchdog = setTimeout(function () {
       watchdog = null;
+      anotar('vigilancia', { detalle: 'se colgó a media frase', lang: item.lang });
       try { synth.cancel(); } catch (e) { /* ignorado */ }
       fallo(item, 'sin respuesta');
     }, esperado);
@@ -2717,6 +2774,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
     if (idx >= chunks.length) {
       state.cycle++;
+      anotar('ciclo', { detalle: 'inicia el ciclo ' + state.cycle + ', fragmentos logrados ' + exitosCiclo });
       fallosIdioma = {};
       if (!options.loop) { stop(); return; }
       idx = 0;
@@ -2747,7 +2805,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
 
     /* Idioma que ya falló varias veces en este ciclo: se omite y se reintenta en el próximo */
-    if ((fallosIdioma[item.lang] || 0) >= MAX_FALLOS_IDIOMA) { siguiente(); return; }
+    if ((fallosIdioma[item.lang] || 0) >= MAX_FALLOS_IDIOMA) {
+      anotar('saltado', { lang: item.lang, detalle: 'idioma omitido en este ciclo', texto: item.text });
+      siguiente(); return;
+    }
 
     var u = new global.SpeechSynthesisUtterance(item.text);
     u.lang = item.lang === 'es' ? 'es-MX' : 'en-US';
@@ -2766,11 +2827,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     u.pitch = options.pitch[item.lang] || 1;
     u.volume = options.volume;
 
-    u.onstart = function () { ultimaActividad = Date.now(); armarFin(item); };
+    u.onstart = function () {
+      ultimaActividad = Date.now();
+      anotar('hablando', { lang: item.lang, voz: voz ? voz.name : '(por omisión)', n: state.chunk });
+      armarFin(item);
+    };
     u.onend = function () {
       limpiarWatchdog();
       current = null; enCurso = false;
       exitosCiclo++;
+      anotar('fin', { lang: item.lang, n: state.chunk, ms: Date.now() - ultimaActividad });
       ultimaActividad = Date.now();
       if (state.aviso) avisar('');
       if (!state.playing) return;
@@ -2782,11 +2848,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       var motivo = (e && e.error) ? e.error : 'error';
       /* interrupted y canceled los provoca nuestro propio stop */
       if (motivo === 'interrupted' || motivo === 'canceled') return;
+      anotar('error', { lang: item.lang, motivo: motivo, n: state.chunk, texto: item.text });
       fallo(item, motivo);
     };
 
     enCurso = true;
     current = u;
+    anotar('inicio', {
+      lang: item.lang, n: state.chunk, de: state.total, intento: intentos + 1,
+      voz: voz ? voz.name : '(por omisión)', largo: item.text.length, texto: item.text
+    });
     try {
       synth.speak(u);
       armarArranque(item);
@@ -2800,12 +2871,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (!state.playing) return;
     intentos++;
     if (intentos < MAX_INTENTOS) {
+      anotar('reintento', { lang: item.lang, motivo: motivo, intento: intentos + 1 });
       avisar('Reintentando (' + motivo + ')');
       try { synth.cancel(); } catch (e) { /* ignorado */ }
       esperar(400, function () { reproducir(item); });
       return;
     }
     fallosIdioma[item.lang] = (fallosIdioma[item.lang] || 0) + 1;
+    anotar('omitido', { lang: item.lang, motivo: motivo, texto: item.text });
     avisar('Fragmento omitido en ' + (item.lang === 'es' ? 'español' : 'inglés') + ' (' + motivo + ')');
     intentos = 0;
     siguiente();
@@ -2826,6 +2899,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       /* Nada sonando, nada pendiente y ningún temporizador: el motor murió */
       var inactivo = Date.now() - ultimaActividad;
       if (!synth.pending && !timer && !watchdog && inactivo > 4000) {
+        anotar('reanudada', { detalle: 'silencio de ' + Math.round(inactivo / 1000) + ' s' });
         avisar('Transmisión reanudada');
         ultimaActividad = Date.now();
         if (enCurso && itemActual) reproducir(itemActual);
@@ -2852,6 +2926,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     state.cycle = 1;
     state.aviso = '';
     state.respaldo = '';
+    registro = [];
+    anotar('inicio de transmisión', {
+      detalle: queue.map(function (q) { return q.lang; }).join(' + ') + ', ' + chunks.length + ' fragmentos',
+      voz: (options.voices.es || '') + ' / ' + (options.voices.en || '')
+    });
     emit();
     iniciarLatido();
     siguiente();
@@ -2859,6 +2938,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
 
   function stop() {
+    if (state.playing) anotar('detenida', { detalle: 'se pulsó STOP' });
     state.playing = false;
     state.paused = false;
     state.lang = '';
@@ -2966,6 +3046,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     isNatural: isNatural,
     play: play, stop: stop, pause: pause, resume: resume,
     setOptions: setOptions, onState: onState, test: test,
+    registro: function () { return registro.slice(); },
+    onLog: function (cb) { logCbs.push(cb); },
+    limpiarRegistro: function () { registro = []; },
     testWithVoice: testWithVoice, diagnostico: diagnostico,
     splitChunks: splitChunks,
     get state() { return state; }
@@ -3012,7 +3095,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       'btnPlay', 'btnStop', 'playState', 'playDetail',
       'voiceEs', 'voiceEn', 'rate', 'gap', 'sentencePause', 'btnTestEs', 'btnTestEn',
       'voiceListEs', 'voiceListEn', 'voiceDiag', 'btnVoiceDiag', 'voiceDiagStatus',
-      'voiceAlert', 'langEs', 'langEn'
+      'voiceAlert', 'langEs', 'langEn',
+      'logList', 'btnLogCopy', 'btnLogClear', 'logAuto', 'logStatus'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -3025,6 +3109,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     setLetter(el.letterBig.textContent || 'A');
     startClock();
     initVoices();
+    renderLog();
     render();
   }
 
@@ -3549,6 +3634,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       restoreVoices();
       updateVoiceReport();
     });
+    ATIS.speech.onLog(pintarEvento);
     ATIS.speech.onState(function (st) {
       if (!st.playing) return;
       el.playState.textContent = 'TRANSMITIENDO · ' + (st.lang === 'es' ? 'ESPAÑOL' : 'INGLÉS');
@@ -3708,6 +3794,66 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         el.playDetail.classList.add('warn');
       }
     }
+  }
+
+  /* ================================================================== *
+   * Registro de la transmisión
+   * ================================================================== */
+  var CLASE_EVENTO = {
+    error: 'mal', omitido: 'mal', vigilancia: 'mal',
+    reintento: 'aviso', espera: 'aviso', saltado: 'aviso', reanudada: 'aviso',
+    fin: 'bien', hablando: 'bien'
+  };
+
+  function horaEvento(t) {
+    var d = new Date(t);
+    return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' +
+      ('0' + d.getSeconds()).slice(-2) + '.' + ('00' + d.getMilliseconds()).slice(-3);
+  }
+
+  function descripcionEvento(e) {
+    var partes = [];
+    if (e.lang) partes.push(e.lang === 'es' ? 'ES' : 'EN');
+    if (e.n) partes.push('frag ' + e.n + (e.de ? '/' + e.de : ''));
+    if (e.intento && e.intento > 1) partes.push('intento ' + e.intento);
+    if (e.voz) partes.push(e.voz);
+    if (e.largo) partes.push(e.largo + ' car');
+    if (e.ms) partes.push(e.ms + ' ms');
+    if (e.motivo) partes.push('motivo: ' + e.motivo);
+    if (e.detalle) partes.push(e.detalle);
+    if (e.texto) partes.push('«' + String(e.texto).slice(0, 60) + (String(e.texto).length > 60 ? '…' : '') + '»');
+    return partes.join(' · ');
+  }
+
+  function pintarEvento(e) {
+    var fila = document.createElement('div');
+    fila.className = 'logrow ' + (CLASE_EVENTO[e.tipo] || '');
+    fila.innerHTML = '<span class="lt">' + horaEvento(e.t) + '</span>' +
+      '<span class="ltipo">' + escapeHtml(e.tipo) + '</span>' +
+      '<span class="ldet">' + escapeHtml(descripcionEvento(e)) + '</span>';
+    el.logList.appendChild(fila);
+    while (el.logList.children.length > 200) el.logList.removeChild(el.logList.firstChild);
+    if (el.logAuto.checked) el.logList.scrollTop = el.logList.scrollHeight;
+  }
+
+  function renderLog() {
+    var eventos = ATIS.speech.registro();
+    el.logList.innerHTML = '';
+    if (!eventos.length) {
+      el.logList.innerHTML = '<span class="logvacio">Sin eventos todavía. Pulse TRANSMITIR.</span>';
+      return;
+    }
+    eventos.forEach(pintarEvento);
+  }
+
+  function textoRegistro() {
+    var eventos = ATIS.speech.registro();
+    var cab = 'ATIS 3.0 - registro de la transmisión\n' +
+      new Date().toISOString() + '\n' +
+      ATIS.speech.diagnostico().navegador + '\n\n';
+    return cab + eventos.map(function (e) {
+      return horaEvento(e.t) + '  ' + e.tipo + '  ' + descripcionEvento(e);
+    }).join('\n') + '\n';
   }
 
   /* ================================================================== *
@@ -3988,6 +4134,17 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     on(el.langEn, 'change', function () { save(); updateVoiceReport(); });
     on(el.voiceEs, 'change', function () { save(); updateVoiceReport(); });
     on(el.voiceEn, 'change', function () { save(); updateVoiceReport(); });
+
+    on(el.btnLogCopy, 'click', function () {
+      var texto = textoRegistro();
+      if (navigator.clipboard) navigator.clipboard.writeText(texto);
+      status(el.logStatus, 'Registro copiado (' + ATIS.speech.registro().length + ' eventos).', 'ok');
+    });
+    on(el.btnLogClear, 'click', function () {
+      ATIS.speech.limpiarRegistro();
+      renderLog();
+      status(el.logStatus, '');
+    });
 
     on(el.btnDownload, 'click', download);
     Array.prototype.forEach.call(document.querySelectorAll('.copy'), function (b) {

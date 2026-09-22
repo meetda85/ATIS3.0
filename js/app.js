@@ -35,7 +35,8 @@
       'btnPlay', 'btnStop', 'playState', 'playDetail',
       'voiceEs', 'voiceEn', 'rate', 'gap', 'sentencePause', 'btnTestEs', 'btnTestEn',
       'voiceListEs', 'voiceListEn', 'voiceDiag', 'btnVoiceDiag', 'voiceDiagStatus',
-      'voiceAlert', 'langEs', 'langEn'
+      'voiceAlert', 'langEs', 'langEn',
+      'logList', 'btnLogCopy', 'btnLogClear', 'logAuto', 'logStatus'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -48,6 +49,7 @@
     setLetter(el.letterBig.textContent || 'A');
     startClock();
     initVoices();
+    renderLog();
     render();
   }
 
@@ -572,6 +574,7 @@
       restoreVoices();
       updateVoiceReport();
     });
+    ATIS.speech.onLog(pintarEvento);
     ATIS.speech.onState(function (st) {
       if (!st.playing) return;
       el.playState.textContent = 'TRANSMITIENDO · ' + (st.lang === 'es' ? 'ESPAÑOL' : 'INGLÉS');
@@ -731,6 +734,66 @@
         el.playDetail.classList.add('warn');
       }
     }
+  }
+
+  /* ================================================================== *
+   * Registro de la transmisión
+   * ================================================================== */
+  var CLASE_EVENTO = {
+    error: 'mal', omitido: 'mal', vigilancia: 'mal',
+    reintento: 'aviso', espera: 'aviso', saltado: 'aviso', reanudada: 'aviso',
+    fin: 'bien', hablando: 'bien'
+  };
+
+  function horaEvento(t) {
+    var d = new Date(t);
+    return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' +
+      ('0' + d.getSeconds()).slice(-2) + '.' + ('00' + d.getMilliseconds()).slice(-3);
+  }
+
+  function descripcionEvento(e) {
+    var partes = [];
+    if (e.lang) partes.push(e.lang === 'es' ? 'ES' : 'EN');
+    if (e.n) partes.push('frag ' + e.n + (e.de ? '/' + e.de : ''));
+    if (e.intento && e.intento > 1) partes.push('intento ' + e.intento);
+    if (e.voz) partes.push(e.voz);
+    if (e.largo) partes.push(e.largo + ' car');
+    if (e.ms) partes.push(e.ms + ' ms');
+    if (e.motivo) partes.push('motivo: ' + e.motivo);
+    if (e.detalle) partes.push(e.detalle);
+    if (e.texto) partes.push('«' + String(e.texto).slice(0, 60) + (String(e.texto).length > 60 ? '…' : '') + '»');
+    return partes.join(' · ');
+  }
+
+  function pintarEvento(e) {
+    var fila = document.createElement('div');
+    fila.className = 'logrow ' + (CLASE_EVENTO[e.tipo] || '');
+    fila.innerHTML = '<span class="lt">' + horaEvento(e.t) + '</span>' +
+      '<span class="ltipo">' + escapeHtml(e.tipo) + '</span>' +
+      '<span class="ldet">' + escapeHtml(descripcionEvento(e)) + '</span>';
+    el.logList.appendChild(fila);
+    while (el.logList.children.length > 200) el.logList.removeChild(el.logList.firstChild);
+    if (el.logAuto.checked) el.logList.scrollTop = el.logList.scrollHeight;
+  }
+
+  function renderLog() {
+    var eventos = ATIS.speech.registro();
+    el.logList.innerHTML = '';
+    if (!eventos.length) {
+      el.logList.innerHTML = '<span class="logvacio">Sin eventos todavía. Pulse TRANSMITIR.</span>';
+      return;
+    }
+    eventos.forEach(pintarEvento);
+  }
+
+  function textoRegistro() {
+    var eventos = ATIS.speech.registro();
+    var cab = 'ATIS 3.0 - registro de la transmisión\n' +
+      new Date().toISOString() + '\n' +
+      ATIS.speech.diagnostico().navegador + '\n\n';
+    return cab + eventos.map(function (e) {
+      return horaEvento(e.t) + '  ' + e.tipo + '  ' + descripcionEvento(e);
+    }).join('\n') + '\n';
   }
 
   /* ================================================================== *
@@ -1011,6 +1074,17 @@
     on(el.langEn, 'change', function () { save(); updateVoiceReport(); });
     on(el.voiceEs, 'change', function () { save(); updateVoiceReport(); });
     on(el.voiceEn, 'change', function () { save(); updateVoiceReport(); });
+
+    on(el.btnLogCopy, 'click', function () {
+      var texto = textoRegistro();
+      if (navigator.clipboard) navigator.clipboard.writeText(texto);
+      status(el.logStatus, 'Registro copiado (' + ATIS.speech.registro().length + ' eventos).', 'ok');
+    });
+    on(el.btnLogClear, 'click', function () {
+      ATIS.speech.limpiarRegistro();
+      renderLog();
+      status(el.logStatus, '');
+    });
 
     on(el.btnDownload, 'click', download);
     Array.prototype.forEach.call(document.querySelectorAll('.copy'), function (b) {

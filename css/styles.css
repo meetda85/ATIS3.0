@@ -281,3 +281,18 @@ ol.help li { margin-bottom: 6px; }
 .langsel label { display: flex; align-items: center; gap: 4px; font-size: 13px; }
 .langsel input { width: auto; }
 .langsel label.sinvoz { color: var(--red); text-decoration: line-through; }
+
+/* ---------- Registro de la transmisión ---------- */
+.loglist {
+  font-family: "Consolas", monospace; font-size: 12px; line-height: 1.5;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 10px; max-height: 280px; overflow: auto;
+}
+.logrow { display: flex; gap: 10px; white-space: nowrap; }
+.logrow .lt { color: var(--muted); }
+.logrow .ltipo { min-width: 120px; color: var(--blue); }
+.logrow .ldet { white-space: pre-wrap; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.logrow.mal .ltipo, .logrow.mal .ldet { color: var(--red); }
+.logrow.aviso .ltipo, .logrow.aviso .ldet { color: var(--amber); }
+.logrow.bien .ltipo { color: var(--accent); }
+.logvacio { color: var(--muted); }

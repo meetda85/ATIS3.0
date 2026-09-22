@@ -280,6 +280,24 @@
     </p>
   </section>
 
+  <!-- ============ REGISTRO DE LA TRANSMISIÓN ============ -->
+  <section class="card span2">
+    <h2>9 &middot; Registro de la transmisión</h2>
+    <p class="help">
+      Cada fragmento que sale al aire, con la voz que lo locutó y el tiempo que tardó.
+      Si la transmisión se interrumpe, aquí queda el motivo. Se llena solo mientras se
+      transmite; los renglones en rojo son fallas.
+    </p>
+    <div class="row buttons">
+      <button id="btnLogCopy" class="small ghost">Copiar registro</button>
+      <button id="btnLogClear" class="small ghost">Limpiar</button>
+      <label class="checkline"><input type="checkbox" id="logAuto" checked>
+        <span>Seguir el último renglón</span></label>
+      <span id="logStatus" class="status"></span>
+    </div>
+    <div id="logList" class="loglist"></div>
+  </section>
+
 </main>
 
 <!-- ============ BARRA DE REPRODUCCIÓN ============ -->

@@ -187,8 +187,21 @@ Una vez pulsado **TRANSMITIR**, el bucle se mantiene pase lo que pase:
 - Un latido cada dos segundos mantiene viva la síntesis (Chrome la corta a los 15 s) y
   reanuda la transmisión si detecta que se quedó en silencio.
 
+- **Una voz en línea lenta no se corta**: si el motor todavía tiene el fragmento en cola,
+  la vigilancia le da prórrogas en lugar de cancelarlo. Solo lo da por muerto cuando el
+  motor no tiene nada pendiente ni está hablando.
+
 Todo esto está cubierto por `test/test-voz.js`, que monta un motor de voz simulado y
-provoca las fallas: caída de red, voz que no responde, motor muerto y recuperación.
+provoca las fallas: caída de red, voz que no responde, motor muerto, voz lenta y
+recuperación.
+
+### Registro de la transmisión
+
+El cuadro **9** lleva la bitácora de lo que sale al aire: cada fragmento con su voz, su
+longitud y lo que tardó, y en rojo las fallas con su motivo (`synthesis-failed`,
+`network`, `no inició`, `sin respuesta`). Si la transmisión se interrumpe, ahí queda la
+causa. El botón *Copiar registro* lo deja en el portapapeles junto con el navegador y la
+hora, para revisarlo o mandarlo.
 
 ## Notas de operación
 

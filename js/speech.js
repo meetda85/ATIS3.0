@@ -7,6 +7,20 @@
   var voices = [];
   var readyCbs = [];
   var stateCbs = [];
+  var logCbs = [];
+
+  /* Bitácora de la transmisión: lo que pasó, cuándo y por qué */
+  var registro = [];
+  var MAX_REGISTRO = 400;
+
+  function anotar(tipo, datos) {
+    var e = { t: Date.now(), tipo: tipo };
+    for (var k in datos) if (Object.prototype.hasOwnProperty.call(datos, k)) e[k] = datos[k];
+    registro.push(e);
+    if (registro.length > MAX_REGISTRO) registro.shift();
+    logCbs.forEach(function (cb) { try { cb(e); } catch (err) { /* ignorado */ } });
+    return e;
+  }
 
   var state = {
     playing: false,
@@ -192,12 +206,21 @@
   /* Vigilancia de arranque: si en dos segundos y medio el motor ni empezó a
      hablar, es que se murió. Así la recuperación es inmediata y no hay que
      esperar a que se agote la duración completa del fragmento. */
-  function armarArranque(item) {
+  var MAX_ESPERAS_ARRANQUE = 4;   /* hasta 4 prórrogas de 2.5 s */
+  function armarArranque(item, prorroga) {
     limpiarWatchdog();
+    prorroga = prorroga || 0;
     watchdog = setTimeout(function () {
       watchdog = null;
-      /* Hay motores que no avisan onstart aunque sí estén hablando */
-      if (synth.speaking) { armarFin(item); return; }
+      /* Hay motores que no avisan onstart aunque ya estén hablando */
+      if (synth.speaking) { anotar('vigilancia', { detalle: 'ya hablaba sin avisar' }); armarFin(item); return; }
+      /* Una voz en línea puede tardar en traer el audio: si sigue en cola, se le da tiempo */
+      if (synth.pending && prorroga < MAX_ESPERAS_ARRANQUE) {
+        anotar('espera', { detalle: 'la voz aún no arranca, prórroga ' + (prorroga + 1), lang: item.lang });
+        armarArranque(item, prorroga + 1);
+        return;
+      }
+      anotar('vigilancia', { detalle: 'el motor no arrancó', lang: item.lang });
       try { synth.cancel(); } catch (e) { /* ignorado */ }
       fallo(item, 'no inició');
     }, 2500);
@@ -210,6 +233,7 @@
     var esperado = 4000 + (item.text.length * 140) / rate;
     watchdog = setTimeout(function () {
       watchdog = null;
+      anotar('vigilancia', { detalle: 'se colgó a media frase', lang: item.lang });
       try { synth.cancel(); } catch (e) { /* ignorado */ }
       fallo(item, 'sin respuesta');
     }, esperado);
@@ -236,6 +260,7 @@
 
     if (idx >= chunks.length) {
       state.cycle++;
+      anotar('ciclo', { detalle: 'inicia el ciclo ' + state.cycle + ', fragmentos logrados ' + exitosCiclo });
       fallosIdioma = {};
       if (!options.loop) { stop(); return; }
       idx = 0;
@@ -266,7 +291,10 @@
     }
 
     /* Idioma que ya falló varias veces en este ciclo: se omite y se reintenta en el próximo */
-    if ((fallosIdioma[item.lang] || 0) >= MAX_FALLOS_IDIOMA) { siguiente(); return; }
+    if ((fallosIdioma[item.lang] || 0) >= MAX_FALLOS_IDIOMA) {
+      anotar('saltado', { lang: item.lang, detalle: 'idioma omitido en este ciclo', texto: item.text });
+      siguiente(); return;
+    }
 
     var u = new global.SpeechSynthesisUtterance(item.text);
     u.lang = item.lang === 'es' ? 'es-MX' : 'en-US';
@@ -285,11 +313,16 @@
     u.pitch = options.pitch[item.lang] || 1;
     u.volume = options.volume;
 
-    u.onstart = function () { ultimaActividad = Date.now(); armarFin(item); };
+    u.onstart = function () {
+      ultimaActividad = Date.now();
+      anotar('hablando', { lang: item.lang, voz: voz ? voz.name : '(por omisión)', n: state.chunk });
+      armarFin(item);
+    };
     u.onend = function () {
       limpiarWatchdog();
       current = null; enCurso = false;
       exitosCiclo++;
+      anotar('fin', { lang: item.lang, n: state.chunk, ms: Date.now() - ultimaActividad });
       ultimaActividad = Date.now();
       if (state.aviso) avisar('');
       if (!state.playing) return;
@@ -301,11 +334,16 @@
       var motivo = (e && e.error) ? e.error : 'error';
       /* interrupted y canceled los provoca nuestro propio stop */
       if (motivo === 'interrupted' || motivo === 'canceled') return;
+      anotar('error', { lang: item.lang, motivo: motivo, n: state.chunk, texto: item.text });
       fallo(item, motivo);
     };
 
     enCurso = true;
     current = u;
+    anotar('inicio', {
+      lang: item.lang, n: state.chunk, de: state.total, intento: intentos + 1,
+      voz: voz ? voz.name : '(por omisión)', largo: item.text.length, texto: item.text
+    });
     try {
       synth.speak(u);
       armarArranque(item);
@@ -319,12 +357,14 @@
     if (!state.playing) return;
     intentos++;
     if (intentos < MAX_INTENTOS) {
+      anotar('reintento', { lang: item.lang, motivo: motivo, intento: intentos + 1 });
       avisar('Reintentando (' + motivo + ')');
       try { synth.cancel(); } catch (e) { /* ignorado */ }
       esperar(400, function () { reproducir(item); });
       return;
     }
     fallosIdioma[item.lang] = (fallosIdioma[item.lang] || 0) + 1;
+    anotar('omitido', { lang: item.lang, motivo: motivo, texto: item.text });
     avisar('Fragmento omitido en ' + (item.lang === 'es' ? 'español' : 'inglés') + ' (' + motivo + ')');
     intentos = 0;
     siguiente();
@@ -345,6 +385,7 @@
       /* Nada sonando, nada pendiente y ningún temporizador: el motor murió */
       var inactivo = Date.now() - ultimaActividad;
       if (!synth.pending && !timer && !watchdog && inactivo > 4000) {
+        anotar('reanudada', { detalle: 'silencio de ' + Math.round(inactivo / 1000) + ' s' });
         avisar('Transmisión reanudada');
         ultimaActividad = Date.now();
         if (enCurso && itemActual) reproducir(itemActual);
@@ -371,6 +412,11 @@
     state.cycle = 1;
     state.aviso = '';
     state.respaldo = '';
+    registro = [];
+    anotar('inicio de transmisión', {
+      detalle: queue.map(function (q) { return q.lang; }).join(' + ') + ', ' + chunks.length + ' fragmentos',
+      voz: (options.voices.es || '') + ' / ' + (options.voices.en || '')
+    });
     emit();
     iniciarLatido();
     siguiente();
@@ -378,6 +424,7 @@
   }
 
   function stop() {
+    if (state.playing) anotar('detenida', { detalle: 'se pulsó STOP' });
     state.playing = false;
     state.paused = false;
     state.lang = '';
@@ -485,6 +532,9 @@
     isNatural: isNatural,
     play: play, stop: stop, pause: pause, resume: resume,
     setOptions: setOptions, onState: onState, test: test,
+    registro: function () { return registro.slice(); },
+    onLog: function (cb) { logCbs.push(cb); },
+    limpiarRegistro: function () { registro = []; },
     testWithVoice: testWithVoice, diagnostico: diagnostico,
     splitChunks: splitChunks,
     get state() { return state; }

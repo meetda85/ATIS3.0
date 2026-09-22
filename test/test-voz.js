@@ -20,14 +20,14 @@ const dormir = (ms) => new Promise(r => setTimeout(r, ms));
 
 /* Web Speech API simulada ------------------------------------------------ */
 function montar(opciones) {
-  const cfg = Object.assign({ modo: 'normal', duracion: 30 }, opciones);
+  const cfg = Object.assign({ modo: 'normal', duracion: 30, demoraArranque: 0 }, opciones);
   const voces = [
     { name: 'Dalia Online (Natural)', lang: 'es-MX', localService: false },
     { name: 'Sabina', lang: 'es-MX', localService: true },
     { name: 'Aria Online (Natural)', lang: 'en-US', localService: false }
   ];
   const registro = [];
-  let hablando = false;
+  let hablando = false, enCola = false;
 
   class SpeechSynthesisUtterance {
     constructor(text) { this.text = text; this.voice = null; this.lang = ''; }
@@ -36,9 +36,9 @@ function montar(opciones) {
   const synth = {
     getVoices: () => voces,
     get speaking() { return hablando; },
-    get pending() { return false; },
+    get pending() { return enCola; },
     pause() {}, resume() {},
-    cancel() { hablando = false; },
+    cancel() { hablando = false; enCola = false; },
     addEventListener() {},
     speak(u) {
       registro.push({ lang: u.lang, voz: u.voice ? u.voice.name : null, texto: u.text, t: Date.now() });
@@ -52,12 +52,18 @@ function montar(opciones) {
         setTimeout(() => u.onerror && u.onerror({ error: 'network' }), 5);
         return;
       }
-      hablando = true;
+      /* Una voz en línea tarda en traer el audio: queda en cola antes de sonar */
+      enCola = true;
       setTimeout(() => {
-        hablando = false;
+        if (!enCola) return;                 /* la cancelaron mientras esperaba */
+        enCola = false;
+        hablando = true;
         u.onstart && u.onstart();
-        u.onend && u.onend();
-      }, cfg.duracion);
+        setTimeout(() => {
+          hablando = false;
+          u.onend && u.onend();
+        }, cfg.duracion);
+      }, cfg.demoraArranque);
     }
   };
 
@@ -144,6 +150,33 @@ function cuenta(registro, lang, desde) {
     /* Cada intento cuesta 2.5 s de vigilancia más 0.4 s de espera */
     assert.ok(m.registro.length >= 3, 'dejó de intentar: solo ' + m.registro.length + ' intentos en 8 s');
     assert.ok(m.registro.length < 60, 'entró en un ciclo desbocado: ' + m.registro.length + ' intentos');
+    m.ATIS.speech.stop();
+  });
+
+  await test('una voz en línea lenta no se cancela por la vigilancia', async () => {
+    /* Tarda 6 s en arrancar: más que los 2.5 s de la vigilancia de arranque */
+    const m = montar({ demoraArranque: 6000, duracion: 30 });
+    m.ATIS.speech.play([GUION[0]], OPCIONES);
+    await dormir(9000);
+    assert.ok(m.ATIS.speech.state.playing, 'la transmisión se detuvo');
+    const log = m.ATIS.speech.registro();
+    assert.ok(log.some(e => e.tipo === 'espera'), 'no le dio prórroga a la voz lenta');
+    assert.ok(log.some(e => e.tipo === 'fin'), 'nunca llegó a terminar un fragmento');
+    assert.ok(!log.some(e => e.tipo === 'omitido'), 'descartó un fragmento que sí iba a sonar');
+    m.ATIS.speech.stop();
+  });
+
+  await test('el registro deja el motivo de cada falla', async () => {
+    const m = montar({ modo: 'inglesFalla' });
+    m.ATIS.speech.play(GUION, OPCIONES);
+    await dormir(2500);
+    const log = m.ATIS.speech.registro();
+    const errores = log.filter(e => e.tipo === 'error');
+    assert.ok(errores.length > 0, 'no registró ningún error');
+    assert.strictEqual(errores[0].motivo, 'synthesis-failed');
+    assert.ok(errores[0].texto, 'no guardó el texto del fragmento que falló');
+    assert.ok(log.some(e => e.tipo === 'reintento'), 'no registró los reintentos');
+    assert.ok(log.some(e => e.tipo === 'omitido'), 'no registró el fragmento omitido');
     m.ATIS.speech.stop();
   });
 
