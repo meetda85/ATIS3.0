@@ -202,6 +202,42 @@ test('los NOTAM salen en renglones, separados por comas y sin fechas', () => {
   assert.ok(/\nAl establecer comunicación informe tener información ALFA\.$/.test(es.text), JSON.stringify(es.text));
 });
 
+test('los designadores se locutan con el alfabeto fonetico', () => {
+  const casos = [
+    ['E) TWY A4 BTN RWY 05R AND TWY J CLSD',
+     'calle de rodaje Alfa cuatro entre pista cero cinco derecha y calle de rodaje Julieta cerrada'],
+    ['E) TWY D BTN TWYS E AND B CLSD',
+     'calle de rodaje Delta entre calles de rodaje Eco y Bravo cerrada'],
+    ['E) TWYS B9, C2 AND B8 CLSD',
+     'calles de rodaje Bravo nueve, Charli dos y Bravo ocho cerrada'],
+    ['E) TWY E BTN TWYS B3 AND PH CLSD',
+     'calle de rodaje Eco entre calles de rodaje Bravo tres y Papa Hotel cerrada'],
+    ['E) TWY H1 USEFUL ONLY FOR ACFT CAT E AND MINORS',
+     'calle de rodaje Hotel uno utilizable solamente para aeronave categoría Eco y menores'],
+    ['E) TWY B BTN RWY 23R AND TWY D USEFUL ONLY FOR ACFT B747-8',
+     'calle de rodaje Bravo entre pista dos tres derecha y calle de rodaje Delta utilizable solamente para aeronave Boeing siete cuatro siete ocho']
+  ];
+  casos.forEach(function (c) {
+    const n = ATIS.notam.parse(c[0], 'es');
+    assert.strictEqual(ATIS.script.paraLocutar(n.plain, 'es'), c[1]);
+  });
+
+  /* En una enumeración, la conjunción no se convierte en Yanki ni en Oscar */
+  assert.strictEqual(
+    ATIS.script.paraLocutar('BRAVO Y HOTEL CERRADOS ENTRE HOTEL 1 Y DELTA', 'es'),
+    'Bravo y Hotel Cerrados Entre Hotel uno y Delta');
+
+  /* La pista con numero se sigue deletreando, no se vuelve fonetica */
+  const rwy = ATIS.notam.parse('E) RWY 05R/23L CLSD', 'es');
+  assert.strictEqual(ATIS.script.paraLocutar(rwy.plain, 'es'),
+    'pista cero cinco derecha, dos tres izquierda cerrada');
+
+  /* Ingles: AND en mayusculas no debe cortar la enumeracion */
+  const en = ATIS.notam.parse('E) TWYS B9, C2 AND B8 CLSD', 'en');
+  assert.strictEqual(ATIS.script.paraLocutar(en.plain, 'en'),
+    'taxiways Bravo niner, Charlie two And Bravo eight closed');
+});
+
 console.log('\nDescarga del FNS');
 test('lee el archivo .xls tal como lo entrega el FNS', () => {
   const buf = fs.readFileSync(path.join(__dirname, 'fixtures', 'fnsNotams_MMMX.xls'));

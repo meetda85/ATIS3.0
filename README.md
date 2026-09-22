@@ -126,6 +126,14 @@ Los NOTAM y la información adicional van **un renglón cada uno, separados por 
 poder leerlos y copiarlos; de los NOTAM se transmite solo la condición, nunca el número ni
 las fechas de vigencia.
 
+Los designadores con letra se locutan con el **alfabeto fonético OACI**: *calle de rodaje A4*
+se lee «calle de rodaje Alfa cuatro», *calles de rodaje B9, C2 y B8* se lee «Bravo nueve,
+Charli dos y Bravo ocho», y *PH* se lee «Papa Hotel». Solo se convierten las letras que
+siguen a una palabra clave (*calle de rodaje*, *pista*, *umbral*, *plataforma*, *categoría*)
+y los designadores de letra con dígitos, para que la «y» de una enumeración no se vuelva
+«Yanki». Los tipos de aeronave se leen como en radio: *B747-8* → «Boeing siete cuatro siete
+ocho». En pantalla el texto se conserva tal como viene en el NOTAM.
+
 ## Archivos
 
 ```

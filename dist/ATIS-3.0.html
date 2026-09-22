@@ -1252,7 +1252,16 @@ ol.help li { margin-bottom: 6px; }
     return { text: text, speech: speech, number: num, side: m[2] || '' };
   }
 
+  /* Letra suelta -> palabra del alfabeto OACI, como se lee en radio */
+  function phonetic(letter, lang) {
+    var c = String(letter || '').toUpperCase();
+    var idx = c.charCodeAt(0) - 65;
+    if (c.length !== 1 || idx < 0 || idx > 25) return letter;
+    return lang === 'es' ? ALPHABET[idx][1] : ALPHABET[idx][2];
+  }
+
   ATIS.num = {
+    phonetic: phonetic,
     setOptions: setOptions,
     spell: spell,
     cardinal: cardinal,
@@ -2116,11 +2125,68 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   /* El texto libre en MAYUSCULAS hace que algunas voces deletreen palabra por palabra */
   function softenCaps(text) {
-    return String(text || '').replace(/\b[A-ZÁÉÍÓÚÜÑ]{4,}\b/g, function (w) {
+    return String(text || '').replace(/\b[A-ZÁÉÍÓÚÜÑ]{3,}\b/g, function (w) {
       if (SIGLAS.indexOf(w) >= 0) return w;
       if (!/[AEIOUÁÉÍÓÚ]/.test(w)) return w;
       return w.charAt(0) + w.slice(1).toLowerCase();
     });
+  }
+
+  /* Palabras que van seguidas de un designador con letra */
+  var CLAVES_DESIGNADOR = '(?:calles? de rodaje|taxiways?|pistas?|runways?|umbral(?:es)?|' +
+    'thresholds?|plataformas?|aprons?|categor[íi]a|category)';
+  var TOKEN_DESIGNADOR = '(?:[A-Z]\\d{1,2}|[A-Z]{1,3})';
+  var SEPARADOR = '(?:,|[yY]|[aA][nN][dD])';
+  var RE_DESIGNADOR = new RegExp('\\b(' + CLAVES_DESIGNADOR + ')\\s+(' + TOKEN_DESIGNADOR +
+    '(?:\\s*' + SEPARADOR + '\\s*' + TOKEN_DESIGNADOR + ')*)', 'g');
+
+  /* "calle de rodaje A4 y B" -> "calle de rodaje Alfa cuatro y Bravo".
+     Solo toca las letras que siguen a una de las palabras clave, para no
+     convertir la "y" ni la "o" de una enumeración en Yanki u Oscar. */
+  function foneticoDesignadores(text, lang) {
+    return String(text || '').replace(RE_DESIGNADOR, function (todo, clave, lista) {
+      var convertida = lista.replace(/[A-Z]\d{1,2}|[A-Z]{1,3}/g, function (tok) {
+        if (/^(?:AND|Y)$/.test(tok)) return tok;
+        var m = /^([A-Z])(\d{1,2})$/.exec(tok);
+        if (m) return N.phonetic(m[1], lang) + ' ' + N.spell(m[2], lang);
+        return tok.split('').map(function (c) { return N.phonetic(c, lang); }).join(' ');
+      });
+      return clave + ' ' + convertida;
+    });
+  }
+
+  /* "B747-8" o "Boeing 747-8" -> "Boeing siete cuatro siete ocho" */
+  function foneticoAeronaves(text, lang) {
+    var t = String(text || '');
+    t = t.replace(/\b(Boeing|Airbus)\s+(\d{3})(?:-(\d{1,2}))?\b/gi, function (m, marca, d3, d2) {
+      var nombre = /^b/i.test(marca) ? 'Boeing' : 'Airbus';
+      return nombre + ' ' + N.spell(d3, lang) + (d2 ? ' ' + N.spell(d2, lang) : '');
+    });
+    t = t.replace(/\b([AB])(\d{3})(?:-(\d{1,2}))?\b/g, function (m, l, d3, d2) {
+      return (l === 'B' ? 'Boeing' : 'Airbus') + ' ' + N.spell(d3, lang) + (d2 ? ' ' + N.spell(d2, lang) : '');
+    });
+    return t;
+  }
+
+  /* Letra con uno o dos dígitos suelta (A4, B9, H1): siempre es un designador */
+  function foneticoSueltos(text, lang) {
+    return String(text || '').replace(/\b([A-Z])(\d{1,2})\b/g, function (m, letra, digitos) {
+      return N.phonetic(letra, lang) + ' ' + N.spell(digitos, lang);
+    });
+  }
+
+  /* Conjunciones de una letra: la "Y" en mayúscula la leen como "i griega" */
+  function minusculasSueltas(text) {
+    return String(text || '').replace(/\b([YOU])\b/g, function (m, c) { return c.toLowerCase(); });
+  }
+
+  /* Cadena completa para locutar un texto libre (NOTAM o información adicional) */
+  function paraLocutar(text, lang) {
+    var t = foneticoAeronaves(text, lang);
+    t = foneticoDesignadores(t, lang);
+    t = foneticoSueltos(t, lang);
+    t = minusculasSueltas(t);
+    return speakNumbers(softenCaps(t), lang);
   }
 
   function speakNumbers(text, lang) {
@@ -2300,7 +2366,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     /* 12. Cizalladura */
     if (obs.windshear) {
       b.add((L ? 'Cizalladura del viento reportada: ' : 'Wind shear reported: ') + obs.windshear + '.',
-        (L ? 'Cizalladura del viento reportada: ' : 'Wind shear reported: ') + speakNumbers(obs.windshear, lang) + '.');
+        (L ? 'Cizalladura del viento reportada: ' : 'Wind shear reported: ') + paraLocutar(obs.windshear, lang) + '.');
     }
 
     /* 13. NOTAM vigentes */
@@ -2312,7 +2378,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     notams.forEach(function (line, i) {
       var texto = i === 0 ? line.charAt(0).toUpperCase() + line.slice(1) : line;
       texto += (i === notams.length - 1 ? '.' : ',');
-      b.addLine(texto, speakNumbers(softenCaps(texto), lang));
+      b.addLine(texto, paraLocutar(texto, lang));
     });
 
     /* 14. Información adicional */
@@ -2323,7 +2389,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       extra.forEach(function (line, i) {
         line = line.replace(/[.,;]+$/, '');
         line += (i === extra.length - 1 ? '.' : ',');
-        b.addLine(line, speakNumbers(softenCaps(line), lang));
+        b.addLine(line, paraLocutar(line, lang));
       });
     }
 
@@ -2389,6 +2455,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     fromMetar: fromMetar,
     speakNumbers: speakNumbers,
     softenCaps: softenCaps,
+    paraLocutar: paraLocutar,
     SKY_LABELS: SKY_LABELS,
     VIS_CAUSES: VIS_CAUSES,
     RWY_CONDITIONS: RWY_CONDITIONS,

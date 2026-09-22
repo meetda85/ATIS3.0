@@ -171,7 +171,16 @@
     return { text: text, speech: speech, number: num, side: m[2] || '' };
   }
 
+  /* Letra suelta -> palabra del alfabeto OACI, como se lee en radio */
+  function phonetic(letter, lang) {
+    var c = String(letter || '').toUpperCase();
+    var idx = c.charCodeAt(0) - 65;
+    if (c.length !== 1 || idx < 0 || idx > 25) return letter;
+    return lang === 'es' ? ALPHABET[idx][1] : ALPHABET[idx][2];
+  }
+
   ATIS.num = {
+    phonetic: phonetic,
     setOptions: setOptions,
     spell: spell,
     cardinal: cardinal,
