@@ -65,7 +65,8 @@ idiomas **3 s**.
    - **Decodificar y agregar**: pegando el texto de uno o varios NOTAM.
    Quedan marcados para el aire solo los que corresponden al ATIS (pista, rodaje,
    iluminación, radioayudas); las posiciones de estacionamiento y las frecuencias se
-   cargan pero no se transmiten. Cada uno se activa o desactiva con su casilla.
+   cargan pero no se transmiten. Cada uno se activa o desactiva con su casilla, y
+   *Copiar los marcados* los deja en el portapapeles, un renglón cada uno.
 5. Escribir lo que no venga en el METAR ni en los NOTAM en **Información adicional**
    (una idea por línea, en español y en inglés).
 6. Pulsar **TRANSMITIR**. El bucle repite español → inglés indefinidamente hasta
@@ -105,15 +106,25 @@ duplica los que ya estaban cargados.
 
 ## Estructura del mensaje
 
-Sigue el orden de la OACI: aeródromo e información, hora de la observación, aproximación
-en servicio, pista(s) en uso, condición de pista, nivel de transición, viento, visibilidad
-y causa, RVR, condición de cielo, temperatura y punto de rocío, altímetro, cizalladura,
-NOTAM, información adicional y el cierre *"…informe tener información X"*.
+Sigue el orden de la OACI: aeródromo e información, hora de la observación en UTC,
+aproximación a esperar, pista(s) en uso, condición de pista, viento, visibilidad y causa,
+RVR, condición de cielo, temperatura y punto de rocío, altímetro, cizalladura, NOTAM,
+información adicional y el cierre *"…informe tener información X"*.
 
 Los números se locutan como en radiotelefonía: los grupos aeronáuticos se deletrean
-(`050` → «cero cinco cero», `3039` → «tres cero tres nueve») y las altitudes se leen como
-cantidad (`2000 ft` → «dos mil pies»). La letra de información usa el alfabeto OACI y
-avanza sola cada vez que se decodifica un METAR distinto al anterior.
+(`050` → «cero cinco cero», `3039` → «tres cero tres nueve»), la temperatura y el altímetro
+van dígito por dígito (`22` → «dos dos») y las altitudes se leen como cantidad
+(`2000 ft` → «dos mil pies»). La visibilidad se da en millas (`6SM` → «Visibilidad 6
+millas»). La letra de información usa el alfabeto OACI y avanza sola cada vez que se
+decodifica un METAR distinto al anterior.
+
+La condición de cielo usa la cobertura en octas: `FEW` *pocas nubes* (1-2), `SCT` *nubes
+dispersas* (3-4), `BKN` *cielo fragmentado* (5-7) y `OVC` *cielo cubierto* (8). El selector
+de cada capa permite cambiarla, e incluye las variantes *Nublado a* y *Cerrado a*.
+
+Los NOTAM y la información adicional van **un renglón cada uno, separados por comas**, para
+poder leerlos y copiarlos; de los NOTAM se transmite solo la condición, nunca el número ni
+las fechas de vigencia.
 
 ## Archivos
 

@@ -374,21 +374,16 @@ ol.help li { margin-bottom: 6px; }
       <span>Pista(s) en uso</span>
       <div id="runwayChips" class="chips"></div>
     </div>
-    <div class="grid2">
-      <label class="field"><span>Condición de pista</span>
-        <select id="runwayCondition">
-          <option value="">— sin mención —</option>
-          <option value="DRY">Pista seca</option>
-          <option value="WET">Pista mojada</option>
-          <option value="STANDING_WATER">Agua estancada</option>
-          <option value="SLIPPERY">Resbalosa cuando mojada</option>
-          <option value="WIP">Trabajos en la pista</option>
-        </select>
-      </label>
-      <label class="field"><span>Nivel de transición</span>
-        <input id="transitionLevel" maxlength="3" inputmode="numeric" placeholder="200">
-      </label>
-    </div>
+    <label class="field"><span>Condición de pista</span>
+      <select id="runwayCondition">
+        <option value="">— sin mención —</option>
+        <option value="DRY">Pista seca</option>
+        <option value="WET">Pista mojada</option>
+        <option value="STANDING_WATER">Agua estancada</option>
+        <option value="SLIPPERY">Resbalosa cuando mojada</option>
+        <option value="WIP">Trabajos en la pista</option>
+      </select>
+    </label>
   </section>
 
   <!-- ============ VIENTO / VISIBILIDAD / AMBIENTE ============ -->
@@ -426,7 +421,7 @@ ol.help li { margin-bottom: 6px; }
       </label>
       <label class="field"><span>Unidad</span>
         <select id="visUnit">
-          <option value="SM">millas terrestres</option>
+          <option value="SM">millas</option>
           <option value="KM">kilómetros</option>
           <option value="M">metros</option>
         </select>
@@ -478,15 +473,16 @@ ol.help li { margin-bottom: 6px; }
       (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla. Quedan marcados para transmitir
       solo los de pista, rodaje, iluminación y radioayudas; las posiciones de
       estacionamiento y las frecuencias se cargan pero no salen al aire.
+      Al aire va únicamente la condición, un renglón por NOTAM: las fechas de vigencia
+      quedan a la vista en esta lista, no se locutan.
     </p>
     <div class="row buttons">
       <button id="btnNotamAll" class="small ghost">Marcar todos</button>
       <button id="btnNotamNone" class="small ghost">Desmarcar todos</button>
       <button id="btnNotamAtis" class="small ghost">Solo pista y rodaje</button>
+      <button id="btnNotamCopy" class="small ghost">Copiar los marcados</button>
       <label class="checkline"><input type="checkbox" id="notamSoloVigentes" checked>
         <span>Ocultar los que no están vigentes ahora</span></label>
-      <label class="checkline"><input type="checkbox" id="notamConVigencia">
-        <span>Leer también las fechas de vigencia</span></label>
     </div>
     <div id="notamList" class="notamlist"></div>
   </section>
@@ -1025,53 +1021,52 @@ ol.help li { margin-bottom: 6px; }
       en: 'Mexico City International Airport',
       runways: ['05L', '05R', '23L', '23R'],
       elevation: 7316,
-      transitionLevel: '200',
       approaches: ['ILS', 'RNP', 'VOR', 'Visual']
     },
     MMTO: {
       es: 'Aeropuerto Internacional de Toluca',
       en: 'Toluca International Airport',
-      runways: ['15', '33'], elevation: 8466, transitionLevel: '200', approaches: ['ILS', 'RNP', 'VOR', 'Visual']
+      runways: ['15', '33'], elevation: 8466, approaches: ['ILS', 'RNP', 'VOR', 'Visual']
     },
     MMSM: {
       es: 'Aeropuerto Internacional Felipe Angeles',
       en: 'Felipe Angeles International Airport',
-      runways: ['04L', '04R', '22L', '22R'], elevation: 7503, transitionLevel: '200', approaches: ['ILS', 'RNP', 'Visual']
+      runways: ['04L', '04R', '22L', '22R'], elevation: 7503, approaches: ['ILS', 'RNP', 'Visual']
     },
     MMGL: {
       es: 'Aeropuerto Internacional de Guadalajara',
       en: 'Guadalajara International Airport',
-      runways: ['02', '20'], elevation: 5016, transitionLevel: '180', approaches: ['ILS', 'RNP', 'VOR', 'Visual']
+      runways: ['02', '20'], elevation: 5016, approaches: ['ILS', 'RNP', 'VOR', 'Visual']
     },
     MMMY: {
       es: 'Aeropuerto Internacional de Monterrey',
       en: 'Monterrey International Airport',
-      runways: ['11', '29'], elevation: 1278, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+      runways: ['11', '29'], elevation: 1278, approaches: ['ILS', 'RNP', 'Visual']
     },
     MMUN: {
       es: 'Aeropuerto Internacional de Cancun',
       en: 'Cancun International Airport',
-      runways: ['12L', '12R', '30L', '30R'], elevation: 22, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+      runways: ['12L', '12R', '30L', '30R'], elevation: 22, approaches: ['ILS', 'RNP', 'Visual']
     },
     MMTJ: {
       es: 'Aeropuerto Internacional de Tijuana',
       en: 'Tijuana International Airport',
-      runways: ['09', '27'], elevation: 489, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+      runways: ['09', '27'], elevation: 489, approaches: ['ILS', 'RNP', 'Visual']
     },
     MMPR: {
       es: 'Aeropuerto Internacional de Puerto Vallarta',
       en: 'Puerto Vallarta International Airport',
-      runways: ['04', '22'], elevation: 23, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+      runways: ['04', '22'], elevation: 23, approaches: ['ILS', 'RNP', 'Visual']
     },
     MMMD: {
       es: 'Aeropuerto Internacional de Merida',
       en: 'Merida International Airport',
-      runways: ['10', '28'], elevation: 38, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+      runways: ['10', '28'], elevation: 38, approaches: ['ILS', 'RNP', 'Visual']
     },
     MMBT: {
       es: 'Aeropuerto Internacional de Bajio',
       en: 'Bajio International Airport',
-      runways: ['13', '31'], elevation: 5956, transitionLevel: '180', approaches: ['ILS', 'RNP', 'Visual']
+      runways: ['13', '31'], elevation: 5956, approaches: ['ILS', 'RNP', 'Visual']
     }
   };
 
@@ -1949,20 +1944,36 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     this.s.push(speech === null || speech === undefined ? text : speech);
     return this;
   };
+  /* Igual que add, pero en su propio renglón: así los NOTAM y la información
+     adicional se pueden leer y copiar uno por uno. */
+  Builder.prototype.addLine = function (text, speech) {
+    if (text === null || text === undefined || text === '') return this;
+    this.t.push('\n' + text);
+    this.s.push(speech === null || speech === undefined ? text : speech);
+    return this;
+  };
   Builder.prototype.result = function () {
-    return { text: this.t.join(' '), speech: this.s.join(' '), sentences: this.t.slice() };
+    return {
+      text: this.t.join(' ').replace(/ *\n/g, '\n'),
+      speech: this.s.join(' '),
+      sentences: this.t.slice()
+    };
   };
 
   /* Catalogo de capas de cielo (clave -> texto ATIS) */
+  /* Las cuatro primeras son las que llena el METAR (1-2 octas, 3-4, 5-7 y 8).
+     Las variantes quedan disponibles en el selector de cada capa. */
   var SKY_LABELS = {
     SKC: { es: 'Despejado', en: 'Sky clear', noHeight: true },
     FEW: { es: 'Pocas nubes a', en: 'Few clouds at' },
-    SCT: { es: 'Nublado a', en: 'Scattered at' },
-    BKN: { es: 'Cerrado a', en: 'Broken at' },
+    SCT: { es: 'Nubes dispersas a', en: 'Scattered at' },
+    BKN: { es: 'Cielo fragmentado a', en: 'Broken at' },
     OVC: { es: 'Cielo cubierto a', en: 'Overcast at' },
     VV: { es: 'Visibilidad vertical', en: 'Vertical visibility' },
     NSC: { es: 'Sin nubes de importancia', en: 'No significant cloud', noHeight: true },
-    CAVOK: { es: 'CAVOK', en: 'CAVOK', noHeight: true }
+    CAVOK: { es: 'CAVOK', en: 'CAVOK', noHeight: true },
+    NUBLADO: { es: 'Nublado a', en: 'Cloudy at' },
+    CERRADO: { es: 'Cerrado a', en: 'Broken at' }
   };
 
   /* Causas de restriccion de visibilidad */
@@ -1991,7 +2002,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   };
 
   var VIS_UNITS = {
-    SM: { es: 'millas terrestres', en: 'statute miles', es1: 'milla terrestre', en1: 'statute mile' },
+    SM: { es: 'millas', en: 'miles', es1: 'milla', en1: 'mile' },
     KM: { es: 'kilómetros', en: 'kilometers', es1: 'kilómetro', en1: 'kilometer' },
     M: { es: 'metros', en: 'meters', es1: 'metro', en1: 'meter' }
   };
@@ -2148,8 +2159,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
     /* 2. Hora de la observación */
     if (obs.time) {
-      b.add((L ? 'Observación de las ' : 'Weather observation at ') + obs.time + ' zulu.',
-        (L ? 'Observación de las ' : 'Weather observation at ') + N.spell(obs.time, lang) + ' zulu.');
+      b.add((L ? 'Observación de las ' : 'Weather observation at ') + obs.time + ' UTC.',
+        (L ? 'Observación de las ' : 'Weather observation at ') + N.spell(obs.time, lang) + ' UTC.');
     }
 
     /* 3. Tipo de aproximación */
@@ -2181,13 +2192,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (rc) b.add(rc + '.');
     }
 
-    /* 6. Nivel de transición */
-    if (cfg.transitionLevel) {
-      b.add((L ? 'Nivel de transición ' : 'Transition level ') + cfg.transitionLevel + '.',
-        (L ? 'Nivel de transición ' : 'Transition level ') + N.spell(cfg.transitionLevel, lang) + '.');
-    }
-
-    /* 7. Viento */
+    /* 6. Viento */
     var w = obs.wind || {};
     if (w.mode === 'calm') {
       b.add(L ? 'Viento en calma.' : 'Wind calm.');
@@ -2215,7 +2220,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
     }
 
-    /* 8. Visibilidad */
+    /* 7. Visibilidad */
     var v = obs.visibility || {};
     if (v.value !== '' && v.value !== undefined && v.value !== null) {
       var u = VIS_UNITS[v.unit] || VIS_UNITS.SM;
@@ -2234,7 +2239,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (cz) b.add(cz + '.');
     }
 
-    /* 9. RVR */
+    /* 8. RVR */
     (obs.rvr || []).forEach(function (r) {
       var rr = N.runway(r.runway, lang);
       var unitR = r.unit === 'ft' ? (L ? 'pies' : 'feet') : (L ? 'metros' : 'meters');
@@ -2243,7 +2248,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         N.cardinal(r.value, lang) + ' ' + unitR + '.');
     });
 
-    /* 10. Condición de cielo */
+    /* 9. Condición de cielo */
     var layers = (obs.layers || []).filter(function (l) { return l && l.amount; });
     if (layers.length) {
       var lt = [], ls = [];
@@ -2266,7 +2271,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (lt.length) b.add(lt.join(', ') + '.', ls.join(', ') + '.');
     }
 
-    /* 11. Temperatura y punto de rocío */
+    /* 10. Temperatura y punto de rocío */
     if (obs.temperature !== '' && obs.temperature !== null && obs.temperature !== undefined) {
       var tt = (L ? 'Temperatura ' : 'Temperature ') + obs.temperature;
       var tsp = (L ? 'Temperatura ' : 'Temperature ') + signedSpeech(obs.temperature, lang);
@@ -2277,7 +2282,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       b.add(tt + '.', tsp + '.');
     }
 
-    /* 12. Altímetro / QNH */
+    /* 11. Altímetro / QNH */
     if (obs.altimeter) {
       if (obs.altimeterUnit === 'inHg') {
         b.add((L ? 'Altímetro ' : 'Altimeter ') + obs.altimeter + '.',
@@ -2292,38 +2297,38 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
     }
 
-    /* 13. Cizalladura */
+    /* 12. Cizalladura */
     if (obs.windshear) {
       b.add((L ? 'Cizalladura del viento reportada: ' : 'Wind shear reported: ') + obs.windshear + '.',
         (L ? 'Cizalladura del viento reportada: ' : 'Wind shear reported: ') + speakNumbers(obs.windshear, lang) + '.');
     }
 
-    /* 14. NOTAM vigentes */
-    var notams = (cfg.notamLines || []).filter(Boolean);
-    if (notams.length) {
-      b.add(L ? 'NOTAM vigentes.' : 'Current NOTAMs.');
-      notams.forEach(function (line) {
-        var clean = String(line).trim();
-        if (!clean) return;
-        clean = clean.charAt(0).toUpperCase() + clean.slice(1);
-        if (!/[.!?]$/.test(clean)) clean += '.';
-        b.add(clean, speakNumbers(softenCaps(clean), lang));
-      });
-    }
+    /* 13. NOTAM vigentes */
+    var notams = (cfg.notamLines || []).filter(Boolean).map(function (line) {
+      /* Solo la condición: sin número, sin código Q y sin fechas de vigencia */
+      return String(line).trim().replace(/[.,;]+$/, '');
+    }).filter(Boolean);
 
-    /* 15. Información adicional */
+    notams.forEach(function (line, i) {
+      var texto = i === 0 ? line.charAt(0).toUpperCase() + line.slice(1) : line;
+      texto += (i === notams.length - 1 ? '.' : ',');
+      b.addLine(texto, speakNumbers(softenCaps(texto), lang));
+    });
+
+    /* 14. Información adicional */
     var extra = (L ? cfg.additionalEs : cfg.additionalEn) || '';
     extra = String(extra).replace(/\r/g, '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
     if (extra.length) {
-      b.add(L ? 'Información adicional.' : 'Additional information.');
-      extra.forEach(function (line) {
-        if (!/[.!?]$/.test(line)) line += '.';
-        b.add(line, speakNumbers(softenCaps(line), lang));
+      b.addLine(L ? 'Información adicional:' : 'Additional information:');
+      extra.forEach(function (line, i) {
+        line = line.replace(/[.,;]+$/, '');
+        line += (i === extra.length - 1 ? '.' : ',');
+        b.addLine(line, speakNumbers(softenCaps(line), lang));
       });
     }
 
-    /* 16. Cierre */
-    b.add((L ? 'Al establecer comunicación informe tener información ' : 'On initial contact advise you have information ') +
+    /* 15. Cierre */
+    b.addLine((L ? 'Al establecer comunicación informe tener información ' : 'On initial contact advise you have information ') +
       info.word + '.',
       (L ? 'Al establecer comunicación informe tener información ' : 'On initial contact advise you have information ') +
       letterSpeech + '.');
@@ -2511,6 +2516,19 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function splitChunks(text, max) {
     max = max || 180;
     var sentences = String(text || '').replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]*/g) || [];
+    /* Una enumeración larga (la lista de NOTAM) es una sola frase: se parte por comas */
+    var partidas = [];
+    sentences.forEach(function (frase) {
+      if (frase.length <= max) { partidas.push(frase); return; }
+      var trozos = frase.split(/,\s*/), acum = '';
+      trozos.forEach(function (t, i) {
+        var pieza = t + (i === trozos.length - 1 ? '' : ',');
+        if ((acum + ' ' + pieza).trim().length > max && acum) { partidas.push(acum.trim()); acum = pieza; }
+        else acum = (acum + ' ' + pieza).trim();
+      });
+      if (acum) partidas.push(acum.trim());
+    });
+    sentences = partidas;
     var out = [], buf = '';
     sentences.forEach(function (s) {
       s = s.trim();
@@ -2751,14 +2769,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     [
       'station', 'stationList', 'letterBig', 'letterWord', 'letterPrev', 'letterNext', 'utcClock',
       'metarRaw', 'btnDecode', 'btnFetch', 'btnSample', 'metarStatus', 'metarDecoded',
-      'infoType', 'obsTime', 'approach', 'approachRunway', 'runwayChips', 'runwayCondition', 'transitionLevel',
+      'infoType', 'obsTime', 'approach', 'approachRunway', 'runwayChips', 'runwayCondition',
       'windMode', 'windDir', 'windSpeed', 'windGust', 'windVarFrom', 'windVarTo',
       'visValue', 'visUnit', 'visCause', 'visOrMore',
       'temperature', 'dewpoint', 'altimeter', 'includeHpa',
       'layers', 'btnAddLayer',
       'notamRaw', 'btnNotamAdd', 'btnNotamClear', 'notamStatus', 'notamList',
       'btnNotamFile', 'notamFile', 'btnNotamAll', 'btnNotamNone', 'btnNotamAtis',
-      'notamSoloVigentes', 'notamConVigencia',
+      'btnNotamCopy', 'notamSoloVigentes',
       'additionalEs', 'additionalEn', 'includeNotams',
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
       'btnPlay', 'btnStop', 'playState', 'playDetail',
@@ -2812,11 +2830,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }).join('') || '<span class="status">Estación sin pistas registradas; use Información adicional.</span>';
     paintChips();
 
-    if (ap && !keepFields) {
-      el.transitionLevel.value = ap.transitionLevel || '';
-    } else if (ap && !el.transitionLevel.value) {
-      el.transitionLevel.value = ap.transitionLevel || '';
-    }
   }
 
   function airportNames(code) {
@@ -3164,14 +3177,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       (ocultos ? ' · ' + ocultos + ' ocultos por vigencia' : '') + '</div>' + html;
   }
 
+  /* Al aire va solo la condición, nunca el número ni las fechas */
   function notamLines(lang) {
     if (!el.includeNotams.checked) return [];
-    var conVigencia = el.notamConVigencia.checked;
     return notams.filter(function (n) { return n.include; })
-      .map(function (n) {
-        var d = n[lang];
-        return conVigencia ? (d.summary || d.plain) : (d.plain || d.summary);
-      })
+      .map(function (n) { return n[lang].plain; })
       .filter(Boolean);
   }
 
@@ -3223,7 +3233,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       approachRunway: el.approachRunway.value,
       runwaysInUse: runwaysInUse.slice(),
       runwayCondition: el.runwayCondition.value,
-      transitionLevel: el.transitionLevel.value.replace(/\D/g, ''),
       includeHpa: el.includeHpa.checked,
       additionalEs: el.additionalEs.value,
       additionalEn: el.additionalEn.value
@@ -3494,7 +3503,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             };
           }),
           notamSoloVigentes: el.notamSoloVigentes.checked,
-          notamConVigencia: el.notamConVigencia.checked,
           voices: { es: el.voiceEs.value, en: el.voiceEn.value },
           rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value,
           langEs: el.langEs.checked, langEn: el.langEn.checked
@@ -3536,7 +3544,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (o.layers && o.layers.length) setLayers(o.layers);
     runwaysInUse = data.runwaysInUse || [];
     el.runwayCondition.value = c.runwayCondition || '';
-    el.transitionLevel.value = c.transitionLevel || '';
     el.approach.value = c.approach || '';
     el.additionalEs.value = c.additionalEs || '';
     el.additionalEn.value = c.additionalEn || '';
@@ -3550,7 +3557,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     savedVoices = data.voices || null;
     savedApproachRwy = c.approachRunway || '';
     if (data.notamSoloVigentes !== undefined) el.notamSoloVigentes.checked = data.notamSoloVigentes;
-    if (data.notamConVigencia !== undefined) el.notamConVigencia.checked = data.notamConVigencia;
     (data.notams || []).forEach(function (n) {
       var es = ATIS.notam.parse(n.raw, 'es');
       var m = n.meta || {};
@@ -3655,7 +3661,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
     on(el.btnAddLayer, 'click', function () { el.layers.appendChild(layerRow('', '')); });
 
-    ['infoType', 'obsTime', 'approach', 'approachRunway', 'runwayCondition', 'transitionLevel',
+    ['infoType', 'obsTime', 'approach', 'approachRunway', 'runwayCondition',
       'windMode', 'windDir', 'windSpeed', 'windGust', 'windVarFrom', 'windVarTo',
       'visValue', 'visUnit', 'visCause', 'visOrMore',
       'temperature', 'dewpoint', 'altimeter', 'includeHpa',
@@ -3680,11 +3686,17 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       importarArchivo(el.notamFile.files[0]);
       el.notamFile.value = '';
     });
+    on(el.btnNotamCopy, 'click', function () {
+      var lineas = notamLines('es');
+      if (!lineas.length) { status(el.notamStatus, 'No hay NOTAM marcados.', 'err'); return; }
+      var texto = lineas.map(function (l) { return l.replace(/[.,;]+$/, ''); }).join('\n');
+      if (navigator.clipboard) navigator.clipboard.writeText(texto);
+      status(el.notamStatus, lineas.length + ' NOTAM copiados, un renglón cada uno.', 'ok');
+    });
     on(el.btnNotamAll, 'click', function () { marcarNotams('todos'); });
     on(el.btnNotamNone, 'click', function () { marcarNotams('ninguno'); });
     on(el.btnNotamAtis, 'click', function () { marcarNotams('atis'); });
     on(el.notamSoloVigentes, 'change', renderNotams);
-    on(el.notamConVigencia, 'change', scheduleRender);
 
     /* Un solo manejador para toda la lista: se vuelve a dibujar a cada cambio */
     on(el.notamList, 'change', function (e) {

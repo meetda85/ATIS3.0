@@ -115,6 +115,19 @@
   function splitChunks(text, max) {
     max = max || 180;
     var sentences = String(text || '').replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]*/g) || [];
+    /* Una enumeración larga (la lista de NOTAM) es una sola frase: se parte por comas */
+    var partidas = [];
+    sentences.forEach(function (frase) {
+      if (frase.length <= max) { partidas.push(frase); return; }
+      var trozos = frase.split(/,\s*/), acum = '';
+      trozos.forEach(function (t, i) {
+        var pieza = t + (i === trozos.length - 1 ? '' : ',');
+        if ((acum + ' ' + pieza).trim().length > max && acum) { partidas.push(acum.trim()); acum = pieza; }
+        else acum = (acum + ' ' + pieza).trim();
+      });
+      if (acum) partidas.push(acum.trim());
+    });
+    sentences = partidas;
     var out = [], buf = '';
     sentences.forEach(function (s) {
       s = s.trim();

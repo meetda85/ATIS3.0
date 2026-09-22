@@ -128,7 +128,6 @@ test('guion en espanol e ingles a partir del METAR', () => {
     letter: 'S', infoType: 'normal',
     approach: 'RNP', approachRunway: '05L',
     runwaysInUse: ['05L'], runwayCondition: 'DRY',
-    transitionLevel: '200',
     additionalEs: 'PISTA 05 DERECHA CERRADA',
     additionalEn: 'RUNWAY 05 RIGHT CLOSED',
     notamLines: []
@@ -137,18 +136,18 @@ test('guion en espanol e ingles a partir del METAR', () => {
   const en = ATIS.script.build('en', obs, cfg);
 
   assert.ok(es.text.indexOf('información SIERRA') > 0, es.text);
-  assert.ok(es.text.indexOf('Observación de las 2145 zulu') > 0, es.text);
+  assert.ok(es.text.indexOf('Observación de las 2145 UTC') > 0, es.text);
   assert.ok(es.text.indexOf('Esperar aproximación RNP a pista 05 izquierda') > 0, es.text);
   assert.ok(es.text.indexOf('Pista en uso 05 izquierda') > 0, es.text);
   assert.ok(es.text.indexOf('Pista seca') > 0, es.text);
-  assert.ok(es.text.indexOf('Nivel de transición 200') > 0, es.text);
+  assert.ok(es.text.indexOf('transición') < 0, 'el nivel de transición ya no se difunde');
   assert.ok(es.text.indexOf('Viento 050 grados 8 nudos') > 0, es.text);
-  assert.ok(es.text.indexOf('Visibilidad 6 millas terrestres') > 0, es.text);
+  assert.ok(es.text.indexOf('Visibilidad 6 millas.') > 0, es.text);
   assert.ok(es.text.indexOf('Bruma') > 0, es.text);
-  assert.ok(es.text.indexOf('Nublado a 2000 pies, cerrado a 10000 pies') > 0, es.text);
+  assert.ok(es.text.indexOf('Nubes dispersas a 2000 pies, cielo fragmentado a 10000 pies') > 0, es.text);
   assert.ok(es.text.indexOf('Temperatura 22, punto de rocío 11') > 0, es.text);
   assert.ok(es.text.indexOf('Altímetro 3039') > 0, es.text);
-  assert.ok(es.text.indexOf('PISTA 05 DERECHA CERRADA') > 0, es.text);
+  assert.ok(es.text.indexOf('\nInformación adicional:\nPISTA 05 DERECHA CERRADA.') > 0, JSON.stringify(es.text));
 
   assert.ok(es.speech.indexOf('cero cinco cero grados ocho nudos') > 0, es.speech);
   assert.ok(es.speech.indexOf('tres cero tres nueve') > 0, es.speech);
@@ -160,6 +159,7 @@ test('guion en espanol e ingles a partir del METAR', () => {
   assert.ok(en.text.indexOf('Expect RNP approach runway 05 left') > 0, en.text);
   assert.ok(en.text.indexOf('Wind 050 degrees 8 knots') > 0, en.text);
   assert.ok(en.text.indexOf('Scattered at 2000 feet, broken at 10000 feet') > 0, en.text);
+  assert.ok(en.text.indexOf('Visibility 6 miles.') > 0, en.text);
   assert.ok(en.speech.indexOf('three zero three niner') > 0, en.speech);
   assert.ok(en.text.indexOf('On initial contact advise you have information SIERRA') > 0, en.text);
 });
@@ -175,8 +175,31 @@ test('viento en calma y NOTAM incluidos en el guion', () => {
   const es = ATIS.script.build('es', obs, cfg);
   assert.ok(es.text.indexOf('Viento en calma') > 0, es.text);
   assert.ok(es.text.indexOf('Pistas en uso 05 izquierda y 05 derecha') > 0, es.text);
-  assert.ok(es.text.indexOf('NOTAM vigentes') > 0, es.text);
+  assert.ok(es.text.indexOf('NOTAM') < 0, 'ya no se anuncia el encabezado NOTAM');
   assert.ok(es.speech.indexOf('Pista cero cinco derecha cerrada') > 0, es.speech);
+});
+
+test('los NOTAM salen en renglones, separados por comas y sin fechas', () => {
+  const obs = ATIS.script.fromMetar(ATIS.metar.parse('MMMX 210600Z 00000KT 10SM SKC 12/05 A3025'));
+  const cfg = {
+    airportNameEs: 'Aeropuerto Internacional de la Ciudad de México',
+    airportNameEn: 'Mexico City International Airport',
+    letter: 'A', runwaysInUse: ['05L'],
+    notamLines: [
+      'Pista 05 derecha, 23 izquierda cerrada',
+      'Calle de rodaje A4 entre pista 05 derecha y calle de rodaje J cerrada',
+      'Umbral pista 23 izquierda luces de destello secuencial fuera de servicio'
+    ]
+  };
+  const es = ATIS.script.build('es', obs, cfg);
+  const renglones = es.text.split('\n');
+
+  assert.ok(renglones.indexOf('Pista 05 derecha, 23 izquierda cerrada,') > 0, JSON.stringify(renglones));
+  assert.ok(renglones.indexOf('Calle de rodaje A4 entre pista 05 derecha y calle de rodaje J cerrada,') > 0);
+  assert.ok(renglones.indexOf('Umbral pista 23 izquierda luces de destello secuencial fuera de servicio.') > 0);
+  assert.ok(es.text.indexOf('Vigente') < 0, 'la vigencia no se difunde');
+  /* El cierre también va en su renglón */
+  assert.ok(/\nAl establecer comunicación informe tener información ALFA\.$/.test(es.text), JSON.stringify(es.text));
 });
 
 console.log('\nDescarga del FNS');

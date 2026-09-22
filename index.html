@@ -89,21 +89,16 @@
       <span>Pista(s) en uso</span>
       <div id="runwayChips" class="chips"></div>
     </div>
-    <div class="grid2">
-      <label class="field"><span>Condición de pista</span>
-        <select id="runwayCondition">
-          <option value="">— sin mención —</option>
-          <option value="DRY">Pista seca</option>
-          <option value="WET">Pista mojada</option>
-          <option value="STANDING_WATER">Agua estancada</option>
-          <option value="SLIPPERY">Resbalosa cuando mojada</option>
-          <option value="WIP">Trabajos en la pista</option>
-        </select>
-      </label>
-      <label class="field"><span>Nivel de transición</span>
-        <input id="transitionLevel" maxlength="3" inputmode="numeric" placeholder="200">
-      </label>
-    </div>
+    <label class="field"><span>Condición de pista</span>
+      <select id="runwayCondition">
+        <option value="">— sin mención —</option>
+        <option value="DRY">Pista seca</option>
+        <option value="WET">Pista mojada</option>
+        <option value="STANDING_WATER">Agua estancada</option>
+        <option value="SLIPPERY">Resbalosa cuando mojada</option>
+        <option value="WIP">Trabajos en la pista</option>
+      </select>
+    </label>
   </section>
 
   <!-- ============ VIENTO / VISIBILIDAD / AMBIENTE ============ -->
@@ -141,7 +136,7 @@
       </label>
       <label class="field"><span>Unidad</span>
         <select id="visUnit">
-          <option value="SM">millas terrestres</option>
+          <option value="SM">millas</option>
           <option value="KM">kilómetros</option>
           <option value="M">metros</option>
         </select>
@@ -193,15 +188,16 @@
       (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla. Quedan marcados para transmitir
       solo los de pista, rodaje, iluminación y radioayudas; las posiciones de
       estacionamiento y las frecuencias se cargan pero no salen al aire.
+      Al aire va únicamente la condición, un renglón por NOTAM: las fechas de vigencia
+      quedan a la vista en esta lista, no se locutan.
     </p>
     <div class="row buttons">
       <button id="btnNotamAll" class="small ghost">Marcar todos</button>
       <button id="btnNotamNone" class="small ghost">Desmarcar todos</button>
       <button id="btnNotamAtis" class="small ghost">Solo pista y rodaje</button>
+      <button id="btnNotamCopy" class="small ghost">Copiar los marcados</button>
       <label class="checkline"><input type="checkbox" id="notamSoloVigentes" checked>
         <span>Ocultar los que no están vigentes ahora</span></label>
-      <label class="checkline"><input type="checkbox" id="notamConVigencia">
-        <span>Leer también las fechas de vigencia</span></label>
     </div>
     <div id="notamList" class="notamlist"></div>
   </section>

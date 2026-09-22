@@ -22,14 +22,14 @@
     [
       'station', 'stationList', 'letterBig', 'letterWord', 'letterPrev', 'letterNext', 'utcClock',
       'metarRaw', 'btnDecode', 'btnFetch', 'btnSample', 'metarStatus', 'metarDecoded',
-      'infoType', 'obsTime', 'approach', 'approachRunway', 'runwayChips', 'runwayCondition', 'transitionLevel',
+      'infoType', 'obsTime', 'approach', 'approachRunway', 'runwayChips', 'runwayCondition',
       'windMode', 'windDir', 'windSpeed', 'windGust', 'windVarFrom', 'windVarTo',
       'visValue', 'visUnit', 'visCause', 'visOrMore',
       'temperature', 'dewpoint', 'altimeter', 'includeHpa',
       'layers', 'btnAddLayer',
       'notamRaw', 'btnNotamAdd', 'btnNotamClear', 'notamStatus', 'notamList',
       'btnNotamFile', 'notamFile', 'btnNotamAll', 'btnNotamNone', 'btnNotamAtis',
-      'notamSoloVigentes', 'notamConVigencia',
+      'btnNotamCopy', 'notamSoloVigentes',
       'additionalEs', 'additionalEn', 'includeNotams',
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
       'btnPlay', 'btnStop', 'playState', 'playDetail',
@@ -83,11 +83,6 @@
     }).join('') || '<span class="status">Estación sin pistas registradas; use Información adicional.</span>';
     paintChips();
 
-    if (ap && !keepFields) {
-      el.transitionLevel.value = ap.transitionLevel || '';
-    } else if (ap && !el.transitionLevel.value) {
-      el.transitionLevel.value = ap.transitionLevel || '';
-    }
   }
 
   function airportNames(code) {
@@ -435,14 +430,11 @@
       (ocultos ? ' · ' + ocultos + ' ocultos por vigencia' : '') + '</div>' + html;
   }
 
+  /* Al aire va solo la condición, nunca el número ni las fechas */
   function notamLines(lang) {
     if (!el.includeNotams.checked) return [];
-    var conVigencia = el.notamConVigencia.checked;
     return notams.filter(function (n) { return n.include; })
-      .map(function (n) {
-        var d = n[lang];
-        return conVigencia ? (d.summary || d.plain) : (d.plain || d.summary);
-      })
+      .map(function (n) { return n[lang].plain; })
       .filter(Boolean);
   }
 
@@ -494,7 +486,6 @@
       approachRunway: el.approachRunway.value,
       runwaysInUse: runwaysInUse.slice(),
       runwayCondition: el.runwayCondition.value,
-      transitionLevel: el.transitionLevel.value.replace(/\D/g, ''),
       includeHpa: el.includeHpa.checked,
       additionalEs: el.additionalEs.value,
       additionalEn: el.additionalEn.value
@@ -765,7 +756,6 @@
             };
           }),
           notamSoloVigentes: el.notamSoloVigentes.checked,
-          notamConVigencia: el.notamConVigencia.checked,
           voices: { es: el.voiceEs.value, en: el.voiceEn.value },
           rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value,
           langEs: el.langEs.checked, langEn: el.langEn.checked
@@ -807,7 +797,6 @@
     if (o.layers && o.layers.length) setLayers(o.layers);
     runwaysInUse = data.runwaysInUse || [];
     el.runwayCondition.value = c.runwayCondition || '';
-    el.transitionLevel.value = c.transitionLevel || '';
     el.approach.value = c.approach || '';
     el.additionalEs.value = c.additionalEs || '';
     el.additionalEn.value = c.additionalEn || '';
@@ -821,7 +810,6 @@
     savedVoices = data.voices || null;
     savedApproachRwy = c.approachRunway || '';
     if (data.notamSoloVigentes !== undefined) el.notamSoloVigentes.checked = data.notamSoloVigentes;
-    if (data.notamConVigencia !== undefined) el.notamConVigencia.checked = data.notamConVigencia;
     (data.notams || []).forEach(function (n) {
       var es = ATIS.notam.parse(n.raw, 'es');
       var m = n.meta || {};
@@ -926,7 +914,7 @@
 
     on(el.btnAddLayer, 'click', function () { el.layers.appendChild(layerRow('', '')); });
 
-    ['infoType', 'obsTime', 'approach', 'approachRunway', 'runwayCondition', 'transitionLevel',
+    ['infoType', 'obsTime', 'approach', 'approachRunway', 'runwayCondition',
       'windMode', 'windDir', 'windSpeed', 'windGust', 'windVarFrom', 'windVarTo',
       'visValue', 'visUnit', 'visCause', 'visOrMore',
       'temperature', 'dewpoint', 'altimeter', 'includeHpa',
@@ -951,11 +939,17 @@
       importarArchivo(el.notamFile.files[0]);
       el.notamFile.value = '';
     });
+    on(el.btnNotamCopy, 'click', function () {
+      var lineas = notamLines('es');
+      if (!lineas.length) { status(el.notamStatus, 'No hay NOTAM marcados.', 'err'); return; }
+      var texto = lineas.map(function (l) { return l.replace(/[.,;]+$/, ''); }).join('\n');
+      if (navigator.clipboard) navigator.clipboard.writeText(texto);
+      status(el.notamStatus, lineas.length + ' NOTAM copiados, un renglón cada uno.', 'ok');
+    });
     on(el.btnNotamAll, 'click', function () { marcarNotams('todos'); });
     on(el.btnNotamNone, 'click', function () { marcarNotams('ninguno'); });
     on(el.btnNotamAtis, 'click', function () { marcarNotams('atis'); });
     on(el.notamSoloVigentes, 'change', renderNotams);
-    on(el.notamConVigencia, 'change', scheduleRender);
 
     /* Un solo manejador para toda la lista: se vuelve a dibujar a cada cambio */
     on(el.notamList, 'change', function (e) {

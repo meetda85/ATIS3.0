@@ -15,20 +15,36 @@
     this.s.push(speech === null || speech === undefined ? text : speech);
     return this;
   };
+  /* Igual que add, pero en su propio renglón: así los NOTAM y la información
+     adicional se pueden leer y copiar uno por uno. */
+  Builder.prototype.addLine = function (text, speech) {
+    if (text === null || text === undefined || text === '') return this;
+    this.t.push('\n' + text);
+    this.s.push(speech === null || speech === undefined ? text : speech);
+    return this;
+  };
   Builder.prototype.result = function () {
-    return { text: this.t.join(' '), speech: this.s.join(' '), sentences: this.t.slice() };
+    return {
+      text: this.t.join(' ').replace(/ *\n/g, '\n'),
+      speech: this.s.join(' '),
+      sentences: this.t.slice()
+    };
   };
 
   /* Catalogo de capas de cielo (clave -> texto ATIS) */
+  /* Las cuatro primeras son las que llena el METAR (1-2 octas, 3-4, 5-7 y 8).
+     Las variantes quedan disponibles en el selector de cada capa. */
   var SKY_LABELS = {
     SKC: { es: 'Despejado', en: 'Sky clear', noHeight: true },
     FEW: { es: 'Pocas nubes a', en: 'Few clouds at' },
-    SCT: { es: 'Nublado a', en: 'Scattered at' },
-    BKN: { es: 'Cerrado a', en: 'Broken at' },
+    SCT: { es: 'Nubes dispersas a', en: 'Scattered at' },
+    BKN: { es: 'Cielo fragmentado a', en: 'Broken at' },
     OVC: { es: 'Cielo cubierto a', en: 'Overcast at' },
     VV: { es: 'Visibilidad vertical', en: 'Vertical visibility' },
     NSC: { es: 'Sin nubes de importancia', en: 'No significant cloud', noHeight: true },
-    CAVOK: { es: 'CAVOK', en: 'CAVOK', noHeight: true }
+    CAVOK: { es: 'CAVOK', en: 'CAVOK', noHeight: true },
+    NUBLADO: { es: 'Nublado a', en: 'Cloudy at' },
+    CERRADO: { es: 'Cerrado a', en: 'Broken at' }
   };
 
   /* Causas de restriccion de visibilidad */
@@ -57,7 +73,7 @@
   };
 
   var VIS_UNITS = {
-    SM: { es: 'millas terrestres', en: 'statute miles', es1: 'milla terrestre', en1: 'statute mile' },
+    SM: { es: 'millas', en: 'miles', es1: 'milla', en1: 'mile' },
     KM: { es: 'kilómetros', en: 'kilometers', es1: 'kilómetro', en1: 'kilometer' },
     M: { es: 'metros', en: 'meters', es1: 'metro', en1: 'meter' }
   };
@@ -214,8 +230,8 @@
 
     /* 2. Hora de la observación */
     if (obs.time) {
-      b.add((L ? 'Observación de las ' : 'Weather observation at ') + obs.time + ' zulu.',
-        (L ? 'Observación de las ' : 'Weather observation at ') + N.spell(obs.time, lang) + ' zulu.');
+      b.add((L ? 'Observación de las ' : 'Weather observation at ') + obs.time + ' UTC.',
+        (L ? 'Observación de las ' : 'Weather observation at ') + N.spell(obs.time, lang) + ' UTC.');
     }
 
     /* 3. Tipo de aproximación */
@@ -247,13 +263,7 @@
       if (rc) b.add(rc + '.');
     }
 
-    /* 6. Nivel de transición */
-    if (cfg.transitionLevel) {
-      b.add((L ? 'Nivel de transición ' : 'Transition level ') + cfg.transitionLevel + '.',
-        (L ? 'Nivel de transición ' : 'Transition level ') + N.spell(cfg.transitionLevel, lang) + '.');
-    }
-
-    /* 7. Viento */
+    /* 6. Viento */
     var w = obs.wind || {};
     if (w.mode === 'calm') {
       b.add(L ? 'Viento en calma.' : 'Wind calm.');
@@ -281,7 +291,7 @@
       }
     }
 
-    /* 8. Visibilidad */
+    /* 7. Visibilidad */
     var v = obs.visibility || {};
     if (v.value !== '' && v.value !== undefined && v.value !== null) {
       var u = VIS_UNITS[v.unit] || VIS_UNITS.SM;
@@ -300,7 +310,7 @@
       if (cz) b.add(cz + '.');
     }
 
-    /* 9. RVR */
+    /* 8. RVR */
     (obs.rvr || []).forEach(function (r) {
       var rr = N.runway(r.runway, lang);
       var unitR = r.unit === 'ft' ? (L ? 'pies' : 'feet') : (L ? 'metros' : 'meters');
@@ -309,7 +319,7 @@
         N.cardinal(r.value, lang) + ' ' + unitR + '.');
     });
 
-    /* 10. Condición de cielo */
+    /* 9. Condición de cielo */
     var layers = (obs.layers || []).filter(function (l) { return l && l.amount; });
     if (layers.length) {
       var lt = [], ls = [];
@@ -332,7 +342,7 @@
       if (lt.length) b.add(lt.join(', ') + '.', ls.join(', ') + '.');
     }
 
-    /* 11. Temperatura y punto de rocío */
+    /* 10. Temperatura y punto de rocío */
     if (obs.temperature !== '' && obs.temperature !== null && obs.temperature !== undefined) {
       var tt = (L ? 'Temperatura ' : 'Temperature ') + obs.temperature;
       var tsp = (L ? 'Temperatura ' : 'Temperature ') + signedSpeech(obs.temperature, lang);
@@ -343,7 +353,7 @@
       b.add(tt + '.', tsp + '.');
     }
 
-    /* 12. Altímetro / QNH */
+    /* 11. Altímetro / QNH */
     if (obs.altimeter) {
       if (obs.altimeterUnit === 'inHg') {
         b.add((L ? 'Altímetro ' : 'Altimeter ') + obs.altimeter + '.',
@@ -358,38 +368,38 @@
       }
     }
 
-    /* 13. Cizalladura */
+    /* 12. Cizalladura */
     if (obs.windshear) {
       b.add((L ? 'Cizalladura del viento reportada: ' : 'Wind shear reported: ') + obs.windshear + '.',
         (L ? 'Cizalladura del viento reportada: ' : 'Wind shear reported: ') + speakNumbers(obs.windshear, lang) + '.');
     }
 
-    /* 14. NOTAM vigentes */
-    var notams = (cfg.notamLines || []).filter(Boolean);
-    if (notams.length) {
-      b.add(L ? 'NOTAM vigentes.' : 'Current NOTAMs.');
-      notams.forEach(function (line) {
-        var clean = String(line).trim();
-        if (!clean) return;
-        clean = clean.charAt(0).toUpperCase() + clean.slice(1);
-        if (!/[.!?]$/.test(clean)) clean += '.';
-        b.add(clean, speakNumbers(softenCaps(clean), lang));
-      });
-    }
+    /* 13. NOTAM vigentes */
+    var notams = (cfg.notamLines || []).filter(Boolean).map(function (line) {
+      /* Solo la condición: sin número, sin código Q y sin fechas de vigencia */
+      return String(line).trim().replace(/[.,;]+$/, '');
+    }).filter(Boolean);
 
-    /* 15. Información adicional */
+    notams.forEach(function (line, i) {
+      var texto = i === 0 ? line.charAt(0).toUpperCase() + line.slice(1) : line;
+      texto += (i === notams.length - 1 ? '.' : ',');
+      b.addLine(texto, speakNumbers(softenCaps(texto), lang));
+    });
+
+    /* 14. Información adicional */
     var extra = (L ? cfg.additionalEs : cfg.additionalEn) || '';
     extra = String(extra).replace(/\r/g, '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
     if (extra.length) {
-      b.add(L ? 'Información adicional.' : 'Additional information.');
-      extra.forEach(function (line) {
-        if (!/[.!?]$/.test(line)) line += '.';
-        b.add(line, speakNumbers(softenCaps(line), lang));
+      b.addLine(L ? 'Información adicional:' : 'Additional information:');
+      extra.forEach(function (line, i) {
+        line = line.replace(/[.,;]+$/, '');
+        line += (i === extra.length - 1 ? '.' : ',');
+        b.addLine(line, speakNumbers(softenCaps(line), lang));
       });
     }
 
-    /* 16. Cierre */
-    b.add((L ? 'Al establecer comunicación informe tener información ' : 'On initial contact advise you have information ') +
+    /* 15. Cierre */
+    b.addLine((L ? 'Al establecer comunicación informe tener información ' : 'On initial contact advise you have information ') +
       info.word + '.',
       (L ? 'Al establecer comunicación informe tener información ' : 'On initial contact advise you have information ') +
       letterSpeech + '.');
