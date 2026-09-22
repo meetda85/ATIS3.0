@@ -250,6 +250,7 @@
       como una persona; las antiguas de Windows suenan metálicas. <b>Haga clic en cualquier
       voz de la lista para escucharla</b> con una frase de ATIS y dejarla seleccionada.
     </p>
+    <div id="voiceAlert"></div>
     <div id="voiceDiag" class="diag"></div>
     <div class="row buttons">
       <button id="btnVoiceDiag" class="small ghost">Copiar diagnóstico de voces</button>
@@ -296,6 +297,12 @@
     <div id="playDetail" class="pstate-sub">Listo para transmitir en bucle: español &rarr; inglés</div>
   </div>
   <div class="popts">
+    <div class="field compact"><span>Transmitir</span>
+      <div class="langsel">
+        <label><input type="checkbox" id="langEs" checked> ES</label>
+        <label><input type="checkbox" id="langEn" checked> EN</label>
+      </div>
+    </div>
     <label class="field compact"><span>Voz ES</span><select id="voiceEs"></select></label>
     <label class="field compact"><span>Voz EN</span><select id="voiceEn"></select></label>
     <label class="field compact"><span>Velocidad</span>

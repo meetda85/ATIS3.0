@@ -45,6 +45,10 @@ deja en el portapapeles la lista completa, para pedir apoyo o comparar entre equ
   *Hora e idioma → Idioma y región*. Después reiniciar el navegador.
 - Las voces cuyo nombre lleva *Desktop* son las antiguas de Windows: suenan robóticas
   por más que se baje la velocidad.
+- **Si falta el idioma completo** (por ejemplo, ninguna voz en inglés), se instala en
+  *Configuración → Hora e idioma → Idioma y región → Agregar idioma*, eligiendo el idioma
+  y dejando marcada la casilla **Voz**. El programa desmarca solo el idioma sin voz en
+  **Transmitir**, para no locutarlo con la voz del otro idioma.
 
 Ajustes recomendados: velocidad **0.85–0.95**, pausa entre frases **250 ms**, pausa entre
 idiomas **3 s**.

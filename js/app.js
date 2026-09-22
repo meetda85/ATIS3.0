@@ -34,7 +34,8 @@
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
       'btnPlay', 'btnStop', 'playState', 'playDetail',
       'voiceEs', 'voiceEn', 'rate', 'gap', 'sentencePause', 'btnTestEs', 'btnTestEn',
-      'voiceListEs', 'voiceListEn', 'voiceDiag', 'btnVoiceDiag', 'voiceDiagStatus'
+      'voiceListEs', 'voiceListEn', 'voiceDiag', 'btnVoiceDiag', 'voiceDiagStatus',
+      'voiceAlert', 'langEs', 'langEn'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -538,8 +539,16 @@
       return;
     }
     render();
+    var secuencia = [];
+    if (el.langEs.checked) secuencia.push({ lang: 'es', text: lastScripts.es.speech });
+    if (el.langEn.checked) secuencia.push({ lang: 'en', text: lastScripts.en.speech });
+    if (!secuencia.length) {
+      status(el.scriptStatus, 'No hay ningún idioma marcado para transmitir. ' +
+        'Si las casillas están deshabilitadas, falta instalar la voz: vea el cuadro 8.', 'err');
+      return;
+    }
     var ok = ATIS.speech.play(
-      [{ lang: 'es', text: lastScripts.es.speech }, { lang: 'en', text: lastScripts.en.speech }],
+      secuencia,
       {
         loop: true,
         gap: +el.gap.value || 0,
@@ -615,9 +624,45 @@
     }).join('');
   }
 
+  /* Qué hacer, según lo que falte en este equipo */
+  function renderVoiceAlert(d) {
+    var faltaEs = d.es.length === 0, faltaEn = d.en.length === 0;
+    var naturalEs = d.es.some(function (v) { return v.natural; });
+    var naturalEn = d.en.some(function (v) { return v.natural; });
+    var html = '';
+
+    if (faltaEs || faltaEn) {
+      html += '<div class="alert grave"><h4>Falta la voz en ' +
+        (faltaEs && faltaEn ? 'español y en inglés' : (faltaEs ? 'español' : 'inglés')) + '</h4>' +
+        'Sin esa voz, el programa no puede locutar esa parte del ATIS, por eso quedó ' +
+        'desmarcada en <b>Transmitir</b>. Dos maneras de resolverlo:' +
+        '<ol>' +
+        '<li><b>La inmediata:</b> abrir este mismo programa en <b>Microsoft Edge</b> (ya viene en Windows). ' +
+        'Edge trae voces en línea en los dos idiomas sin instalar nada.</li>' +
+        '<li><b>La definitiva, para trabajar sin internet:</b> instalar el idioma que falta en Windows — ' +
+        '<i>Configuración &rarr; Hora e idioma &rarr; Idioma y región &rarr; Agregar idioma</i>, elegir ' +
+        (faltaEn ? '<b>Inglés (Estados Unidos)</b>' : '<b>Español (México)</b>') +
+        ' y dejar marcada la casilla <b>Voz</b> (texto a voz). Al terminar, reiniciar el navegador.</li>' +
+        '</ol></div>';
+    }
+
+    if (!d.esEdge && !(naturalEs && naturalEn)) {
+      html += '<div class="alert"><h4>Se puede oír mucho mejor</h4>' +
+        'Este equipo solo tiene las voces antiguas de Windows, que suenan metálicas. ' +
+        'Abriendo el programa en <b>Microsoft Edge</b> aparecen las voces naturales ' +
+        '<i>Dalia</i> y <i>Jorge</i> en español y <i>Aria</i>, <i>Guy</i> o <i>Jenny</i> en inglés, ' +
+        'sin instalar ni pagar nada (necesitan conexión, y aquí sí la hay). ' +
+        'Si el ATIS está instalado con <code>INSTALAR.bat</code>, el acceso directo del Escritorio ' +
+        'ya abre en Edge: úselo en lugar de abrir el archivo a mano.</div>';
+    }
+    el.voiceAlert.innerHTML = html;
+  }
+
   /* Encabezado del cuadro 8: navegador, conexión y qué implica */
   function renderVoiceDiag() {
     var d = ATIS.speech.diagnostico();
+    renderVoiceAlert(d);
+    ajustarIdiomas(d);
     var naturalesEs = d.es.filter(function (v) { return v.natural; }).length;
     var naturalesEn = d.en.filter(function (v) { return v.natural; }).length;
     var tags = [];
@@ -635,6 +680,19 @@
         'trae voces naturales sin instalar nada</span>');
     }
     el.voiceDiag.innerHTML = tags.join('');
+  }
+
+  /* Un idioma sin voz no se puede transmitir: se desmarca y se deja a la vista */
+  function ajustarIdiomas(d) {
+    [['es', el.langEs, d.es.length], ['en', el.langEn, d.en.length]].forEach(function (par) {
+      var chk = par[1], hay = par[2] > 0;
+      chk.disabled = !hay;
+      if (!hay) chk.checked = false;
+      var etiqueta = chk.parentNode;
+      if (etiqueta && etiqueta.classList) etiqueta.classList.toggle('sinvoz', !hay);
+      chk.title = hay ? 'Incluir este idioma en la transmisión'
+        : 'No hay ninguna voz de este idioma instalada en el equipo';
+    });
   }
 
   /* Texto para pegar en un correo o mensaje cuando haga falta apoyo */
@@ -660,8 +718,16 @@
     var esNat = /^★/.test(el.voiceEs.options[el.voiceEs.selectedIndex] ? el.voiceEs.options[el.voiceEs.selectedIndex].text : '');
     var enNat = /^★/.test(el.voiceEn.options[el.voiceEn.selectedIndex] ? el.voiceEn.options[el.voiceEn.selectedIndex].text : '');
     if (!ATIS.speech.state.playing) {
-      if (esNat && enNat) {
-        el.playDetail.textContent = 'Voces naturales seleccionadas. Listo para transmitir en bucle: español → inglés';
+      var activos = [];
+      if (el.langEs.checked) activos.push('español');
+      if (el.langEn.checked) activos.push('inglés');
+      var bucle = activos.length ? 'bucle: ' + activos.join(' → ') : 'sin idiomas marcados';
+      if (!el.langEs.checked || !el.langEn.checked) {
+        el.playDetail.textContent = 'Se transmitirá en ' + bucle +
+          (el.langEs.disabled || el.langEn.disabled ? ' · falta instalar una voz, vea el cuadro 8' : '');
+        el.playDetail.classList.add('warn');
+      } else if (esNat && enNat) {
+        el.playDetail.textContent = 'Voces naturales seleccionadas. Listo para transmitir en ' + bucle;
         el.playDetail.classList.remove('warn');
       } else {
         el.playDetail.textContent = 'Voz robótica: no hay voz natural en ' +
@@ -701,7 +767,8 @@
           notamSoloVigentes: el.notamSoloVigentes.checked,
           notamConVigencia: el.notamConVigencia.checked,
           voices: { es: el.voiceEs.value, en: el.voiceEn.value },
-          rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value
+          rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value,
+          langEs: el.langEs.checked, langEn: el.langEn.checked
         }));
       } catch (e) { /* almacenamiento no disponible */ }
     }, 400);
@@ -749,6 +816,8 @@
     if (data.rate) el.rate.value = data.rate;
     if (data.gap) el.gap.value = data.gap;
     if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
+    if (data.langEs !== undefined) el.langEs.checked = data.langEs;
+    if (data.langEn !== undefined) el.langEn.checked = data.langEn;
     savedVoices = data.voices || null;
     savedApproachRwy = c.approachRunway || '';
     if (data.notamSoloVigentes !== undefined) el.notamSoloVigentes.checked = data.notamSoloVigentes;
@@ -940,6 +1009,8 @@
     on(el.rate, 'input', save);
     on(el.gap, 'input', save);
     on(el.sentencePause, 'input', save);
+    on(el.langEs, 'change', function () { save(); updateVoiceReport(); });
+    on(el.langEn, 'change', function () { save(); updateVoiceReport(); });
     on(el.voiceEs, 'change', function () { save(); updateVoiceReport(); });
     on(el.voiceEn, 'change', function () { save(); updateVoiceReport(); });
 
