@@ -371,6 +371,7 @@
       notams.forEach(function (line) {
         var clean = String(line).trim();
         if (!clean) return;
+        clean = clean.charAt(0).toUpperCase() + clean.slice(1);
         if (!/[.!?]$/.test(clean)) clean += '.';
         b.add(clean, speakNumbers(softenCaps(clean), lang));
       });
