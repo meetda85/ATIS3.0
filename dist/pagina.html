@@ -756,6 +756,8 @@ ol.help li { margin-bottom: 6px; }
     LDA: { es: 'distancia disponible de aterrizaje', en: 'landing distance available' },
     TORA: { es: 'recorrido de despegue disponible', en: 'take-off run available' },
     NOTAM: { es: 'NOTAM', en: 'NOTAM' },
+    MHZ: { es: 'megahertz', en: 'megahertz' },
+    KHZ: { es: 'kilohertz', en: 'kilohertz' },
     SFC: { es: 'superficie', en: 'surface' },
     SID: { es: 'salida normalizada por instrumentos', en: 'standard instrument departure' },
     STAR: { es: 'llegada normalizada por instrumentos', en: 'standard instrument arrival' },
@@ -1537,6 +1539,8 @@ ol.help li { margin-bottom: 6px; }
 
     /* Errores de captura frecuentes: "23RCLSD" -> "23R CLSD" */
     out = out.replace(/\b(\d{2}[LRC])(?=[A-Z]{3,})/g, '$1 ');
+    /* Unidad pegada al número: "118.475MHZ" -> "118.475 MHZ" */
+    out = out.replace(/(\d)(MHZ|KHZ|FT|KT|NM|KM|HPA|SM)\b/g, '$1 $2');
 
     /* Frases completas */
     if (lang === 'es') {
@@ -2159,7 +2163,16 @@ ol.help li { margin-bottom: 6px; }
   }
 
   function speakNumbers(text, lang) {
-    return String(text || '').replace(/(\d):(\d)/g, '$1 $2').replace(/(\d+)(\s+(?:de|of)\b)?/g, function (all, d, tail, offset, whole) {
+    var t = String(text || '')
+      .replace(/(\d):(\d)/g, '$1 $2')
+      /* Unidad pegada al número, por si el texto no pasó por el decodificador */
+      .replace(/(\d)(MHZ|KHZ|FT|KT|NM|KM|HPA|SM)\b/gi, '$1 $2')
+      /* Frecuencias y decimales: "118.475" -> "uno uno ocho punto cuatro siete cinco".
+         Además elimina el punto, que el sintetizador tomaba por fin de frase. */
+      .replace(/\b(\d+)\.(\d+)\b/g, function (m, entera, decimal) {
+        return N.spell(entera, lang) + (lang === 'es' ? ' punto ' : ' point ') + N.spell(decimal, lang);
+      });
+    return t.replace(/(\d+)(\s+(?:de|of)\b)?/g, function (all, d, tail, offset, whole) {
       if (!tail && MONTH_RE.test(whole.slice(offset + d.length, offset + d.length + 12))) {
         return N.cardinal(+d, lang);
       }
@@ -2451,7 +2464,9 @@ ol.help li { margin-bottom: 6px; }
     cycle: 0,
     lang: '',
     chunk: 0,
-    total: 0
+    total: 0,
+    aviso: '',
+    respaldo: ''
   };
 
   var queue = [];          /* [{lang, text}] */
@@ -2469,7 +2484,6 @@ ol.help li { margin-bottom: 6px; }
   var idx = 0;
   var chunks = [];
   var timer = null;
-  var keepAlive = null;
   var current = null;
 
   function loadVoices() {
@@ -2591,67 +2605,204 @@ ol.help li { margin-bottom: 6px; }
     stateCbs.forEach(function (cb) {
       cb({
         playing: state.playing, paused: state.paused, cycle: state.cycle,
-        lang: state.lang, chunk: state.chunk, total: state.total
+        lang: state.lang, chunk: state.chunk, total: state.total,
+        aviso: state.aviso, respaldo: state.respaldo
       });
     });
   }
 
   function onState(cb) { stateCbs.push(cb); }
 
-  function speakNext() {
+  /* ================================================================== *
+   * Reproducción tolerante a fallos.
+   * La transmisión no se detiene por nada: si un fragmento falla se
+   * reintenta, si la voz en línea se cae se pasa a una voz local, si el
+   * motor se cuelga un latido lo reanuda, y si un idioma entero falla se
+   * omite ese ciclo y se vuelve a intentar en el siguiente.
+   * ================================================================== */
+  var MAX_INTENTOS = 3;        /* por fragmento */
+  var MAX_FALLOS_IDIOMA = 3;   /* por ciclo */
+  var intentos = 0;
+  var fallosIdioma = {};
+  var exitosCiclo = 0;
+  var watchdog = null;
+  var latido = null;
+  var enCurso = false;
+  var ultimaActividad = 0;
+  var itemActual = null;
+
+  function limpiarTimer() { if (timer) { clearTimeout(timer); timer = null; } }
+  function esperar(ms, fn) {
+    limpiarTimer();
+    timer = setTimeout(function () { timer = null; fn(); }, Math.max(0, ms));
+  }
+
+  function limpiarWatchdog() { if (watchdog) { clearTimeout(watchdog); watchdog = null; } }
+
+  /* Vigilancia de arranque: si en dos segundos y medio el motor ni empezó a
+     hablar, es que se murió. Así la recuperación es inmediata y no hay que
+     esperar a que se agote la duración completa del fragmento. */
+  function armarArranque(item) {
+    limpiarWatchdog();
+    watchdog = setTimeout(function () {
+      watchdog = null;
+      /* Hay motores que no avisan onstart aunque sí estén hablando */
+      if (synth.speaking) { armarFin(item); return; }
+      try { synth.cancel(); } catch (e) { /* ignorado */ }
+      fallo(item, 'no inició');
+    }, 2500);
+  }
+
+  /* Vigilancia de término: ya empezó, pero podría quedarse colgado a media frase */
+  function armarFin(item) {
+    limpiarWatchdog();
+    var rate = options.rate[item.lang] || 1;
+    var esperado = 4000 + (item.text.length * 140) / rate;
+    watchdog = setTimeout(function () {
+      watchdog = null;
+      try { synth.cancel(); } catch (e) { /* ignorado */ }
+      fallo(item, 'sin respuesta');
+    }, esperado);
+  }
+
+  /* Voz instalada en el equipo: sirve cuando la voz en línea se queda sin red */
+  function vozDeRespaldo(langPrefix) {
+    var locales = rankedVoices(langPrefix).filter(function (v) {
+      return v.voice && v.voice.localService !== false;
+    });
+    return locales.length ? locales[0].voice : null;
+  }
+
+  function avisar(texto) {
+    if (state.aviso === texto) return;
+    state.aviso = texto;
+    emit();
+  }
+
+  function siguiente() {
+    limpiarWatchdog();
+    enCurso = false;
     if (!state.playing) return;
+
     if (idx >= chunks.length) {
       state.cycle++;
+      fallosIdioma = {};
       if (!options.loop) { stop(); return; }
       idx = 0;
+      /* Si el ciclo completo falló, se espera antes de repetir: así no gira en vacío */
+      var espera = exitosCiclo === 0 ? 5000 : 0;
+      exitosCiclo = 0;
       emit();
+      if (espera) { esperar(espera, siguiente); return; }
     }
+
     var item = chunks[idx++];
+    itemActual = item;
+    intentos = 0;
     state.chunk = idx;
     state.lang = item.lang;
     emit();
+    reproducir(item);
+  }
+
+  function reproducir(item) {
+    if (!state.playing || !item) return;
+    ultimaActividad = Date.now();
 
     if (!item.text) {
-      timer = setTimeout(speakNext, Math.max(0, (item.pause || 0) * 1000));
+      enCurso = false;
+      esperar((item.pause || 0) * 1000, siguiente);
       return;
     }
 
+    /* Idioma que ya falló varias veces en este ciclo: se omite y se reintenta en el próximo */
+    if ((fallosIdioma[item.lang] || 0) >= MAX_FALLOS_IDIOMA) { siguiente(); return; }
+
     var u = new global.SpeechSynthesisUtterance(item.text);
-    var langPrefix = item.lang;
-    var voice = findVoice(options.voices[langPrefix], langPrefix);
-    u.lang = langPrefix === 'es' ? 'es-MX' : 'en-US';
-    if (voice) {
-      /* Si la voz dejara de existir, se sigue transmitiendo con la del idioma */
-      try { u.voice = voice; u.lang = voice.lang; } catch (e) { /* ignorado */ }
+    u.lang = item.lang === 'es' ? 'es-MX' : 'en-US';
+
+    /* Al primer reintento se cambia a la voz local, que no depende de la red */
+    var voz = null;
+    if (intentos > 0) voz = vozDeRespaldo(item.lang);
+    if (!voz) voz = findVoice(options.voices[item.lang], item.lang);
+    if (voz) {
+      if (voz.lang) u.lang = voz.lang;
+      try { u.voice = voz; } catch (e) { /* ignorado */ }
+      state.respaldo = (intentos > 0 && voz.localService !== false) ? voz.name : '';
     }
-    u.rate = options.rate[langPrefix] || 1;
-    u.pitch = options.pitch[langPrefix] || 1;
+
+    u.rate = options.rate[item.lang] || 1;
+    u.pitch = options.pitch[item.lang] || 1;
     u.volume = options.volume;
+
+    u.onstart = function () { ultimaActividad = Date.now(); armarFin(item); };
     u.onend = function () {
-      current = null;
+      limpiarWatchdog();
+      current = null; enCurso = false;
+      exitosCiclo++;
+      ultimaActividad = Date.now();
+      if (state.aviso) avisar('');
       if (!state.playing) return;
-      if (options.sentencePause > 0) timer = setTimeout(speakNext, options.sentencePause);
-      else speakNext();
+      esperar(options.sentencePause > 0 ? options.sentencePause : 0, siguiente);
     };
     u.onerror = function (e) {
-      current = null;
-      if (e && (e.error === 'interrupted' || e.error === 'canceled')) return;
-      if (state.playing) setTimeout(speakNext, 200);
+      limpiarWatchdog();
+      current = null; enCurso = false;
+      var motivo = (e && e.error) ? e.error : 'error';
+      /* interrupted y canceled los provoca nuestro propio stop */
+      if (motivo === 'interrupted' || motivo === 'canceled') return;
+      fallo(item, motivo);
     };
+
+    enCurso = true;
     current = u;
-    synth.speak(u);
+    try {
+      synth.speak(u);
+      armarArranque(item);
+    } catch (e) {
+      enCurso = false;
+      fallo(item, 'excepción');
+    }
   }
 
-  function startKeepAlive() {
-    stopKeepAlive();
-    /* Chrome detiene la síntesis después de ~15 s; resume() la mantiene viva */
-    keepAlive = setInterval(function () {
-      if (state.playing && !state.paused && synth.speaking) {
-        synth.pause(); synth.resume();
-      }
-    }, 9000);
+  function fallo(item, motivo) {
+    if (!state.playing) return;
+    intentos++;
+    if (intentos < MAX_INTENTOS) {
+      avisar('Reintentando (' + motivo + ')');
+      try { synth.cancel(); } catch (e) { /* ignorado */ }
+      esperar(400, function () { reproducir(item); });
+      return;
+    }
+    fallosIdioma[item.lang] = (fallosIdioma[item.lang] || 0) + 1;
+    avisar('Fragmento omitido en ' + (item.lang === 'es' ? 'español' : 'inglés') + ' (' + motivo + ')');
+    intentos = 0;
+    siguiente();
   }
-  function stopKeepAlive() { if (keepAlive) { clearInterval(keepAlive); keepAlive = null; } }
+
+  /* Latido: mantiene viva la síntesis y reanuda sola la transmisión si se detuvo */
+  function iniciarLatido() {
+    detenerLatido();
+    ultimaActividad = Date.now();
+    latido = setInterval(function () {
+      if (!state.playing || state.paused) return;
+      /* Chrome detiene la síntesis pasados ~15 s */
+      if (synth.speaking) {
+        try { synth.pause(); synth.resume(); } catch (e) { /* ignorado */ }
+        ultimaActividad = Date.now();
+        return;
+      }
+      /* Nada sonando, nada pendiente y ningún temporizador: el motor murió */
+      var inactivo = Date.now() - ultimaActividad;
+      if (!synth.pending && !timer && !watchdog && inactivo > 4000) {
+        avisar('Transmisión reanudada');
+        ultimaActividad = Date.now();
+        if (enCurso && itemActual) reproducir(itemActual);
+        else siguiente();
+      }
+    }, 2000);
+  }
+  function detenerLatido() { if (latido) { clearInterval(latido); latido = null; } }
 
   function play(sequence, opts) {
     if (!synth) return false;
@@ -2661,12 +2812,18 @@ ol.help li { margin-bottom: 6px; }
     if (opts) setOptions(opts);
     buildChunks();
     idx = 0;
+    intentos = 0;
+    fallosIdioma = {};
+    exitosCiclo = 0;
+    itemActual = null;
     state.playing = true;
     state.paused = false;
     state.cycle = 1;
+    state.aviso = '';
+    state.respaldo = '';
     emit();
-    startKeepAlive();
-    speakNext();
+    iniciarLatido();
+    siguiente();
     return true;
   }
 
@@ -2675,8 +2832,13 @@ ol.help li { margin-bottom: 6px; }
     state.paused = false;
     state.lang = '';
     state.chunk = 0;
-    if (timer) { clearTimeout(timer); timer = null; }
-    stopKeepAlive();
+    state.aviso = '';
+    state.respaldo = '';
+    enCurso = false;
+    itemActual = null;
+    limpiarTimer();
+    limpiarWatchdog();
+    detenerLatido();
     if (synth) { try { synth.cancel(); } catch (e) { /* ignorado */ } }
     current = null;
     emit();
@@ -2692,6 +2854,7 @@ ol.help li { margin-bottom: 6px; }
   function resume() {
     if (!synth || !state.playing) return;
     state.paused = false;
+    ultimaActividad = Date.now();
     try { synth.resume(); } catch (e) { /* ignorado */ }
     emit();
   }
@@ -3359,8 +3522,12 @@ ol.help li { margin-bottom: 6px; }
       if (!st.playing) return;
       el.playState.textContent = 'TRANSMITIENDO · ' + (st.lang === 'es' ? 'ESPAÑOL' : 'INGLÉS');
       el.playState.classList.add('live');
-      el.playDetail.textContent = 'Ciclo ' + st.cycle + ' · fragmento ' + st.chunk + ' de ' + st.total +
+      var detalle = 'Ciclo ' + st.cycle + ' · fragmento ' + st.chunk + ' de ' + st.total +
         ' · información ' + N.letterInfo(el.letterBig.textContent).word;
+      if (st.respaldo) detalle += ' · voz de respaldo: ' + st.respaldo;
+      if (st.aviso) detalle += ' · ' + st.aviso;
+      el.playDetail.textContent = detalle;
+      el.playDetail.classList.toggle('warn', !!(st.aviso || st.respaldo));
     });
   }
 

@@ -165,8 +165,30 @@ español e inglés, sus pistas y su nivel de transición.
 ## Pruebas
 
 ```bash
-node test/test.js     # o: npm test
+node test/test.js      # decodificadores y generación del guion
+node test/test-voz.js  # el bucle frente a fallas de voz y de red
+npm test               # las dos
 ```
+
+## La transmisión no se detiene
+
+Una vez pulsado **TRANSMITIR**, el bucle se mantiene pase lo que pase:
+
+- **Un fragmento que falla se reintenta**, hasta tres veces, antes de darlo por perdido.
+- **Si se cae la red**, las voces en línea dejan de responder: al primer reintento el
+  programa pasa solo a una voz instalada en el equipo y sigue transmitiendo. La barra
+  inferior indica con qué voz de respaldo está saliendo.
+- **Si el motor de voz se cuelga**, una vigilancia de arranque lo detecta en dos segundos
+  y medio —no espera a que se agote la duración del fragmento— y lo reinicia.
+- **Si un idioma falla repetidamente** (por ejemplo, se perdió la voz en inglés), se omite
+  ese idioma durante el ciclo, se avisa en pantalla y se vuelve a intentar en el siguiente:
+  el otro idioma nunca deja de salir al aire.
+- **Si todo falla**, espera cinco segundos y vuelve a empezar, en lugar de girar en vacío.
+- Un latido cada dos segundos mantiene viva la síntesis (Chrome la corta a los 15 s) y
+  reanuda la transmisión si detecta que se quedó en silencio.
+
+Todo esto está cubierto por `test/test-voz.js`, que monta un motor de voz simulado y
+provoca las fallas: caída de red, voz que no responde, motor muerto y recuperación.
 
 ## Notas de operación
 

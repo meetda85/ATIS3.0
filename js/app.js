@@ -576,8 +576,12 @@
       if (!st.playing) return;
       el.playState.textContent = 'TRANSMITIENDO · ' + (st.lang === 'es' ? 'ESPAÑOL' : 'INGLÉS');
       el.playState.classList.add('live');
-      el.playDetail.textContent = 'Ciclo ' + st.cycle + ' · fragmento ' + st.chunk + ' de ' + st.total +
+      var detalle = 'Ciclo ' + st.cycle + ' · fragmento ' + st.chunk + ' de ' + st.total +
         ' · información ' + N.letterInfo(el.letterBig.textContent).word;
+      if (st.respaldo) detalle += ' · voz de respaldo: ' + st.respaldo;
+      if (st.aviso) detalle += ' · ' + st.aviso;
+      el.playDetail.textContent = detalle;
+      el.playDetail.classList.toggle('warn', !!(st.aviso || st.respaldo));
     });
   }
 

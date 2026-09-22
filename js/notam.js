@@ -20,6 +20,8 @@
 
     /* Errores de captura frecuentes: "23RCLSD" -> "23R CLSD" */
     out = out.replace(/\b(\d{2}[LRC])(?=[A-Z]{3,})/g, '$1 ');
+    /* Unidad pegada al número: "118.475MHZ" -> "118.475 MHZ" */
+    out = out.replace(/(\d)(MHZ|KHZ|FT|KT|NM|KM|HPA|SM)\b/g, '$1 $2');
 
     /* Frases completas */
     if (lang === 'es') {

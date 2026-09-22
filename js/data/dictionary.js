@@ -158,6 +158,8 @@
     LDA: { es: 'distancia disponible de aterrizaje', en: 'landing distance available' },
     TORA: { es: 'recorrido de despegue disponible', en: 'take-off run available' },
     NOTAM: { es: 'NOTAM', en: 'NOTAM' },
+    MHZ: { es: 'megahertz', en: 'megahertz' },
+    KHZ: { es: 'kilohertz', en: 'kilohertz' },
     SFC: { es: 'superficie', en: 'surface' },
     SID: { es: 'salida normalizada por instrumentos', en: 'standard instrument departure' },
     STAR: { es: 'llegada normalizada por instrumentos', en: 'standard instrument arrival' },

@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "start": "npx --yes http-server . -p 8080 -c-1",
-    "test": "node test/test.js"
+    "test": "node test/test.js && node test/test-voz.js"
   },
   "license": "MIT"
 }

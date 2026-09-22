@@ -252,7 +252,16 @@
   }
 
   function speakNumbers(text, lang) {
-    return String(text || '').replace(/(\d):(\d)/g, '$1 $2').replace(/(\d+)(\s+(?:de|of)\b)?/g, function (all, d, tail, offset, whole) {
+    var t = String(text || '')
+      .replace(/(\d):(\d)/g, '$1 $2')
+      /* Unidad pegada al número, por si el texto no pasó por el decodificador */
+      .replace(/(\d)(MHZ|KHZ|FT|KT|NM|KM|HPA|SM)\b/gi, '$1 $2')
+      /* Frecuencias y decimales: "118.475" -> "uno uno ocho punto cuatro siete cinco".
+         Además elimina el punto, que el sintetizador tomaba por fin de frase. */
+      .replace(/\b(\d+)\.(\d+)\b/g, function (m, entera, decimal) {
+        return N.spell(entera, lang) + (lang === 'es' ? ' punto ' : ' point ') + N.spell(decimal, lang);
+      });
+    return t.replace(/(\d+)(\s+(?:de|of)\b)?/g, function (all, d, tail, offset, whole) {
       if (!tail && MONTH_RE.test(whole.slice(offset + d.length, offset + d.length + 12))) {
         return N.cardinal(+d, lang);
       }
