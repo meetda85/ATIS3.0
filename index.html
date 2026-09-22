@@ -183,8 +183,25 @@
     </div>
     <div class="row buttons">
       <button id="btnNotamAdd" class="primary">Decodificar y agregar</button>
+      <button id="btnNotamFile">Cargar archivo del FNS</button>
+      <input type="file" id="notamFile" accept=".xls,.xlsx,.csv,.txt" hidden>
       <button id="btnNotamClear" class="ghost">Vaciar lista</button>
       <span id="notamStatus" class="status"></span>
+    </div>
+    <p class="help">
+      Se puede cargar la hoja de cálculo tal como se descarga del FNS
+      (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla. Quedan marcados para transmitir
+      solo los de pista, rodaje, iluminación y radioayudas; las posiciones de
+      estacionamiento y las frecuencias se cargan pero no salen al aire.
+    </p>
+    <div class="row buttons">
+      <button id="btnNotamAll" class="small ghost">Marcar todos</button>
+      <button id="btnNotamNone" class="small ghost">Desmarcar todos</button>
+      <button id="btnNotamAtis" class="small ghost">Solo pista y rodaje</button>
+      <label class="checkline"><input type="checkbox" id="notamSoloVigentes" checked>
+        <span>Ocultar los que no están vigentes ahora</span></label>
+      <label class="checkline"><input type="checkbox" id="notamConVigencia">
+        <span>Leer también las fechas de vigencia</span></label>
     </div>
     <div id="notamList" class="notamlist"></div>
   </section>
@@ -294,8 +311,10 @@
 <script src="js/data/dictionary.js"></script>
 <script src="js/data/airports.js"></script>
 <script src="js/lib/numbers.js"></script>
+<script src="js/vendor/xlsx.full.min.js"></script>
 <script src="js/metar.js"></script>
 <script src="js/notam.js"></script>
+<script src="js/fns.js"></script>
 <script src="js/atis.js"></script>
 <script src="js/speech.js"></script>
 <script src="js/app.js"></script>

@@ -228,3 +228,31 @@ ol.help li { margin-bottom: 6px; }
 .voiceitem.natural .vname { color: var(--accent); font-weight: 600; }
 .voiceitem.inuse::after { content: 'en uso'; font-size: 10px; color: var(--amber); letter-spacing: 1px; }
 .pstate-sub.warn { color: var(--amber); }
+
+/* ---------- Lista compacta de NOTAM ---------- */
+.notamrow {
+  display: grid; grid-template-columns: auto 92px 1fr auto auto;
+  gap: 10px; align-items: center;
+  padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel-2); font-size: 13px;
+}
+.notamrow + .notamrow { margin-top: 4px; }
+.notamrow input[type="checkbox"] { width: auto; }
+.notamrow .nid { font-family: "Consolas", monospace; color: var(--amber); font-size: 12px; }
+.notamrow .ncond { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notamrow .nwhen { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.notamrow.on { border-color: var(--accent); }
+.notamrow.on .ncond { color: var(--text); }
+.notamrow.off .ncond { color: var(--muted); }
+.notamrow .nmore { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 11px; padding: 2px 4px; }
+.notamdetail {
+  border: 1px solid var(--line); border-top: none; border-radius: 0 0 6px 6px;
+  background: var(--panel); padding: 8px 12px; font-size: 13px; line-height: 1.5;
+}
+.notamdetail .en { color: var(--blue); }
+.notamdetail .raw { font-family: "Consolas", monospace; font-size: 11px; color: var(--muted); white-space: pre-wrap; margin-top: 6px; }
+.notamcount { font-size: 12px; color: var(--muted); margin: 6px 0; }
+.badge { font-size: 10px; letter-spacing: 1px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+.badge.exp { border-color: var(--red); color: var(--red); }
+.badge.fut { border-color: var(--amber); color: var(--amber); }
+@media (max-width: 760px) { .notamrow { grid-template-columns: auto 1fr; } .notamrow .nwhen { display: none; } }

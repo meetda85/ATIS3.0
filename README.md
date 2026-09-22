@@ -52,8 +52,13 @@ idiomas **3 s**.
 2. Pegar el METAR en el cuadro 1 y pulsar **Decodificar y llenar** (o `Enter`).
    También está **Obtener en línea**, que consulta el METAR vigente de la estación.
 3. Marcar la(s) pista(s) en uso y el tipo de aproximación.
-4. Pegar los NOTAM vigentes en el cuadro 5 y pulsar **Decodificar y agregar**.
-   Cada NOTAM se puede activar o desactivar para la transmisión con la casilla *transmitir*.
+4. Cargar los NOTAM en el cuadro 5. Hay dos caminos:
+   - **Cargar archivo del FNS**: se elige la hoja de cálculo tal como se descarga
+     (`fnsNotams_….xls`), sin abrirla ni convertirla a nada.
+   - **Decodificar y agregar**: pegando el texto de uno o varios NOTAM.
+   Quedan marcados para el aire solo los que corresponden al ATIS (pista, rodaje,
+   iluminación, radioayudas); las posiciones de estacionamiento y las frecuencias se
+   cargan pero no se transmiten. Cada uno se activa o desactiva con su casilla.
 5. Escribir lo que no venga en el METAR ni en los NOTAM en **Información adicional**
    (una idea por línea, en español y en inglés).
 6. Pulsar **TRANSMITIR**. El bucle repite español → inglés indefinidamente hasta
@@ -78,10 +83,18 @@ QNH en hectopascales (`Q1013`) con conversión entre ambos, cizalladura, tendenc
 comentarios. Los grupos que no reconoce los muestra como *sin decodificar* en lugar de
 descartarlos en silencio.
 
-**NOTAM**: formato ICAO completo (campos `Q)` `A)` `B)` `C)` `D)` `E)` `F)` `G)`) o texto
-libre. Del código Q obtiene materia y condición (por ejemplo `QMRLC` → *pista · cerrada*),
-expande las contracciones del Doc 8400 (`RWY`, `CLSD`, `WIP`, `U/S`, `TWY`, `AVBL`, …) en
-español y en inglés, y convierte las fechas a lenguaje claro.
+**NOTAM**: formato ICAO completo (campos `Q)` `A)` `B)` `C)` `D)` `E)` `F)` `G)`), texto
+libre, o la descarga del **FNS** (*FAA NOTAM Search*) en `.xls`, `.xlsx` o `.csv`. Del
+código Q obtiene materia y condición (por ejemplo `QMRLC` → *pista · cerrada*) y con eso
+decide cuáles van al aire. Expande las contracciones del Doc 8400 (`RWY`, `CLSD`, `WIP`,
+`U/S`, `TWY`, `AVBL`, …) y **traduce al español** el texto en inglés del NOTAM
+(`TWY B BTN RWY 23R AND TWY D USEFUL ONLY FOR ACFT B747-8` → *calle de rodaje B entre
+pista 23 derecha y calle de rodaje D utilizable solamente para aeronave B747-8*).
+Lo que no logra traducir queda en mayúsculas, para que se note a simple vista.
+
+De la hoja del FNS toma además el número, el aeródromo y las fechas de vigencia: oculta
+los que ya vencieron o todavía no empiezan, avisa si el archivo es de otra estación y no
+duplica los que ya estaban cargados.
 
 ## Estructura del mensaje
 
@@ -107,11 +120,14 @@ js/data/dictionary.js códigos METAR, contracciones y códigos Q de NOTAM
 js/data/airports.js   aeródromos, pistas y nivel de transición (editable)
 js/lib/numbers.js     locución de números, alfabeto OACI y designadores de pista
 js/metar.js           decodificador METAR
-js/notam.js           decodificador NOTAM
+js/notam.js           decodificador y traductor de NOTAM
+js/fns.js             lectura de la descarga del FNS
+js/vendor/            librería para leer hojas de cálculo (SheetJS, licencia Apache 2.0)
 js/atis.js            modelo de observación y generación del guion ES/EN
 js/speech.js          motor de voz y bucle
 js/app.js             interfaz y control
 test/test.js          pruebas (node test/test.js)
+test/fixtures/        descarga real del FNS usada en las pruebas
 build/build.js        genera dist/ATIS-3.0.html (un solo archivo)
 dist/ATIS-3.0.html    version portable, todo en un archivo
 assets/atis.ico       icono del acceso directo

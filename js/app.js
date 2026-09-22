@@ -28,6 +28,8 @@
       'temperature', 'dewpoint', 'altimeter', 'includeHpa',
       'layers', 'btnAddLayer',
       'notamRaw', 'btnNotamAdd', 'btnNotamClear', 'notamStatus', 'notamList',
+      'btnNotamFile', 'notamFile', 'btnNotamAll', 'btnNotamNone', 'btnNotamAtis',
+      'notamSoloVigentes', 'notamConVigencia',
       'additionalEs', 'additionalEn', 'includeNotams',
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
       'btnPlay', 'btnStop', 'playState', 'playDetail',
@@ -275,20 +277,114 @@
    * ================================================================== */
   function addNotam() {
     var raw = el.notamRaw.value.trim();
-    if (!raw) { status(el.notamStatus, 'Pegue uno o varios NOTAM.', 'err'); return; }
-    var blocks = ATIS.notam.split(raw);
-    blocks.forEach(function (b) {
+    if (!raw) { status(el.notamStatus, 'Pegue uno o varios NOTAM, o cargue el archivo del FNS.', 'err'); return; }
+    var datos = ATIS.fns.fromText(raw);
+    var n = agregarRegistros(datos.records);
+    el.notamRaw.value = '';
+    status(el.notamStatus, n.total + ' NOTAM agregado(s), ' + n.marcados + ' marcado(s) para transmitir' +
+      (n.repetidos ? ', ' + n.repetidos + ' repetido(s) omitido(s)' : '') + '.', 'ok');
+    renderNotams(); render();
+  }
+
+  /* Alta de registros provenientes del texto pegado o del archivo del FNS */
+  function agregarRegistros(records) {
+    var marcados = 0, repetidos = 0;
+    var existentes = {};
+    notams.forEach(function (n) { if (n.meta && n.meta.id) existentes[n.meta.id] = 1; });
+
+    (records || []).forEach(function (reg) {
+      var idReg = reg.id || (/\b([A-Z]\d{4}\/\d{2})\b/.exec(reg.raw) || [])[1] || '';
+      if (idReg && existentes[idReg]) { repetidos++; return; }
+      if (idReg) existentes[idReg] = 1;
+      var es = ATIS.notam.parse(reg.raw, 'es');
+      var en = ATIS.notam.parse(reg.raw, 'en');
+      var codigoQ = es.q ? es.q.code : '';
+      var propio = !reg.location || !el.station.value ||
+        reg.location.toUpperCase() === el.station.value.toUpperCase();
+      var incluir = propio && ATIS.fns.esMateriaAtis(codigoQ);
+      if (incluir) marcados++;
       notams.push({
-        raw: b,
-        es: ATIS.notam.parse(b, 'es'),
-        en: ATIS.notam.parse(b, 'en'),
-        include: true
+        raw: reg.raw, es: es, en: en, include: incluir, expanded: false,
+        meta: {
+          id: reg.id || es.id || '',
+          location: reg.location || es.location || '',
+          desde: reg.desde || null,
+          hasta: reg.hasta || null,
+          codigoQ: codigoQ,
+          propio: propio
+        }
       });
     });
-    el.notamRaw.value = '';
-    status(el.notamStatus, blocks.length + ' NOTAM agregado(s).', 'ok');
-    renderNotams();
-    render();
+    return { total: (records || []).length - repetidos, marcados: marcados, repetidos: repetidos };
+  }
+
+  /* Carga del archivo descargado del FNS (.xls, .xlsx, .csv o .txt) */
+  function importarArchivo(file) {
+    if (!file) return;
+    var esTexto = /\.(txt)$/i.test(file.name);
+    var lector = new FileReader();
+    status(el.notamStatus, 'Leyendo ' + file.name + ' …');
+
+    lector.onerror = function () { status(el.notamStatus, 'No se pudo leer el archivo.', 'err'); };
+    lector.onload = function (e) {
+      var datos;
+      try {
+        if (esTexto) {
+          datos = ATIS.fns.fromText(String(e.target.result));
+        } else {
+          if (typeof global.XLSX === 'undefined') {
+            status(el.notamStatus, 'Falta la librería de hojas de cálculo (js/vendor/xlsx.full.min.js).', 'err');
+            return;
+          }
+          var libro = global.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          var hoja = libro.Sheets[libro.SheetNames[0]];
+          var filas = global.XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
+          datos = ATIS.fns.fromMatrix(filas);
+        }
+      } catch (err) {
+        status(el.notamStatus, 'El archivo no se pudo interpretar: ' + err.message, 'err');
+        return;
+      }
+
+      if (datos.errors && datos.errors.length) {
+        status(el.notamStatus, datos.errors.join(' '), 'err');
+        return;
+      }
+
+      var n = agregarRegistros(datos.records);
+      var aviso = '';
+      if (datos.station && el.station.value &&
+          datos.station.toUpperCase() !== el.station.value.toUpperCase()) {
+        aviso = ' · ATENCIÓN: el archivo es de ' + datos.station +
+          ' y la estación configurada es ' + el.station.value.toUpperCase();
+      }
+      var vencidos = notams.filter(function (x) {
+        return ATIS.fns.vigencia(x.meta, new Date()) !== 'vigente';
+      }).length;
+      status(el.notamStatus, n.total + ' NOTAM leídos de ' + file.name + ' · ' +
+        n.marcados + ' marcados para transmitir' +
+        (n.repetidos ? ' · ' + n.repetidos + ' ya estaban en la lista' : '') +
+        (vencidos ? ' · ' + vencidos + ' fuera de vigencia' : '') + aviso, aviso ? 'err' : 'ok');
+      renderNotams(); render();
+    };
+
+    if (esTexto) lector.readAsText(file);
+    else lector.readAsArrayBuffer(file);
+  }
+
+  function marcarNotams(modo) {
+    notams.forEach(function (n) {
+      if (modo === 'todos') n.include = true;
+      else if (modo === 'ninguno') n.include = false;
+      else n.include = n.meta.propio !== false && ATIS.fns.esMateriaAtis(n.meta.codigoQ);
+    });
+    renderNotams(); render();
+  }
+
+  function fechaCorta(d) {
+    if (!d) return '';
+    var dd = ('0' + d.getUTCDate()).slice(-2), mm = ('0' + (d.getUTCMonth() + 1)).slice(-2);
+    return dd + '/' + mm + ' ' + ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
   }
 
   function renderNotams() {
@@ -296,43 +392,56 @@
       el.notamList.innerHTML = '<span class="status">Sin NOTAM cargados.</span>';
       return;
     }
-    el.notamList.innerHTML = notams.map(function (n, i) {
-      var q = n.es.q;
-      var qtxt = q ? [q.subject, q.condition].filter(Boolean).join(' · ') : '';
-      return '<div class="notam' + (n.include ? '' : ' off') + '">' +
-        '<header>' +
-          '<span class="id">' + (n.es.id || 'NOTAM ' + (i + 1)) + '</span>' +
-          (n.es.location ? '<span class="q">' + n.es.location + '</span>' : '') +
-          (qtxt ? '<span class="q">' + escapeHtml(qtxt) + '</span>' : '') +
-          '<span class="spacer"></span>' +
-          '<label class="checkline"><input type="checkbox" data-n="' + i + '" class="n-inc"' +
-            (n.include ? ' checked' : '') + '> <span>transmitir</span></label>' +
-          '<button class="mini n-del" data-n="' + i + '">quitar</button>' +
-        '</header>' +
-        '<div class="txt">' + escapeHtml(n.es.summary || n.es.plain) + '</div>' +
-        '<div class="txt en">' + escapeHtml(n.en.summary || n.en.plain) + '</div>' +
-        '<div class="raw">' + escapeHtml(n.raw) + '</div>' +
+    var ahora = new Date();
+    var soloVigentes = el.notamSoloVigentes.checked;
+    var ocultos = 0, marcados = 0;
+
+    var html = notams.map(function (n, i) {
+      var estado = ATIS.fns.vigencia(n.meta, ahora);
+      if (n.include) marcados++;
+      if (soloVigentes && estado !== 'vigente' && !n.include) { ocultos++; return ''; }
+
+      var condicion = (n.es.plain || n.raw).replace(/\s+/g, ' ');
+      var badge = estado === 'expirado' ? '<span class="badge exp">vencido</span>'
+        : estado === 'futuro' ? '<span class="badge fut">futuro</span>' : '';
+      var ajeno = n.meta.propio === false
+        ? '<span class="badge fut">' + escapeHtml(n.meta.location) + '</span>' : '';
+
+      var fila = '<div class="notamrow ' + (n.include ? 'on' : 'off') + '">' +
+        '<input type="checkbox" class="n-inc" data-n="' + i + '"' + (n.include ? ' checked' : '') +
+          ' title="transmitir">' +
+        '<span class="nid">' + escapeHtml(n.meta.id || ('#' + (i + 1))) + '</span>' +
+        '<span class="ncond" title="' + escapeHtml(condicion) + '">' + escapeHtml(condicion) + '</span>' +
+        '<span class="nwhen">' + badge + ajeno + ' ' +
+          escapeHtml(fechaCorta(n.meta.desde)) + (n.meta.hasta ? ' → ' + escapeHtml(fechaCorta(n.meta.hasta)) : '') +
+        '</span>' +
+        '<button class="nmore" data-more="' + i + '">' + (n.expanded ? 'ocultar' : 'ver') + '</button>' +
       '</div>';
+
+      if (n.expanded) {
+        fila += '<div class="notamdetail">' +
+          '<div>' + escapeHtml(n.es.summary || n.es.plain) + '</div>' +
+          '<div class="en">' + escapeHtml(n.en.summary || n.en.plain) + '</div>' +
+          '<div class="raw">' + escapeHtml(n.raw) + '</div>' +
+          '<button class="mini n-del" data-n="' + i + '">quitar de la lista</button>' +
+        '</div>';
+      }
+      return fila;
     }).join('');
 
-    Array.prototype.forEach.call(el.notamList.querySelectorAll('.n-inc'), function (c) {
-      on(c, 'change', function () {
-        notams[+c.dataset.n].include = c.checked;
-        renderNotams(); render();
-      });
-    });
-    Array.prototype.forEach.call(el.notamList.querySelectorAll('.n-del'), function (b) {
-      on(b, 'click', function () {
-        notams.splice(+b.dataset.n, 1);
-        renderNotams(); render();
-      });
-    });
+    el.notamList.innerHTML =
+      '<div class="notamcount">' + notams.length + ' cargados · ' + marcados + ' al aire' +
+      (ocultos ? ' · ' + ocultos + ' ocultos por vigencia' : '') + '</div>' + html;
   }
 
   function notamLines(lang) {
     if (!el.includeNotams.checked) return [];
+    var conVigencia = el.notamConVigencia.checked;
     return notams.filter(function (n) { return n.include; })
-      .map(function (n) { return n[lang].summary || n[lang].plain; })
+      .map(function (n) {
+        var d = n[lang];
+        return conVigencia ? (d.summary || d.plain) : (d.plain || d.summary);
+      })
       .filter(Boolean);
   }
 
@@ -537,7 +646,19 @@
           runwaysInUse: runwaysInUse,
           includeNotams: el.includeNotams.checked,
           includeHpa: el.includeHpa.checked,
-          notams: notams.map(function (n) { return { raw: n.raw, include: n.include }; }),
+          notams: notams.map(function (n) {
+            return {
+              raw: n.raw, include: n.include,
+              meta: {
+                id: n.meta.id, location: n.meta.location, codigoQ: n.meta.codigoQ,
+                propio: n.meta.propio,
+                desde: n.meta.desde ? n.meta.desde.toISOString() : null,
+                hasta: n.meta.hasta ? n.meta.hasta.toISOString() : null
+              }
+            };
+          }),
+          notamSoloVigentes: el.notamSoloVigentes.checked,
+          notamConVigencia: el.notamConVigencia.checked,
           voices: { es: el.voiceEs.value, en: el.voiceEn.value },
           rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value
         }));
@@ -589,8 +710,22 @@
     if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
     savedVoices = data.voices || null;
     savedApproachRwy = c.approachRunway || '';
+    if (data.notamSoloVigentes !== undefined) el.notamSoloVigentes.checked = data.notamSoloVigentes;
+    if (data.notamConVigencia !== undefined) el.notamConVigencia.checked = data.notamConVigencia;
     (data.notams || []).forEach(function (n) {
-      notams.push({ raw: n.raw, es: ATIS.notam.parse(n.raw, 'es'), en: ATIS.notam.parse(n.raw, 'en'), include: n.include !== false });
+      var es = ATIS.notam.parse(n.raw, 'es');
+      var m = n.meta || {};
+      notams.push({
+        raw: n.raw, es: es, en: ATIS.notam.parse(n.raw, 'en'),
+        include: n.include !== false, expanded: false,
+        meta: {
+          id: m.id || es.id || '', location: m.location || es.location || '',
+          codigoQ: m.codigoQ || (es.q ? es.q.code : ''),
+          propio: m.propio !== false,
+          desde: m.desde ? new Date(m.desde) : null,
+          hasta: m.hasta ? new Date(m.hasta) : null
+        }
+      });
     });
     renderNotams();
   }
@@ -700,6 +835,35 @@
     on(el.btnNotamClear, 'click', function () {
       notams = []; renderNotams(); render();
       status(el.notamStatus, 'Lista vacía.');
+    });
+    on(el.btnNotamFile, 'click', function () { el.notamFile.click(); });
+    on(el.notamFile, 'change', function () {
+      importarArchivo(el.notamFile.files[0]);
+      el.notamFile.value = '';
+    });
+    on(el.btnNotamAll, 'click', function () { marcarNotams('todos'); });
+    on(el.btnNotamNone, 'click', function () { marcarNotams('ninguno'); });
+    on(el.btnNotamAtis, 'click', function () { marcarNotams('atis'); });
+    on(el.notamSoloVigentes, 'change', renderNotams);
+    on(el.notamConVigencia, 'change', scheduleRender);
+
+    /* Un solo manejador para toda la lista: se vuelve a dibujar a cada cambio */
+    on(el.notamList, 'change', function (e) {
+      var chk = e.target.classList && e.target.classList.contains('n-inc') ? e.target : null;
+      if (!chk) return;
+      notams[+chk.dataset.n].include = chk.checked;
+      renderNotams(); render();
+    });
+    on(el.notamList, 'click', function (e) {
+      var t = e.target;
+      if (t.dataset && t.dataset.more !== undefined) {
+        var i = +t.dataset.more;
+        notams[i].expanded = !notams[i].expanded;
+        renderNotams();
+      } else if (t.classList && t.classList.contains('n-del')) {
+        notams.splice(+t.dataset.n, 1);
+        renderNotams(); render();
+      }
     });
 
     on(el.btnPlay, 'click', play);

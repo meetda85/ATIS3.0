@@ -11,21 +11,50 @@
       'September', 'October', 'November', 'December']
   };
 
-  /* Expande contracciones ICAO dentro de un texto libre */
+  /* Traduce el texto del NOTAM a lenguaje claro.
+     Los NOTAM vienen en inglés, así que para el español se sustituyen primero
+     las frases completas, luego las contracciones OACI y al final las palabras
+     sueltas que siguieran en MAYÚSCULAS (lo ya traducido queda en minúsculas). */
   function expand(text, lang) {
     var out = String(text || '').replace(/\s+/g, ' ').trim();
-    /* Casos con diagonal, antes de la sustitucion general */
+
+    /* Errores de captura frecuentes: "23RCLSD" -> "23R CLSD" */
+    out = out.replace(/\b(\d{2}[LRC])(?=[A-Z]{3,})/g, '$1 ');
+
+    /* Frases completas */
+    if (lang === 'es') {
+      D.FRASES_ES.forEach(function (par) {
+        out = out.replace(new RegExp('\\b' + par[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'g'), par[1]);
+      });
+    }
+
+    /* Casos con diagonal */
     out = out.replace(/\bU\/S\b/g, D.CONTRACTIONS['U/S'][lang]);
     out = out.replace(/\b(\d{2})([LRC])\/(\d{2})([LRC])\b/g, function (m, n1, s1, n2, s2) {
       var side = { L: { es: 'izquierda', en: 'left' }, R: { es: 'derecha', en: 'right' }, C: { es: 'central', en: 'center' } };
-      return n1 + ' ' + side[s1][lang] + (lang === 'es' ? ' y ' : ' and ') + n2 + ' ' + side[s2][lang];
+      return n1 + ' ' + side[s1][lang] + ', ' + n2 + ' ' + side[s2][lang];
     });
+
+    /* Contracciones OACI */
     out = out.replace(/\b([A-Z]{2,5})\b/g, function (match) {
       var entry = D.CONTRACTIONS[match];
-      if (!entry) return match;
-      return entry[lang] || match;
+      return entry ? (entry[lang] || match) : match;
     });
-    /* Designadores de pista: RWY 05L -> pista cero cinco izquierda (texto legible) */
+
+    /* Palabras sueltas en inglés que quedaron sin traducir */
+    if (lang === 'es') {
+      out = out.replace(/\b([A-Z]{2,})\b/g, function (match) {
+        var t = D.PALABRAS_ES[match];
+        return t === undefined ? match : t;
+      });
+      /* "franjas calle de rodaje D" -> "franjas de la calle de rodaje D" */
+      out = out.replace(/\b(franjas?|márgenes|margen)\s+(pista|calle de rodaje|plataforma)\b/g, '$1 de la $2');
+      /* "Boeing 747-8 aeronave" -> "Boeing 747-8" */
+      out = out.replace(/\b((?:Boeing|Airbus)\s+[\w-]+|[AB]\d{3}[\w-]*)\s+aeronaves?\b/g, '$1');
+      out = out.replace(/\s{2,}/g, ' ').trim();
+    }
+
+    /* Designadores de pista sueltos: 05R -> 05 derecha */
     out = out.replace(/\b(\d{2})([LRC])\b/g, function (m, num, side) {
       var s = { L: { es: 'izquierda', en: 'left' }, R: { es: 'derecha', en: 'right' }, C: { es: 'central', en: 'center' } }[side];
       return num + ' ' + (s ? s[lang] : side);
@@ -156,8 +185,10 @@
     return result;
   }
 
+  /* Solo la primera letra: lo que siga en MAYUSCULAS es lo que no se tradujo
+     (identificadores, nombres propios) y conviene que se note. */
   function capitalize(s) {
-    s = String(s || '').toLowerCase();
+    s = String(s || '');
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
 

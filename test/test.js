@@ -7,7 +7,8 @@ const assert = require('assert');
 const root = path.join(__dirname, '..');
 const context = vm.createContext({ console });
 ['js/data/dictionary.js', 'js/data/airports.js', 'js/lib/numbers.js',
- 'js/metar.js', 'js/notam.js', 'js/atis.js'].forEach(function (f) {
+ 'js/metar.js', 'js/notam.js', 'js/fns.js', 'js/atis.js',
+ 'js/vendor/xlsx.full.min.js'].forEach(function (f) {
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), context, { filename: f });
 });
 const ATIS = context.ATIS;
@@ -106,7 +107,7 @@ test('NOTAM estructurado ICAO', () => {
   assert.strictEqual(n.location, 'MMMX');
   assert.strictEqual(n.q.subject, 'pista');
   assert.strictEqual(n.q.condition, 'cerrada');
-  assert.ok(/pista 05 derecha y 23 izquierda cerrada/.test(n.plain), n.plain);
+  assert.ok(/pista 05 derecha, 23 izquierda cerrada/.test(n.plain), n.plain);
   assert.ok(/trabajos en curso/.test(n.plain), n.plain);
   assert.ok(/Vigente el 21 de septiembre de 06:00 a 18:00 UTC/.test(n.summary), n.summary);
 });
@@ -176,6 +177,70 @@ test('viento en calma y NOTAM incluidos en el guion', () => {
   assert.ok(es.text.indexOf('Pistas en uso 05 izquierda y 05 derecha') > 0, es.text);
   assert.ok(es.text.indexOf('NOTAM vigentes') > 0, es.text);
   assert.ok(es.speech.indexOf('Pista cero cinco derecha cerrada') > 0, es.speech);
+});
+
+console.log('\nDescarga del FNS');
+test('lee el archivo .xls tal como lo entrega el FNS', () => {
+  const buf = fs.readFileSync(path.join(__dirname, 'fixtures', 'fnsNotams_MMMX.xls'));
+  const libro = context.XLSX.read(buf.toString('base64'), { type: 'base64' });
+  const hoja = libro.Sheets[libro.SheetNames[0]];
+  const filas = context.XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
+  const datos = ATIS.fns.fromMatrix(filas);
+
+  assert.strictEqual(datos.station, 'MMMX');
+  assert.strictEqual(datos.records.length, 34);
+  assert.strictEqual(datos.errors.length, 0);
+
+  const rwy = datos.records.filter(r => r.id === 'A9411/26')[0];
+  assert.ok(rwy, 'no se encontro el NOTAM A9411/26');
+  assert.strictEqual(rwy.location, 'MMMX');
+  assert.strictEqual(rwy.desde.toISOString(), '2026-09-22T17:30:00.000Z');
+  assert.strictEqual(rwy.hasta.toISOString(), '2026-09-28T17:40:00.000Z');
+  assert.ok(/RWY 05R\/23L CLSD/.test(rwy.raw));
+});
+
+test('selecciona por codigo Q lo que corresponde al ATIS', () => {
+  assert.strictEqual(ATIS.fns.esMateriaAtis('QMRLC'), true);   // pista cerrada
+  assert.strictEqual(ATIS.fns.esMateriaAtis('QMXLC'), true);   // calle de rodaje cerrada
+  assert.strictEqual(ATIS.fns.esMateriaAtis('QLFAS'), true);   // luces fuera de servicio
+  assert.strictEqual(ATIS.fns.esMateriaAtis('QICAS'), true);   // ILS
+  assert.strictEqual(ATIS.fns.esMateriaAtis('QMPLC'), false);  // posicion de estacionamiento
+  assert.strictEqual(ATIS.fns.esMateriaAtis('QPAXX'), false);  // procedimiento de llegada
+  assert.strictEqual(ATIS.fns.esMateriaAtis('QSTCF'), false);  // frecuencia de torre
+});
+
+test('vigencia respecto de la hora actual', () => {
+  const reg = { desde: new Date('2026-09-22T17:30:00Z'), hasta: new Date('2026-09-28T17:40:00Z') };
+  assert.strictEqual(ATIS.fns.vigencia(reg, new Date('2026-09-23T00:00:00Z')), 'vigente');
+  assert.strictEqual(ATIS.fns.vigencia(reg, new Date('2026-09-22T00:00:00Z')), 'futuro');
+  assert.strictEqual(ATIS.fns.vigencia(reg, new Date('2026-10-01T00:00:00Z')), 'expirado');
+});
+
+test('traduce al espanol el texto en ingles del NOTAM', () => {
+  const casos = [
+    ['E) RWY 05R/23L CLSD', 'pista 05 derecha, 23 izquierda cerrada'],
+    ['E) TWY B BTN RWY 23R AND TWY D USEFUL ONLY FOR ACFT B747-8',
+     'calle de rodaje B entre pista 23 derecha y calle de rodaje D utilizable solamente para aeronave B747-8'],
+    ['E) STRIPS TWY D BTN TWYS B AND E WIP',
+     'franjas de la calle de rodaje D entre calles de rodaje B y E trabajos en curso'],
+    ['E) THR RWY 23L SEQUENCED FLG LGT U/S',
+     'umbral pista 23 izquierda luces de destello secuencial fuera de servicio'],
+    ['E) TWY H1 USEFUL ONLY FOR ACFT CAT E AND MINORS',
+     'calle de rodaje H1 utilizable solamente para aeronave categoría E y menores'],
+    ['E) ACFT STAND 35 CENTRAL APN CLSD',
+     'posición de estacionamiento 35 central plataforma cerrada'],
+    ['E) TWY D BTN TWYS E AND B NOT USEFUL FOR BOEING 747-8 ACFT',
+     'calle de rodaje D entre calles de rodaje E y B no utilizable para Boeing 747-8']
+  ];
+  casos.forEach(function (c) {
+    const n = ATIS.notam.parse(c[0], 'es');
+    assert.strictEqual(n.plain, c[1]);
+  });
+});
+
+test('el texto en ingles conserva las contracciones expandidas', () => {
+  const n = ATIS.notam.parse('E) RWY 05R/23L CLSD DUE WIP', 'en');
+  assert.strictEqual(n.plain, 'runway 05 right, 23 left closed due to work in progress');
 });
 
 console.log('\n' + pass + ' pruebas correctas, ' + fail + ' fallidas\n');

@@ -135,7 +135,7 @@
     NML: { es: 'normal', en: 'normal' },
     NR: { es: 'número', en: 'number' },
     OBST: { es: 'obstaculo', en: 'obstacle' },
-    OPR: { es: 'operar u operador', en: 'operate or operator' },
+    OPR: { es: 'operando', en: 'operating' },
     PAPI: { es: 'indicador de trayectoria de aproximación de precision', en: 'precision approach path indicator' },
     PARL: { es: 'paralelo', en: 'parallel' },
     PERM: { es: 'permanente', en: 'permanent' },
@@ -144,6 +144,20 @@
     RTE: { es: 'ruta', en: 'route' },
     RVR: { es: 'alcance visual en la pista', en: 'runway visual range' },
     RWY: { es: 'pista', en: 'runway' },
+    RWYS: { es: 'pistas', en: 'runways' },
+    TWYS: { es: 'calles de rodaje', en: 'taxiways' },
+    ACFTS: { es: 'aeronaves', en: 'aircraft' },
+    LGTS: { es: 'luces', en: 'lights' },
+    FLG: { es: 'de destello', en: 'flashing' },
+    SEQ: { es: 'secuencial', en: 'sequenced' },
+    ALS: { es: 'sistema de luces de aproximación', en: 'approach lighting system' },
+    REDL: { es: 'luces de borde de pista', en: 'runway edge lights' },
+    RCLL: { es: 'luces de eje de pista', en: 'runway centre line lights' },
+    TDZ: { es: 'zona de toma de contacto', en: 'touchdown zone' },
+    ASDA: { es: 'distancia disponible de aceleración-parada', en: 'accelerate stop distance available' },
+    LDA: { es: 'distancia disponible de aterrizaje', en: 'landing distance available' },
+    TORA: { es: 'recorrido de despegue disponible', en: 'take-off run available' },
+    NOTAM: { es: 'NOTAM', en: 'NOTAM' },
     SFC: { es: 'superficie', en: 'surface' },
     SID: { es: 'salida normalizada por instrumentos', en: 'standard instrument departure' },
     STAR: { es: 'llegada normalizada por instrumentos', en: 'standard instrument arrival' },
@@ -163,6 +177,68 @@
     WIE: { es: 'con efecto inmediato', en: 'with immediate effect' },
     WIP: { es: 'trabajos en curso', en: 'work in progress' },
     WI: { es: 'dentro de', en: 'within' }
+  };
+
+  /* Frases completas de los NOTAM (se sustituyen antes que las palabras sueltas) */
+  var FRASES_ES = [
+    ['ACFT STANDS', 'posiciones de estacionamiento'],
+    ['ACFT STAND', 'posición de estacionamiento'],
+    ['NOT USEFUL FOR', 'no utilizable para'],
+    ['USEFUL ONLY FOR', 'utilizable solamente para'],
+    ['USABLE ONLY FOR', 'utilizable solamente para'],
+    ['NOT AVBL FOR', 'no disponible para'],
+    ['WORK IN PROGRESS', 'trabajos en curso'],
+    ['OUT OF SERVICE', 'fuera de servicio'],
+    ['DUE TO', 'debido a'],
+    ['OPR IN FREQ', 'operando en la frecuencia'],
+    ['OPR ON FREQ', 'operando en la frecuencia'],
+    ['SEQUENCED FLG LGT', 'luces de destello secuencial'],
+    ['SEQUENCED FLASHING LIGHTS', 'luces de destello secuencial'],
+    ['AND MINORS', 'y menores'],
+    ['AND LOWER', 'y menores'],
+    ['AND ABOVE', 'y mayores'],
+    ['WILL BE', 'estará'],
+    ['UNTIL FURTHER NOTICE', 'hasta nuevo aviso'],
+    ['WITH IMMEDIATE EFFECT', 'con efecto inmediato']
+  ];
+
+  /* Palabras sueltas en inglés. Solo se aplican a las que siguen en MAYUSCULAS,
+     es decir, a lo que no tradujeron ni las frases ni las contracciones. */
+  var PALABRAS_ES = {
+    AND: 'y', OR: 'o', NOT: 'no', ONLY: 'solamente', ALSO: 'también',
+    FOR: 'para', WITH: 'con', WITHOUT: 'sin', FROM: 'desde', UNTIL: 'hasta',
+    ALL: 'todas', ANY: 'cualquier', EACH: 'cada', OTHER: 'otro',
+    USEFUL: 'utilizable', USABLE: 'utilizable', UNUSABLE: 'inutilizable',
+    CLOSED: 'cerrada', OPEN: 'abierta', OPERATING: 'operando', OPERATIONAL: 'operacional',
+    STAND: 'posición de estacionamiento', STANDS: 'posiciones de estacionamiento',
+    STRIP: 'franja', STRIPS: 'franjas', SHOULDER: 'margen', SHOULDERS: 'márgenes',
+    NORTH: 'norte', SOUTH: 'sur', EAST: 'este', WEST: 'oeste',
+    CENTRAL: 'central', TERMINAL: 'terminal', SECTOR: 'sector',
+    CAT: 'categoría', CATEGORY: 'categoría', MINORS: 'menores',
+    LIGHT: 'luz', LIGHTS: 'luces', LIGHTING: 'iluminación',
+    SEQUENCED: 'de destello secuencial', FLASHING: 'destellante',
+    WORK: 'trabajos', WORKS: 'trabajos', PROGRESS: 'curso', MAINTENANCE: 'mantenimiento',
+    CONSTRUCTION: 'construcción', CRANE: 'grúa', CRANES: 'grúas', OBSTACLE: 'obstáculo',
+    HEIGHT: 'altura', LENGTH: 'longitud', WIDTH: 'ancho', DEPTH: 'profundidad',
+    METERS: 'metros', METRES: 'metros', FEET: 'pies',
+    AIRCRAFT: 'aeronave', HELICOPTER: 'helicóptero', VEHICLE: 'vehículo', VEHICLES: 'vehículos',
+    PERSONNEL: 'personal', EQUIPMENT: 'equipo',
+    APRON: 'plataforma', GATE: 'puerta', RAMP: 'rampa', TOWER: 'torre',
+    FREQUENCY: 'frecuencia', MHZ: 'megahertz', KHZ: 'kilohertz',
+    ARRIVAL: 'llegada', ARRIVALS: 'llegadas', DEPARTURE: 'salida', DEPARTURES: 'salidas',
+    APPROACH: 'aproximación', LANDING: 'aterrizaje', TAKEOFF: 'despegue',
+    TAXI: 'rodaje', HOLDING: 'espera', POSITION: 'posición',
+    AVAILABLE: 'disponible', LIMITED: 'limitado', RESTRICTED: 'restringido',
+    PROHIBITED: 'prohibido', TEMPORARY: 'temporal', PERMANENT: 'permanente',
+    ESTABLISHED: 'establecido', CANCELLED: 'cancelado', CHANGED: 'cambiado',
+    DISPLACED: 'desplazado', REDUCED: 'reducido', SUSPENDED: 'suspendido',
+    BIRD: 'aves', BIRDS: 'aves', ACTIVITY: 'actividad',
+    GRASS: 'pasto', CUTTING: 'corte', PAINTING: 'pintura', MARKING: 'señalamiento',
+    WATER: 'agua', FUEL: 'combustible', SNOW: 'nieve',
+    HOURS: 'horas', DAILY: 'diariamente', EXCEPT: 'excepto', DURING: 'durante',
+    BOEING: 'Boeing', AIRBUS: 'Airbus',
+    SERVICE: 'servicio', TEST: 'prueba', CHECK: 'verificación',
+    THE: '', OF: 'de', IS: 'está', ARE: 'están', WILL: 'será', BE: 'ser'
   };
 
   /* Codigos Q: materia (letras 2 y 3) */
@@ -309,6 +385,8 @@
   };
 
   ATIS.dict = {
+    FRASES_ES: FRASES_ES,
+    PALABRAS_ES: PALABRAS_ES,
     INTENSITY: INTENSITY,
     DESCRIPTOR: DESCRIPTOR,
     PHENOMENON: PHENOMENON,
