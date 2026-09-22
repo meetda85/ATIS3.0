@@ -256,3 +256,11 @@ ol.help li { margin-bottom: 6px; }
 .badge.exp { border-color: var(--red); color: var(--red); }
 .badge.fut { border-color: var(--amber); color: var(--amber); }
 @media (max-width: 760px) { .notamrow { grid-template-columns: auto 1fr; } .notamrow .nwhen { display: none; } }
+
+/* ---------- Diagnóstico de voces ---------- */
+.diag { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.voiceitem { cursor: pointer; }
+.voiceitem:hover { border-color: var(--accent); }
+.voiceitem .vplay { color: var(--accent); font-size: 11px; }
+.voiceitem.inuse { border-color: var(--amber); }
+.voiceitem.inuse::after { content: 'seleccionada'; }

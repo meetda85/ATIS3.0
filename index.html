@@ -246,11 +246,15 @@
   <section class="card span2">
     <h2>8 &middot; Calidad de voz</h2>
     <p class="help">
-      Las voces las pone el sistema, no el programa. Las voces <b>naturales</b> (neuronales)
-      suenan como una persona; las antiguas de Windows suenan metálicas. Abajo se listan las
-      que tiene esta computadora: las marcadas con &#9733; son naturales y el programa las
-      elige solas.
+      Las voces las pone el sistema, no el programa. Las <b>naturales</b> (neuronales) suenan
+      como una persona; las antiguas de Windows suenan metálicas. <b>Haga clic en cualquier
+      voz de la lista para escucharla</b> con una frase de ATIS y dejarla seleccionada.
     </p>
+    <div id="voiceDiag" class="diag"></div>
+    <div class="row buttons">
+      <button id="btnVoiceDiag" class="small ghost">Copiar diagnóstico de voces</button>
+      <span id="voiceDiagStatus" class="status"></span>
+    </div>
     <div class="grid2">
       <div>
         <h3>Voces en español</h3>

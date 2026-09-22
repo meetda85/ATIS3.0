@@ -259,6 +259,14 @@ ol.help li { margin-bottom: 6px; }
 .badge.fut { border-color: var(--amber); color: var(--amber); }
 @media (max-width: 760px) { .notamrow { grid-template-columns: auto 1fr; } .notamrow .nwhen { display: none; } }
 
+/* ---------- Diagnóstico de voces ---------- */
+.diag { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.voiceitem { cursor: pointer; }
+.voiceitem:hover { border-color: var(--accent); }
+.voiceitem .vplay { color: var(--accent); font-size: 11px; }
+.voiceitem.inuse { border-color: var(--amber); }
+.voiceitem.inuse::after { content: 'seleccionada'; }
+
 </style>
 
 
@@ -500,11 +508,15 @@ ol.help li { margin-bottom: 6px; }
   <section class="card span2">
     <h2>8 &middot; Calidad de voz</h2>
     <p class="help">
-      Las voces las pone el sistema, no el programa. Las voces <b>naturales</b> (neuronales)
-      suenan como una persona; las antiguas de Windows suenan metálicas. Abajo se listan las
-      que tiene esta computadora: las marcadas con &#9733; son naturales y el programa las
-      elige solas.
+      Las voces las pone el sistema, no el programa. Las <b>naturales</b> (neuronales) suenan
+      como una persona; las antiguas de Windows suenan metálicas. <b>Haga clic en cualquier
+      voz de la lista para escucharla</b> con una frase de ATIS y dejarla seleccionada.
     </p>
+    <div id="voiceDiag" class="diag"></div>
+    <div class="row buttons">
+      <button id="btnVoiceDiag" class="small ghost">Copiar diagnóstico de voces</button>
+      <span id="voiceDiagStatus" class="status"></span>
+    </div>
     <div class="grid2">
       <div>
         <h3>Voces en español</h3>
@@ -2498,8 +2510,11 @@ ol.help li { margin-bottom: 6px; }
     var u = new global.SpeechSynthesisUtterance(item.text);
     var langPrefix = item.lang;
     var voice = findVoice(options.voices[langPrefix], langPrefix);
-    if (voice) { u.voice = voice; u.lang = voice.lang; }
-    else u.lang = langPrefix === 'es' ? 'es-MX' : 'en-US';
+    u.lang = langPrefix === 'es' ? 'es-MX' : 'en-US';
+    if (voice) {
+      /* Si la voz dejara de existir, se sigue transmitiendo con la del idioma */
+      try { u.voice = voice; u.lang = voice.lang; } catch (e) { /* ignorado */ }
+    }
     u.rate = options.rate[langPrefix] || 1;
     u.pitch = options.pitch[langPrefix] || 1;
     u.volume = options.volume;
@@ -2593,19 +2608,51 @@ ol.help li { margin-bottom: 6px; }
     }
   }
 
-  /* Prueba corta de voz */
+  /* Frase de muestra con fraseología real, para juzgar la voz en contexto */
+  var MUESTRA = {
+    es: 'Aeropuerto Internacional de la Ciudad de México, información Sierra. ' +
+        'Viento cero cinco cero grados ocho nudos. Altímetro tres cero tres nueve.',
+    en: 'Mexico City International Airport, information Sierra. ' +
+        'Wind zero five zero degrees eight knots. Altimeter three zero three niner.'
+  };
+
+  /* Prueba corta con la voz seleccionada */
   function test(lang, text) {
+    testWithVoice(options.voices[lang], lang, text);
+  }
+
+  /* Prueba corta con una voz concreta, para escuchar y comparar */
+  function testWithVoice(nombre, lang, text) {
     if (!synth) return;
     synth.cancel();
-    var u = new global.SpeechSynthesisUtterance(text || (lang === 'es'
-      ? 'Prueba de voz. Información Sierra.'
-      : 'Voice test. Information Sierra.'));
-    var v = findVoice(options.voices[lang], lang);
-    if (v) { u.voice = v; u.lang = v.lang; }
+    var u = new global.SpeechSynthesisUtterance(text || MUESTRA[lang] || MUESTRA.en);
+    var v = findVoice(nombre, lang);
+    if (v) { try { u.voice = v; u.lang = v.lang; } catch (e) { /* ignorado */ } }
     u.rate = options.rate[lang] || 1;
     u.pitch = options.pitch[lang] || 1;
     u.volume = options.volume;
     synth.speak(u);
+  }
+
+  /* Diagnóstico: con qué cuenta realmente esta computadora */
+  function diagnostico() {
+    var ua = String((global.navigator && global.navigator.userAgent) || '');
+    var navegador = /Edg\//.test(ua) ? 'Microsoft Edge'
+      : /OPR\//.test(ua) ? 'Opera'
+      : /Firefox\//.test(ua) ? 'Mozilla Firefox'
+      : /Chrome\//.test(ua) ? 'Google Chrome'
+      : /Safari\//.test(ua) ? 'Safari' : 'desconocido';
+    var version = (/(?:Edg|Chrome|Firefox|Version)\/(\d+)/.exec(ua) || [])[1] || '';
+    return {
+      navegador: navegador + (version ? ' ' + version : ''),
+      esEdge: navegador === 'Microsoft Edge',
+      enLinea: !!(global.navigator && global.navigator.onLine),
+      sistema: /Windows NT 10/.test(ua) ? 'Windows 10 u 11'
+        : (/Windows/.test(ua) ? 'Windows' : (/Mac/.test(ua) ? 'macOS' : 'otro')),
+      total: voices.length,
+      es: rankedVoices('es'),
+      en: rankedVoices('en')
+    };
   }
 
   ATIS.speech = {
@@ -2616,6 +2663,7 @@ ol.help li { margin-bottom: 6px; }
     isNatural: isNatural,
     play: play, stop: stop, pause: pause, resume: resume,
     setOptions: setOptions, onState: onState, test: test,
+    testWithVoice: testWithVoice, diagnostico: diagnostico,
     splitChunks: splitChunks,
     get state() { return state; }
   };
@@ -2660,7 +2708,7 @@ ol.help li { margin-bottom: 6px; }
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
       'btnPlay', 'btnStop', 'playState', 'playDetail',
       'voiceEs', 'voiceEn', 'rate', 'gap', 'sentencePause', 'btnTestEs', 'btnTestEn',
-      'voiceListEs', 'voiceListEn'
+      'voiceListEs', 'voiceListEn', 'voiceDiag', 'btnVoiceDiag', 'voiceDiagStatus'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -3222,7 +3270,7 @@ ol.help li { margin-bottom: 6px; }
     select.selectedIndex = 0;
   }
 
-  /* Cuadro 8: que voces tiene la computadora */
+  /* Cuadro 8: que voces tiene la computadora. Cada una se puede escuchar. */
   function renderVoiceList(node, lang, selectedName) {
     var list = ATIS.speech.rankedVoices(lang);
     if (!list.length) {
@@ -3232,14 +3280,55 @@ ol.help li { margin-bottom: 6px; }
     }
     node.innerHTML = list.map(function (v) {
       return '<div class="voiceitem' + (v.natural ? ' natural' : '') +
-        (v.name === selectedName ? ' inuse' : '') + '">' +
+        (v.name === selectedName ? ' inuse' : '') + '" data-voz="' + escapeHtml(v.name) +
+        '" data-lang="' + lang + '" title="Clic para escucharla y seleccionarla">' +
+        '<span class="vplay">&#9654;</span>' +
         '<span>' + (v.natural ? '★' : '·') + '</span>' +
         '<span class="vname">' + escapeHtml(v.name) + '</span>' +
         '<span class="vlang">' + escapeHtml(v.lang) + '</span></div>';
     }).join('');
   }
 
+  /* Encabezado del cuadro 8: navegador, conexión y qué implica */
+  function renderVoiceDiag() {
+    var d = ATIS.speech.diagnostico();
+    var naturalesEs = d.es.filter(function (v) { return v.natural; }).length;
+    var naturalesEn = d.en.filter(function (v) { return v.natural; }).length;
+    var tags = [];
+    function tag(label, valor, clase) {
+      tags.push('<span class="tag' + (clase ? ' ' + clase : '') + '"><b>' + label + '</b>' +
+        escapeHtml(valor) + '</span>');
+    }
+    tag('navegador', d.navegador, d.esEdge ? '' : 'warn');
+    tag('sistema', d.sistema);
+    tag('conexión', d.enLinea ? 'sí' : 'no', d.enLinea ? '' : 'warn');
+    tag('voces español', d.es.length + ' (' + naturalesEs + ' naturales)', naturalesEs ? '' : 'warn');
+    tag('voces inglés', d.en.length + ' (' + naturalesEn + ' naturales)', naturalesEn ? '' : 'warn');
+    if (!d.esEdge && !(naturalesEs && naturalesEn)) {
+      tags.push('<span class="tag warn"><b>sugerencia</b>abra este programa en Microsoft Edge: ' +
+        'trae voces naturales sin instalar nada</span>');
+    }
+    el.voiceDiag.innerHTML = tags.join('');
+  }
+
+  /* Texto para pegar en un correo o mensaje cuando haga falta apoyo */
+  function textoDiagnostico() {
+    var d = ATIS.speech.diagnostico();
+    function listar(list) {
+      return list.length
+        ? list.map(function (v) { return '  ' + (v.natural ? '[natural] ' : '          ') + v.name + '  (' + v.lang + ')'; }).join('\n')
+        : '  (ninguna)';
+    }
+    return 'ATIS 3.0 - diagnóstico de voces\n' +
+      'Navegador : ' + d.navegador + '\n' +
+      'Sistema   : ' + d.sistema + '\n' +
+      'Conexión  : ' + (d.enLinea ? 'sí' : 'no') + '\n' +
+      'Voces en español (' + d.es.length + '):\n' + listar(d.es) + '\n' +
+      'Voces en inglés (' + d.en.length + '):\n' + listar(d.en) + '\n';
+  }
+
   function updateVoiceReport() {
+    renderVoiceDiag();
     renderVoiceList(el.voiceListEs, 'es', el.voiceEs.value);
     renderVoiceList(el.voiceListEn, 'en', el.voiceEn.value);
     var esNat = /^★/.test(el.voiceEs.options[el.voiceEs.selectedIndex] ? el.voiceEs.options[el.voiceEs.selectedIndex].text : '');
@@ -3502,6 +3591,26 @@ ol.help li { margin-bottom: 6px; }
       ATIS.speech.setOptions({ voices: { en: el.voiceEn.value }, rate: { en: +el.rate.value } });
       ATIS.speech.test('en');
     });
+    /* Clic en una voz de la lista: se escucha y queda seleccionada */
+    [el.voiceListEs, el.voiceListEn].forEach(function (lista) {
+      on(lista, 'click', function (e) {
+        var item = e.target.closest ? e.target.closest('.voiceitem') : null;
+        if (!item) return;
+        var nombre = item.dataset.voz, lang = item.dataset.lang;
+        selectIfPresent(lang === 'es' ? el.voiceEs : el.voiceEn, nombre);
+        ATIS.speech.setOptions({ rate: { es: +el.rate.value, en: +el.rate.value } });
+        ATIS.speech.testWithVoice(nombre, lang);
+        save();
+        updateVoiceReport();
+      });
+    });
+
+    on(el.btnVoiceDiag, 'click', function () {
+      var texto = textoDiagnostico();
+      if (navigator.clipboard) navigator.clipboard.writeText(texto);
+      status(el.voiceDiagStatus, 'Diagnóstico copiado al portapapeles.', 'ok');
+    });
+
     on(el.rate, 'input', save);
     on(el.gap, 'input', save);
     on(el.sentencePause, 'input', save);

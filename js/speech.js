@@ -169,8 +169,11 @@
     var u = new global.SpeechSynthesisUtterance(item.text);
     var langPrefix = item.lang;
     var voice = findVoice(options.voices[langPrefix], langPrefix);
-    if (voice) { u.voice = voice; u.lang = voice.lang; }
-    else u.lang = langPrefix === 'es' ? 'es-MX' : 'en-US';
+    u.lang = langPrefix === 'es' ? 'es-MX' : 'en-US';
+    if (voice) {
+      /* Si la voz dejara de existir, se sigue transmitiendo con la del idioma */
+      try { u.voice = voice; u.lang = voice.lang; } catch (e) { /* ignorado */ }
+    }
     u.rate = options.rate[langPrefix] || 1;
     u.pitch = options.pitch[langPrefix] || 1;
     u.volume = options.volume;
@@ -264,19 +267,51 @@
     }
   }
 
-  /* Prueba corta de voz */
+  /* Frase de muestra con fraseología real, para juzgar la voz en contexto */
+  var MUESTRA = {
+    es: 'Aeropuerto Internacional de la Ciudad de México, información Sierra. ' +
+        'Viento cero cinco cero grados ocho nudos. Altímetro tres cero tres nueve.',
+    en: 'Mexico City International Airport, information Sierra. ' +
+        'Wind zero five zero degrees eight knots. Altimeter three zero three niner.'
+  };
+
+  /* Prueba corta con la voz seleccionada */
   function test(lang, text) {
+    testWithVoice(options.voices[lang], lang, text);
+  }
+
+  /* Prueba corta con una voz concreta, para escuchar y comparar */
+  function testWithVoice(nombre, lang, text) {
     if (!synth) return;
     synth.cancel();
-    var u = new global.SpeechSynthesisUtterance(text || (lang === 'es'
-      ? 'Prueba de voz. Información Sierra.'
-      : 'Voice test. Information Sierra.'));
-    var v = findVoice(options.voices[lang], lang);
-    if (v) { u.voice = v; u.lang = v.lang; }
+    var u = new global.SpeechSynthesisUtterance(text || MUESTRA[lang] || MUESTRA.en);
+    var v = findVoice(nombre, lang);
+    if (v) { try { u.voice = v; u.lang = v.lang; } catch (e) { /* ignorado */ } }
     u.rate = options.rate[lang] || 1;
     u.pitch = options.pitch[lang] || 1;
     u.volume = options.volume;
     synth.speak(u);
+  }
+
+  /* Diagnóstico: con qué cuenta realmente esta computadora */
+  function diagnostico() {
+    var ua = String((global.navigator && global.navigator.userAgent) || '');
+    var navegador = /Edg\//.test(ua) ? 'Microsoft Edge'
+      : /OPR\//.test(ua) ? 'Opera'
+      : /Firefox\//.test(ua) ? 'Mozilla Firefox'
+      : /Chrome\//.test(ua) ? 'Google Chrome'
+      : /Safari\//.test(ua) ? 'Safari' : 'desconocido';
+    var version = (/(?:Edg|Chrome|Firefox|Version)\/(\d+)/.exec(ua) || [])[1] || '';
+    return {
+      navegador: navegador + (version ? ' ' + version : ''),
+      esEdge: navegador === 'Microsoft Edge',
+      enLinea: !!(global.navigator && global.navigator.onLine),
+      sistema: /Windows NT 10/.test(ua) ? 'Windows 10 u 11'
+        : (/Windows/.test(ua) ? 'Windows' : (/Mac/.test(ua) ? 'macOS' : 'otro')),
+      total: voices.length,
+      es: rankedVoices('es'),
+      en: rankedVoices('en')
+    };
   }
 
   ATIS.speech = {
@@ -287,6 +322,7 @@
     isNatural: isNatural,
     play: play, stop: stop, pause: pause, resume: resume,
     setOptions: setOptions, onState: onState, test: test,
+    testWithVoice: testWithVoice, diagnostico: diagnostico,
     splitChunks: splitChunks,
     get state() { return state; }
   };

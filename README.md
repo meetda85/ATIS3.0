@@ -31,8 +31,11 @@ Para quitarlo: **`DESINSTALAR.bat`**.
 ### Voces
 
 Las voces las pone el sistema, no el programa, y de ahí depende que la locución suene
-humana o metálica. El cuadro **8 · Calidad de voz** muestra las que tiene la computadora:
-las marcadas con ★ son **naturales** (neuronales) y el programa las elige solas.
+humana o metálica. El cuadro **8 · Calidad de voz** muestra el navegador, la conexión y
+todas las voces que ve el programa: las marcadas con ★ son **naturales** (neuronales) y se
+eligen solas. **Al hacer clic en cualquier voz se escucha** con una frase de ATIS y queda
+seleccionada, así se comparan de oído antes de transmitir. El botón *Copiar diagnóstico*
+deja en el portapapeles la lista completa, para pedir apoyo o comparar entre equipos.
 
 - **Lo más rápido**: abrir el ATIS en **Microsoft Edge**. Trae voces naturales sin instalar
   nada — en español de México *Dalia* y *Jorge*; en inglés *Aria*, *Guy* o *Jenny*. Requieren

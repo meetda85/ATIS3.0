@@ -34,7 +34,7 @@
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
       'btnPlay', 'btnStop', 'playState', 'playDetail',
       'voiceEs', 'voiceEn', 'rate', 'gap', 'sentencePause', 'btnTestEs', 'btnTestEn',
-      'voiceListEs', 'voiceListEn'
+      'voiceListEs', 'voiceListEn', 'voiceDiag', 'btnVoiceDiag', 'voiceDiagStatus'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -596,7 +596,7 @@
     select.selectedIndex = 0;
   }
 
-  /* Cuadro 8: que voces tiene la computadora */
+  /* Cuadro 8: que voces tiene la computadora. Cada una se puede escuchar. */
   function renderVoiceList(node, lang, selectedName) {
     var list = ATIS.speech.rankedVoices(lang);
     if (!list.length) {
@@ -606,14 +606,55 @@
     }
     node.innerHTML = list.map(function (v) {
       return '<div class="voiceitem' + (v.natural ? ' natural' : '') +
-        (v.name === selectedName ? ' inuse' : '') + '">' +
+        (v.name === selectedName ? ' inuse' : '') + '" data-voz="' + escapeHtml(v.name) +
+        '" data-lang="' + lang + '" title="Clic para escucharla y seleccionarla">' +
+        '<span class="vplay">&#9654;</span>' +
         '<span>' + (v.natural ? '★' : '·') + '</span>' +
         '<span class="vname">' + escapeHtml(v.name) + '</span>' +
         '<span class="vlang">' + escapeHtml(v.lang) + '</span></div>';
     }).join('');
   }
 
+  /* Encabezado del cuadro 8: navegador, conexión y qué implica */
+  function renderVoiceDiag() {
+    var d = ATIS.speech.diagnostico();
+    var naturalesEs = d.es.filter(function (v) { return v.natural; }).length;
+    var naturalesEn = d.en.filter(function (v) { return v.natural; }).length;
+    var tags = [];
+    function tag(label, valor, clase) {
+      tags.push('<span class="tag' + (clase ? ' ' + clase : '') + '"><b>' + label + '</b>' +
+        escapeHtml(valor) + '</span>');
+    }
+    tag('navegador', d.navegador, d.esEdge ? '' : 'warn');
+    tag('sistema', d.sistema);
+    tag('conexión', d.enLinea ? 'sí' : 'no', d.enLinea ? '' : 'warn');
+    tag('voces español', d.es.length + ' (' + naturalesEs + ' naturales)', naturalesEs ? '' : 'warn');
+    tag('voces inglés', d.en.length + ' (' + naturalesEn + ' naturales)', naturalesEn ? '' : 'warn');
+    if (!d.esEdge && !(naturalesEs && naturalesEn)) {
+      tags.push('<span class="tag warn"><b>sugerencia</b>abra este programa en Microsoft Edge: ' +
+        'trae voces naturales sin instalar nada</span>');
+    }
+    el.voiceDiag.innerHTML = tags.join('');
+  }
+
+  /* Texto para pegar en un correo o mensaje cuando haga falta apoyo */
+  function textoDiagnostico() {
+    var d = ATIS.speech.diagnostico();
+    function listar(list) {
+      return list.length
+        ? list.map(function (v) { return '  ' + (v.natural ? '[natural] ' : '          ') + v.name + '  (' + v.lang + ')'; }).join('\n')
+        : '  (ninguna)';
+    }
+    return 'ATIS 3.0 - diagnóstico de voces\n' +
+      'Navegador : ' + d.navegador + '\n' +
+      'Sistema   : ' + d.sistema + '\n' +
+      'Conexión  : ' + (d.enLinea ? 'sí' : 'no') + '\n' +
+      'Voces en español (' + d.es.length + '):\n' + listar(d.es) + '\n' +
+      'Voces en inglés (' + d.en.length + '):\n' + listar(d.en) + '\n';
+  }
+
   function updateVoiceReport() {
+    renderVoiceDiag();
     renderVoiceList(el.voiceListEs, 'es', el.voiceEs.value);
     renderVoiceList(el.voiceListEn, 'en', el.voiceEn.value);
     var esNat = /^★/.test(el.voiceEs.options[el.voiceEs.selectedIndex] ? el.voiceEs.options[el.voiceEs.selectedIndex].text : '');
@@ -876,6 +917,26 @@
       ATIS.speech.setOptions({ voices: { en: el.voiceEn.value }, rate: { en: +el.rate.value } });
       ATIS.speech.test('en');
     });
+    /* Clic en una voz de la lista: se escucha y queda seleccionada */
+    [el.voiceListEs, el.voiceListEn].forEach(function (lista) {
+      on(lista, 'click', function (e) {
+        var item = e.target.closest ? e.target.closest('.voiceitem') : null;
+        if (!item) return;
+        var nombre = item.dataset.voz, lang = item.dataset.lang;
+        selectIfPresent(lang === 'es' ? el.voiceEs : el.voiceEn, nombre);
+        ATIS.speech.setOptions({ rate: { es: +el.rate.value, en: +el.rate.value } });
+        ATIS.speech.testWithVoice(nombre, lang);
+        save();
+        updateVoiceReport();
+      });
+    });
+
+    on(el.btnVoiceDiag, 'click', function () {
+      var texto = textoDiagnostico();
+      if (navigator.clipboard) navigator.clipboard.writeText(texto);
+      status(el.voiceDiagStatus, 'Diagnóstico copiado al portapapeles.', 'ok');
+    });
+
     on(el.rate, 'input', save);
     on(el.gap, 'input', save);
     on(el.sentencePause, 'input', save);
