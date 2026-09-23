@@ -7,6 +7,16 @@
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+<script>
+  /* El modo elegido se aplica antes de pintar, para que no haya un destello
+     del tema anterior al abrir la aplicación. */
+  (function () {
+    try {
+      var t = localStorage.getItem('atis3.tema');
+      if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) { /* almacenamiento no disponible */ }
+  })();
+</script>
 
 <header class="topbar">
   <div class="brand">
@@ -33,6 +43,15 @@
       <span>UTC</span>
       <div id="utcClock">--:--:--</div>
     </div>
+    <button id="btnTema" class="themetoggle" title="Cambiar entre modo claro y oscuro">
+      <span class="tluna" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" stroke-linejoin="round"/></svg>
+      </span>
+      <span class="tsol" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4" stroke-linecap="round"/></svg>
+      </span>
+      <span id="temaTexto">Oscuro</span>
+    </button>
   </div>
 </header>
 
@@ -40,7 +59,7 @@
 
   <!-- ============ METAR ============ -->
   <section class="card span2">
-    <h2>1 &middot; METAR</h2>
+    <h2><span class="num">1</span>METAR</h2>
     <div class="row">
       <textarea id="metarRaw" rows="3" spellcheck="false"
         placeholder="MMMX 212145Z 05008KT 6SM HZ SCT020 BKN100 BKN220 22/11 A3039 RMK 8/522"></textarea>
@@ -56,7 +75,7 @@
 
   <!-- ============ INFORMACIÓN / APROXIMACIÓN / PISTA ============ -->
   <section class="card">
-    <h2>2 &middot; Información</h2>
+    <h2><span class="num">2</span>Información</h2>
     <div class="grid2">
       <label class="field"><span>Tipo</span>
         <select id="infoType">
@@ -103,7 +122,7 @@
 
   <!-- ============ VIENTO / VISIBILIDAD / AMBIENTE ============ -->
   <section class="card">
-    <h2>3 &middot; Viento</h2>
+    <h2><span class="num">3</span>Viento</h2>
     <div class="grid2">
       <label class="field"><span>Modo</span>
         <select id="windMode">
@@ -164,14 +183,14 @@
 
   <!-- ============ CONDICIÓN DE CIELO ============ -->
   <section class="card">
-    <h2>4 &middot; Condición de cielo</h2>
+    <h2><span class="num">4</span>Condición de cielo</h2>
     <div id="layers" class="layers"></div>
     <button id="btnAddLayer" class="ghost small">+ Agregar capa</button>
   </section>
 
   <!-- ============ NOTAM ============ -->
   <section class="card span2">
-    <h2>5 &middot; NOTAM vigentes</h2>
+    <h2><span class="num">5</span>NOTAM vigentes</h2>
     <div class="row">
       <textarea id="notamRaw" rows="4" spellcheck="false"
         placeholder="A1234/25 NOTAMN&#10;Q) MMFR/QMRLC/IV/NBO/A/000/999/1926N09904W005&#10;A) MMMX B) 2509210600 C) 2509211800&#10;E) RWY 05R/23L CLSD DUE WIP"></textarea>
@@ -204,7 +223,7 @@
 
   <!-- ============ INFORMACIÓN ADICIONAL ============ -->
   <section class="card span2">
-    <h2>6 &middot; Información adicional</h2>
+    <h2><span class="num">6</span>Información adicional</h2>
     <div class="grid2">
       <label class="field"><span>Español (una idea por línea)</span>
         <textarea id="additionalEs" rows="5" spellcheck="false"
@@ -221,7 +240,7 @@
 
   <!-- ============ GUION ============ -->
   <section class="card span2">
-    <h2>7 &middot; Guion ATIS</h2>
+    <h2><span class="num">7</span>Guion ATIS</h2>
     <div class="grid2">
       <div>
         <h3>Español <button class="mini copy" data-copy="scriptEs">copiar</button></h3>
@@ -240,7 +259,7 @@
 
   <!-- ============ CALIDAD DE VOZ ============ -->
   <section class="card span2">
-    <h2>8 &middot; Calidad de voz</h2>
+    <h2><span class="num">8</span>Calidad de voz</h2>
     <p class="help">
       Las voces las pone el sistema, no el programa. Las <b>naturales</b> (neuronales) suenan
       como una persona; las antiguas de Windows suenan metálicas. <b>Haga clic en cualquier
@@ -282,7 +301,7 @@
 
   <!-- ============ REGISTRO DE LA TRANSMISIÓN ============ -->
   <section class="card span2">
-    <h2>9 &middot; Registro de la transmisión</h2>
+    <h2><span class="num">9</span>Registro de la transmisión</h2>
     <p class="help">
       Cada fragmento que sale al aire, con la voz que lo locutó y el tiempo que tardó.
       Si la transmisión se interrumpe, aquí queda el motivo. Se llena solo mientras se
@@ -311,25 +330,62 @@
     <div id="playDetail" class="pstate-sub">Listo para transmitir en bucle: español &rarr; inglés</div>
   </div>
   <div class="popts">
-    <div class="field compact"><span>Transmitir</span>
+    <div class="pgroup">
+      <span class="plabel">Idiomas</span>
       <div class="langsel">
         <label><input type="checkbox" id="langEs" checked> ES</label>
         <label><input type="checkbox" id="langEn" checked> EN</label>
       </div>
     </div>
-    <label class="field compact"><span>Voz ES</span><select id="voiceEs"></select></label>
-    <label class="field compact"><span>Voz EN</span><select id="voiceEn"></select></label>
-    <label class="field compact"><span>Velocidad</span>
-      <input id="rate" type="range" min="0.6" max="1.4" step="0.05" value="0.95">
-    </label>
-    <label class="field compact"><span>Pausa idiomas (s)</span>
-      <input id="gap" type="number" min="0" max="30" step="1" value="3">
-    </label>
-    <label class="field compact"><span>Pausa frases (ms)</span>
-      <input id="sentencePause" type="number" min="0" max="1500" step="50" value="250">
-    </label>
-    <button id="btnTestEs" class="mini">prueba ES</button>
-    <button id="btnTestEn" class="mini">prueba EN</button>
+    <div class="pgroup">
+      <span class="plabel">Voz en español</span>
+      <div class="pvoz">
+        <select id="voiceEs"></select>
+        <button id="btnTestEs" class="mini" title="Escuchar esta voz">&#9654;</button>
+      </div>
+    </div>
+    <div class="pgroup">
+      <span class="plabel">Voz en inglés</span>
+      <div class="pvoz">
+        <select id="voiceEn"></select>
+        <button id="btnTestEn" class="mini" title="Escuchar esta voz">&#9654;</button>
+      </div>
+    </div>
+    <div class="pgroup">
+      <span class="plabel">&nbsp;</span>
+      <button id="btnAjustes" class="pgear" title="Velocidad y pausas" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H2a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H8a1.6 1.6 0 0 0 1-1.5V2a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V8a1.6 1.6 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" stroke-linejoin="round"/></svg>
+        <span>Ajustes</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="pajustes" id="pajustes" hidden>
+    <div class="pgroup">
+      <span class="plabel">Velocidad de locución</span>
+      <div class="prange">
+        <input id="rate" type="range" min="0.6" max="1.4" step="0.05" value="0.95">
+        <span id="rateVal" class="psep">0.95</span>
+      </div>
+    </div>
+    <div class="pgroup">
+      <span class="plabel">Pausa entre idiomas</span>
+      <div class="ppausas">
+        <input id="gap" type="number" min="0" max="30" step="1" value="3">
+        <span class="psep">segundos</span>
+      </div>
+    </div>
+    <div class="pgroup">
+      <span class="plabel">Pausa entre frases</span>
+      <div class="ppausas">
+        <input id="sentencePause" type="number" min="0" max="1500" step="50" value="250">
+        <span class="psep">milisegundos</span>
+      </div>
+    </div>
+    <p class="help pnota">
+      Para que no suene apresurado: velocidad entre 0.85 y 0.95, tres segundos entre
+      idiomas y 250 milisegundos entre frases.
+    </p>
   </div>
 </footer>
 

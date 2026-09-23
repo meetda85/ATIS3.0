@@ -72,6 +72,12 @@ idiomas **3 s**.
 6. Pulsar **TRANSMITIR**. El bucle repite español → inglés indefinidamente hasta
    pulsar **STOP**.
 
+### Modo claro y oscuro
+
+El botón de la esquina superior derecha cambia entre los dos. **La elección se conserva**:
+al volver a abrir el programa queda como se dejó. Mientras no se elija a mano, la
+aplicación sigue el modo del sistema operativo y cambia con él.
+
 ### Atajos de teclado
 
 | Atajo | Acción |

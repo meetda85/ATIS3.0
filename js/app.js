@@ -36,7 +36,8 @@
       'voiceEs', 'voiceEn', 'rate', 'gap', 'sentencePause', 'btnTestEs', 'btnTestEn',
       'voiceListEs', 'voiceListEn', 'voiceDiag', 'btnVoiceDiag', 'voiceDiagStatus',
       'voiceAlert', 'langEs', 'langEn',
-      'logList', 'btnLogCopy', 'btnLogClear', 'logAuto', 'logStatus'
+      'logList', 'btnLogCopy', 'btnLogClear', 'logAuto', 'logStatus',
+      'btnTema', 'temaTexto', 'btnAjustes', 'pajustes', 'rateVal'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -47,6 +48,7 @@
     applyAirport(el.station.value, true);
     if (savedApproachRwy) selectIfPresent(el.approachRunway, savedApproachRwy);
     setLetter(el.letterBig.textContent || 'A');
+    iniciarTema();
     startClock();
     initVoices();
     renderLog();
@@ -737,6 +739,51 @@
   }
 
   /* ================================================================== *
+   * Modo claro / oscuro
+   * El modo elegido se conserva entre sesiones; si nunca se ha elegido, se
+   * sigue el del sistema operativo.
+   * ================================================================== */
+  var TEMA_KEY = 'atis3.tema';
+
+  function temaDelSistema() {
+    return (global.matchMedia && global.matchMedia('(prefers-color-scheme: light)').matches)
+      ? 'light' : 'dark';
+  }
+
+  function temaActual() {
+    var elegido = document.documentElement.getAttribute('data-theme');
+    return (elegido === 'light' || elegido === 'dark') ? elegido : temaDelSistema();
+  }
+
+  function aplicarTema(tema, guardar) {
+    document.documentElement.setAttribute('data-theme', tema);
+    el.temaTexto.textContent = tema === 'dark' ? 'Oscuro' : 'Claro';
+    el.btnTema.setAttribute('title', tema === 'dark'
+      ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+    if (guardar) {
+      try { localStorage.setItem(TEMA_KEY, tema); } catch (e) { /* ignorado */ }
+    }
+  }
+
+  function iniciarTema() {
+    var guardado = null;
+    try { guardado = localStorage.getItem(TEMA_KEY); } catch (e) { /* ignorado */ }
+    aplicarTema(guardado === 'light' || guardado === 'dark' ? guardado : temaDelSistema(), false);
+
+    /* Mientras no se elija a mano, la aplicación sigue al sistema */
+    if (!guardado && global.matchMedia) {
+      var mq = global.matchMedia('(prefers-color-scheme: light)');
+      var alCambiar = function () {
+        var sigueSinElegir = null;
+        try { sigueSinElegir = localStorage.getItem(TEMA_KEY); } catch (e) { /* ignorado */ }
+        if (!sigueSinElegir) aplicarTema(temaDelSistema(), false);
+      };
+      if (mq.addEventListener) mq.addEventListener('change', alCambiar);
+      else if (mq.addListener) mq.addListener(alCambiar);
+    }
+  }
+
+  /* ================================================================== *
    * Registro de la transmisión
    * ================================================================== */
   var CLASE_EVENTO = {
@@ -870,6 +917,7 @@
     el.includeNotams.checked = data.includeNotams !== false;
     el.includeHpa.checked = !!data.includeHpa;
     if (data.rate) el.rate.value = data.rate;
+    el.rateVal.textContent = (+el.rate.value).toFixed(2);
     if (data.gap) el.gap.value = data.gap;
     if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
     if (data.langEs !== undefined) el.langEs.checked = data.langEs;
@@ -1067,6 +1115,12 @@
       status(el.voiceDiagStatus, 'Diagnóstico copiado al portapapeles.', 'ok');
     });
 
+    on(el.btnAjustes, 'click', function () {
+      var abierto = el.pajustes.hidden;
+      el.pajustes.hidden = !abierto;
+      el.btnAjustes.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+    });
+    on(el.rate, 'input', function () { el.rateVal.textContent = (+el.rate.value).toFixed(2); });
     on(el.rate, 'input', save);
     on(el.gap, 'input', save);
     on(el.sentencePause, 'input', save);
@@ -1074,6 +1128,10 @@
     on(el.langEn, 'change', function () { save(); updateVoiceReport(); });
     on(el.voiceEs, 'change', function () { save(); updateVoiceReport(); });
     on(el.voiceEn, 'change', function () { save(); updateVoiceReport(); });
+
+    on(el.btnTema, 'click', function () {
+      aplicarTema(temaActual() === 'dark' ? 'light' : 'dark', true);
+    });
 
     on(el.btnLogCopy, 'click', function () {
       var texto = textoRegistro();
