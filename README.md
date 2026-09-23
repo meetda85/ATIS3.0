@@ -204,11 +204,19 @@ pone en ámbar cuando la observación pasa de una hora.
 
 ## Texto libre
 
-La tarjeta **7** permite transmitir un texto propio en lugar del ATIS: aeropuerto cerrado,
-una emergencia, una prueba del sistema. Se escribe en español y en inglés, se marca la
-casilla y el bucle transmite ese texto con las mismas reglas de locución (designadores en
-alfabeto fonético, números dígito por dígito, frecuencias con «punto»). Mientras está
-activado, la tarjeta se marca en ámbar para que no se olvide.
+La tarjeta **7** agrega un texto propio **al final del ATIS**, justo antes de la frase de
+cierre: aeropuerto cerrado, una emergencia, una prueba del sistema. Se escribe en español
+y en inglés, se marca la casilla y aparece en el guion del cuadro 8, así que se ve antes de
+transmitir. Usa las mismas reglas de locución que el resto (designadores en alfabeto
+fonético, números dígito por dígito, frecuencias con «punto»). Mientras está activado, la
+tarjeta se marca en ámbar para que no se olvide encendido.
+
+## Pista en uso
+
+Los botones incluyen el designador **sin lado** —`05`, `23`— además de cada pista por
+separado. Marcar `05` anuncia «Pista en uso 05», que significa las dos pistas de esa
+dirección; marcar `05L` anuncia «Pista en uso 05 izquierda». No pueden convivir: al marcar
+el designador sin lado se quitan sus pistas individuales, y al revés.
 
 ## Adelantar y retroceder
 

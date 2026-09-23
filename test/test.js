@@ -238,6 +238,42 @@ test('los designadores se locutan con el alfabeto fonetico', () => {
     'taxiways Bravo niner, Charlie two And Bravo eight closed');
 });
 
+test('la pista sin lado anuncia las dos de esa direccion', () => {
+  const obs = ATIS.script.fromMetar(ATIS.metar.parse('MMMX 222047Z 08004KT 10SM SCT020 26/05 A3016'));
+  const base = {
+    airportNameEs: ATIS.airports.MMMX.es, airportNameEn: ATIS.airports.MMMX.en,
+    letter: 'C', notamLines: []
+  };
+  const es = (rwys) => ATIS.script.build('es', obs, Object.assign({}, base, { runwaysInUse: rwys }));
+
+  assert.ok(es(['05']).text.indexOf('Pista en uso 05.') > 0);
+  assert.ok(es(['05']).speech.indexOf('Pista en uso cero cinco.') > 0);
+  assert.ok(es(['05', '23']).text.indexOf('Pistas en uso 05 y 23.') > 0);
+  assert.ok(es(['05L']).text.indexOf('Pista en uso 05 izquierda.') > 0);
+  assert.ok(es(['05L', '05R']).text.indexOf('Pistas en uso 05 izquierda y 05 derecha.') > 0);
+});
+
+test('el texto libre se suma al final del ATIS, antes del cierre', () => {
+  const obs = ATIS.script.fromMetar(ATIS.metar.parse('MMMX 222047Z 08004KT 10SM SCT020 26/05 A3016'));
+  const es = ATIS.script.build('es', obs, {
+    airportNameEs: ATIS.airports.MMMX.es, airportNameEn: ATIS.airports.MMMX.en,
+    letter: 'C', runwaysInUse: ['05'], notamLines: [],
+    libreLines: ['Aeropuerto cerrado por condiciones meteorológicas', 'Manténgase a la escucha en 118.475']
+  });
+  const renglones = es.text.split('\n');
+
+  /* El ATIS completo sigue ahí */
+  assert.ok(es.text.indexOf('Pista en uso 05.') > 0, 'se perdió el ATIS');
+  assert.ok(es.text.indexOf('Altímetro 3016.') > 0);
+  /* El texto libre va antes del cierre */
+  const iLibre = renglones.indexOf('Aeropuerto cerrado por condiciones meteorológicas.');
+  const iCierre = renglones.findIndex(r => /^Al establecer comunicación/.test(r));
+  assert.ok(iLibre > 0, 'no se agregó el texto libre');
+  assert.ok(iLibre < iCierre, 'el texto libre quedó después del cierre');
+  /* Y se locuta con las reglas del ATIS */
+  assert.ok(es.speech.indexOf('uno uno ocho punto cuatro siete cinco') > 0, es.speech);
+});
+
 console.log('\nDescarga del FNS');
 test('lee el archivo .xls tal como lo entrega el FNS', () => {
   const buf = fs.readFileSync(path.join(__dirname, 'fixtures', 'fnsNotams_MMMX.xls'));

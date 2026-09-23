@@ -464,6 +464,15 @@
       });
     }
 
+    /* Texto libre: se añade al final del mensaje, antes del cierre */
+    var libre = (cfg.libreLines || []).filter(Boolean);
+    libre.forEach(function (line, i) {
+      var texto = String(line).trim().replace(/[.,;]+$/, '');
+      if (!texto) return;
+      texto = texto.charAt(0).toUpperCase() + texto.slice(1) + '.';
+      b.addLine(texto, paraLocutar(texto, lang));
+    });
+
     /* 15. Cierre */
     b.addLine((L ? 'Al establecer comunicación informe tener información ' : 'On initial contact advise you have information ') +
       info.word + '.',

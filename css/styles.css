@@ -749,3 +749,11 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
 
 /* Los títulos no quedan debajo de las barras fijas al saltar */
 .card[id^="sec"] { scroll-margin-top: 130px; }
+
+/* ---------- Pista sin lado: las dos de esa dirección ---------- */
+.chip.ambas { border-style: dashed; font-weight: 650; }
+.chip.ambas.on { border-style: solid; }
+.pistanota {
+  font-size: 11px; color: var(--muted); text-transform: none;
+  letter-spacing: 0; font-weight: 400; margin-top: 2px;
+}

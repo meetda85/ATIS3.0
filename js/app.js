@@ -80,15 +80,43 @@
   /* ================================================================== *
    * Aerodromo, pistas y letra
    * ================================================================== */
+  /* Las pistas del aeródromo más el designador sin lado (05, 23), que significa
+     las dos de esa dirección. Queda antes de sus pistas individuales. */
+  function pistasSeleccionables(runways) {
+    var lista = [], vistos = {};
+    runways.forEach(function (r) {
+      var m = /^(\d{2})([LRC])$/.exec(r);
+      if (!m) return;
+      if (!vistos[m[1]]) {
+        vistos[m[1]] = true;
+        lista.push({ valor: m[1], ambas: true });
+      }
+    });
+    runways.forEach(function (r) { lista.push({ valor: r, ambas: false }); });
+    /* Ordenadas por número, con el designador sin lado a la cabeza de su grupo */
+    return lista.sort(function (a, b) {
+      var na = a.valor.slice(0, 2), nb = b.valor.slice(0, 2);
+      if (na !== nb) return na < nb ? -1 : 1;
+      if (a.ambas !== b.ambas) return a.ambas ? -1 : 1;
+      return a.valor < b.valor ? -1 : 1;
+    });
+  }
+
   function applyAirport(code, keepFields) {
     var ap = ATIS.getAirport(code);
     var runways = ap ? ap.runways : [];
+    var seleccionables = pistasSeleccionables(runways);
 
     el.approachRunway.innerHTML = '<option value="">— sin pista —</option>' +
-      runways.map(function (r) { return '<option value="' + r + '">' + r + '</option>'; }).join('');
+      seleccionables.map(function (r) {
+        return '<option value="' + r.valor + '">' + r.valor +
+          (r.ambas ? ' (ambas)' : '') + '</option>';
+      }).join('');
 
-    el.runwayChips.innerHTML = runways.map(function (r) {
-      return '<button type="button" class="chip" data-rwy="' + r + '">' + r + '</button>';
+    el.runwayChips.innerHTML = seleccionables.map(function (r) {
+      return '<button type="button" class="chip' + (r.ambas ? ' ambas' : '') +
+        '" data-rwy="' + r.valor + '"' +
+        (r.ambas ? ' title="Las dos pistas ' + r.valor + '"' : '') + '>' + r.valor + '</button>';
     }).join('') || '<span class="status">Estación sin pistas registradas; use Información adicional.</span>';
     paintChips();
 
@@ -502,10 +530,18 @@
     return { obs: obs, cfg: cfg };
   }
 
+  /* Renglones del texto libre, si está activado */
+  function libreLines(lang) {
+    if (!el.libreActivo.checked) return [];
+    var texto = (lang === 'es' ? el.libreEs.value : el.libreEn.value) || '';
+    return texto.replace(/\r/g, '').split('\n')
+      .map(function (l) { return l.trim(); }).filter(Boolean);
+  }
+
   function render() {
     var m = readModel();
-    var cfgEs = Object.create(m.cfg); cfgEs.notamLines = notamLines('es');
-    var cfgEn = Object.create(m.cfg); cfgEn.notamLines = notamLines('en');
+    var cfgEs = Object.create(m.cfg); cfgEs.notamLines = notamLines('es'); cfgEs.libreLines = libreLines('es');
+    var cfgEn = Object.create(m.cfg); cfgEn.notamLines = notamLines('en'); cfgEn.libreLines = libreLines('en');
     lastScripts.es = S.build('es', m.obs, cfgEs);
     lastScripts.en = S.build('en', m.obs, cfgEn);
     el.scriptEs.textContent = lastScripts.es.text;
@@ -561,9 +597,11 @@
     if (el.libreActivo.checked) {
       var hayEs = el.langEs.checked && el.libreEs.value.trim();
       var hayEn = el.langEn.checked && el.libreEn.value.trim();
-      if (!hayEs && !hayEn) err('El modo de texto libre está activado y el texto está vacío.');
-      else adv('Modo de texto libre activo: se transmitirá ese texto, no el ATIS.');
-      return avisos;
+      if (!hayEs && !hayEn) err('El texto libre está activado y no hay texto escrito.');
+      else if (el.langEs.checked && el.langEn.checked && (!hayEs || !hayEn)) {
+        adv('El texto libre solo está escrito en ' + (hayEs ? 'español' : 'inglés') +
+          ': el otro idioma saldrá sin él.');
+      } else adv('Texto libre activo: se añadirá al final del ATIS.');
     }
 
     if (!runwaysInUse.length) adv('No hay pista en uso marcada: el mensaje no la va a anunciar.');
@@ -653,16 +691,9 @@
       return;
     }
 
-    var libre = el.libreActivo.checked;
     var secuencia = [];
-    if (el.langEs.checked) {
-      var textoEs = libre ? S.paraLocutar(el.libreEs.value.trim(), 'es') : lastScripts.es.speech;
-      if (textoEs) secuencia.push({ lang: 'es', text: textoEs });
-    }
-    if (el.langEn.checked) {
-      var textoEn = libre ? S.paraLocutar(el.libreEn.value.trim(), 'en') : lastScripts.en.speech;
-      if (textoEn) secuencia.push({ lang: 'en', text: textoEn });
-    }
+    if (el.langEs.checked && lastScripts.es.speech) secuencia.push({ lang: 'es', text: lastScripts.es.speech });
+    if (el.langEn.checked && lastScripts.en.speech) secuencia.push({ lang: 'en', text: lastScripts.en.speech });
     if (!secuencia.length) {
       status(el.scriptStatus, 'No hay nada que transmitir. ' +
         'Si las casillas de idioma están deshabilitadas, falta instalar la voz: vea Ajustes, Voces del sistema.', 'err');
@@ -1212,7 +1243,18 @@
       if (!chip) return;
       var r = chip.dataset.rwy;
       var i = runwaysInUse.indexOf(r);
-      if (i >= 0) runwaysInUse.splice(i, 1); else runwaysInUse.push(r);
+      if (i >= 0) {
+        runwaysInUse.splice(i, 1);
+      } else {
+        /* "05" ya incluye 05L y 05R: marcar uno descarta el otro */
+        var numero = r.slice(0, 2);
+        var sinLado = r.length === 2;
+        runwaysInUse = runwaysInUse.filter(function (x) {
+          if (x.slice(0, 2) !== numero) return true;
+          return sinLado ? false : x.length !== 2;
+        });
+        runwaysInUse.push(r);
+      }
       paintChips();
       if (runwaysInUse.length === 1 && !el.approachRunway.value) {
         selectIfPresent(el.approachRunway, runwaysInUse[0]);

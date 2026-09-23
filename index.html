@@ -129,6 +129,8 @@
     <div class="field">
       <span>Pista(s) en uso</span>
       <div id="runwayChips" class="chips"></div>
+      <span class="pistanota">05 y 23 son las dos pistas de esa dirección; 05L, 05R, 23L y
+        23R son cada una por separado.</span>
     </div>
     <label class="field"><span>Condición de pista</span>
       <select id="runwayCondition">
@@ -265,8 +267,9 @@
     <h2><span class="num">7</span>Texto libre</h2>
     <label class="checkline grande">
       <input type="checkbox" id="libreActivo">
-      <span><b>Transmitir este texto en lugar del ATIS</b> — para avisos que no salen del
-        METAR ni de los NOTAM: aeropuerto cerrado, emergencia, prueba del sistema.</span>
+      <span><b>Añadir este texto al ATIS</b> — para avisos que no salen del METAR ni de los
+        NOTAM: aeropuerto cerrado, emergencia, prueba del sistema. Se locuta al final del
+        mensaje, justo antes de la frase de cierre.</span>
     </label>
     <div class="grid2">
       <label class="field"><span>Español</span>
@@ -279,9 +282,9 @@
       </label>
     </div>
     <p class="help" id="libreNota">
-      Mientras esté activado, el bucle transmite solo este texto y el guion del ATIS queda
-      en espera. Los números y designadores se locutan con las mismas reglas: cero cinco
-      derecha, Alfa cuatro, uno uno ocho punto cuatro siete cinco.
+      Aparece en el guion del cuadro 8, así que se ve antes de transmitir. Un renglón por
+      idea. Los números y designadores se locutan con las mismas reglas del ATIS: cero
+      cinco derecha, Alfa cuatro, uno uno ocho punto cuatro siete cinco.
     </p>
   </section>
 
