@@ -31,7 +31,7 @@ Para quitarlo: **`DESINSTALAR.bat`**.
 ### Voces
 
 Las voces las pone el sistema, no el programa, y de ahí depende que la locución suene
-humana o metálica. El cuadro **8 · Calidad de voz** muestra el navegador, la conexión y
+humana o metálica. *Ajustes → Voces del sistema* muestra el navegador, la conexión y
 todas las voces que ve el programa: las marcadas con ★ son **naturales** (neuronales) y se
 eligen solas. **Al hacer clic en cualquier voz se escucha** con una frase de ATIS y queda
 seleccionada, así se comparan de oído antes de transmitir. El botón *Copiar diagnóstico*
@@ -53,13 +53,25 @@ deja en el portapapeles la lista completa, para pedir apoyo o comparar entre equ
 Ajustes recomendados: velocidad **0.85–0.95**, pausa entre frases **250 ms**, pausa entre
 idiomas **3 s**.
 
+## Dos páginas
+
+La aplicación está dividida en dos pestañas:
+
+- **Operación** — todo lo que arma el ATIS: METAR, información, viento y ambiente,
+  condición de cielo, NOTAM, información adicional y el guion. Es la que se usa al aire.
+- **Ajustes** — lo que se configura una vez y se olvida: apariencia, velocidad y pausas de
+  la locución, voces del sistema y el registro de la transmisión.
+
+La consola de transmisión es fija y está en las dos: se puede cambiar de pestaña sin
+interrumpir el bucle. La pestaña en la que se quedó se conserva al cerrar el programa.
+
 ## Uso rápido
 
 1. Abrir **ATIS 3.0** desde el Escritorio (o `index.html` con doble clic).
 2. Pegar el METAR en el cuadro 1 y pulsar **Decodificar y llenar** (o `Enter`).
    También está **Obtener en línea**, que consulta el METAR vigente de la estación.
 3. Marcar la(s) pista(s) en uso y el tipo de aproximación.
-4. Cargar los NOTAM en el cuadro 5. Hay dos caminos:
+4. Cargar los NOTAM en el cuadro 5 de la pestaña **Operación**. Hay dos caminos:
    - **Cargar archivo del FNS**: se elige la hoja de cálculo tal como se descarga
      (`fnsNotams_….xls`), sin abrirla ni convertirla a nada.
    - **Decodificar y agregar**: pegando el texto de uno o varios NOTAM.
@@ -74,9 +86,10 @@ idiomas **3 s**.
 
 ### Modo claro y oscuro
 
-El botón de la esquina superior derecha cambia entre los dos. **La elección se conserva**:
-al volver a abrir el programa queda como se dejó. Mientras no se elija a mano, la
-aplicación sigue el modo del sistema operativo y cambia con él.
+El botón de la esquina superior derecha alterna entre los dos, y en *Ajustes → Apariencia*
+están las tres opciones: **Seguir al sistema**, **Claro** y **Oscuro**. La elección se
+conserva al cerrar el programa; con *Seguir al sistema*, la aplicación cambia sola cuando
+Windows pasa de claro a oscuro.
 
 ### Atajos de teclado
 
@@ -203,7 +216,7 @@ recuperación.
 
 ### Registro de la transmisión
 
-El cuadro **9** lleva la bitácora de lo que sale al aire: cada fragmento con su voz, su
+La pestaña **Ajustes** lleva la bitácora de lo que sale al aire: cada fragmento con su voz, su
 longitud y lo que tardó, y en rojo las fallas con su motivo (`synthesis-failed`,
 `network`, `no inició`, `sin respuesta`). Si la transmisión se interrumpe, ahí queda la
 causa. El botón *Copiar registro* lo deja en el portapapeles junto con el navegador y la

@@ -55,7 +55,17 @@
   </div>
 </header>
 
+<nav class="tabs" role="tablist">
+  <button class="tab on" id="tabAtis" data-page="pageAtis" role="tab" aria-selected="true">
+    <span class="tnum">1</span> Operación
+  </button>
+  <button class="tab" id="tabAjustes" data-page="pageAjustes" role="tab" aria-selected="false">
+    <span class="tnum">2</span> Ajustes
+  </button>
+</nav>
+
 <main>
+  <div class="page" id="pageAtis" role="tabpanel">
 
   <!-- ============ METAR ============ -->
   <section class="card span2">
@@ -257,9 +267,66 @@
     </div>
   </section>
 
-  <!-- ============ CALIDAD DE VOZ ============ -->
+  
+
+  
+
+  </div>
+
+  <div class="page" id="pageAjustes" role="tabpanel" hidden>
+
+    <!-- ============ APARIENCIA ============ -->
+    <section class="card">
+      <h2>Apariencia</h2>
+      <div class="field">
+        <span>Modo de color</span>
+        <div class="segmented" id="temaOpciones">
+          <button type="button" data-tema="system">Seguir al sistema</button>
+          <button type="button" data-tema="light">Claro</button>
+          <button type="button" data-tema="dark">Oscuro</button>
+        </div>
+      </div>
+      <p class="help">
+        La elección se conserva al cerrar el programa. Con <b>Seguir al sistema</b>, la
+        aplicación cambia sola cuando Windows pasa de claro a oscuro. El botón de la barra
+        superior hace lo mismo con un clic.
+      </p>
+    </section>
+
+  <section class="card">
+    <h2>Locución</h2>
+    <div class="ajustesloc">
+    <div class="pgroup">
+      <span class="plabel">Velocidad de locución</span>
+      <div class="prange">
+        <input id="rate" type="range" min="0.6" max="1.4" step="0.05" value="0.95">
+        <span id="rateVal" class="psep">0.95</span>
+      </div>
+    </div>
+    <div class="pgroup">
+      <span class="plabel">Pausa entre idiomas</span>
+      <div class="ppausas">
+        <input id="gap" type="number" min="0" max="30" step="1" value="3">
+        <span class="psep">segundos</span>
+      </div>
+    </div>
+    <div class="pgroup">
+      <span class="plabel">Pausa entre frases</span>
+      <div class="ppausas">
+        <input id="sentencePause" type="number" min="0" max="1500" step="50" value="250">
+        <span class="psep">milisegundos</span>
+      </div>
+    </div>
+    <p class="help pnota">
+      Para que no suene apresurado: velocidad entre 0.85 y 0.95, tres segundos entre
+      idiomas y 250 milisegundos entre frases.
+    </p>
+  </div>
+  </section>
+
+<!-- ============ CALIDAD DE VOZ ============ -->
   <section class="card span2">
-    <h2><span class="num">8</span>Calidad de voz</h2>
+    <h2>Voces del sistema</h2>
     <p class="help">
       Las voces las pone el sistema, no el programa. Las <b>naturales</b> (neuronales) suenan
       como una persona; las antiguas de Windows suenan metálicas. <b>Haga clic en cualquier
@@ -293,15 +360,11 @@
       <li>Si solo aparecen voces con la palabra <i>Desktop</i> en el nombre, son las antiguas de
         Windows: suenan robóticas aunque se baje la velocidad.</li>
     </ol>
-    <p class="help">
-      Para que la locución no suene apresurada: velocidad entre <b>0.85</b> y <b>0.95</b>, pausa
-      entre frases de <b>250 ms</b> y pausa entre idiomas de <b>3 s</b>.
-    </p>
   </section>
 
-  <!-- ============ REGISTRO DE LA TRANSMISIÓN ============ -->
+<!-- ============ REGISTRO DE LA TRANSMISIÓN ============ -->
   <section class="card span2">
-    <h2><span class="num">9</span>Registro de la transmisión</h2>
+    <h2>Registro de la transmisión</h2>
     <p class="help">
       Cada fragmento que sale al aire, con la voz que lo locutó y el tiempo que tardó.
       Si la transmisión se interrumpe, aquí queda el motivo. Se llena solo mientras se
@@ -317,6 +380,7 @@
     <div id="logList" class="loglist"></div>
   </section>
 
+  </div>
 </main>
 
 <!-- ============ BARRA DE REPRODUCCIÓN ============ -->
@@ -351,42 +415,10 @@
         <button id="btnTestEn" class="mini" title="Escuchar esta voz">&#9654;</button>
       </div>
     </div>
-    <div class="pgroup">
-      <span class="plabel">&nbsp;</span>
-      <button id="btnAjustes" class="pgear" title="Velocidad y pausas" aria-expanded="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H2a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H8a1.6 1.6 0 0 0 1-1.5V2a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V8a1.6 1.6 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" stroke-linejoin="round"/></svg>
-        <span>Ajustes</span>
-      </button>
-    </div>
+
   </div>
 
-  <div class="pajustes" id="pajustes" hidden>
-    <div class="pgroup">
-      <span class="plabel">Velocidad de locución</span>
-      <div class="prange">
-        <input id="rate" type="range" min="0.6" max="1.4" step="0.05" value="0.95">
-        <span id="rateVal" class="psep">0.95</span>
-      </div>
-    </div>
-    <div class="pgroup">
-      <span class="plabel">Pausa entre idiomas</span>
-      <div class="ppausas">
-        <input id="gap" type="number" min="0" max="30" step="1" value="3">
-        <span class="psep">segundos</span>
-      </div>
-    </div>
-    <div class="pgroup">
-      <span class="plabel">Pausa entre frases</span>
-      <div class="ppausas">
-        <input id="sentencePause" type="number" min="0" max="1500" step="50" value="250">
-        <span class="psep">milisegundos</span>
-      </div>
-    </div>
-    <p class="help pnota">
-      Para que no suene apresurado: velocidad entre 0.85 y 0.95, tres segundos entre
-      idiomas y 250 milisegundos entre frases.
-    </p>
-  </div>
+
 </footer>
 
 <script src="js/data/dictionary.js"></script>

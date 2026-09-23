@@ -37,7 +37,8 @@
       'voiceListEs', 'voiceListEn', 'voiceDiag', 'btnVoiceDiag', 'voiceDiagStatus',
       'voiceAlert', 'langEs', 'langEn',
       'logList', 'btnLogCopy', 'btnLogClear', 'logAuto', 'logStatus',
-      'btnTema', 'temaTexto', 'btnAjustes', 'pajustes', 'rateVal'
+      'btnTema', 'temaTexto', 'rateVal',
+      'tabAtis', 'tabAjustes', 'pageAtis', 'pageAjustes', 'temaOpciones'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -49,6 +50,7 @@
     if (savedApproachRwy) selectIfPresent(el.approachRunway, savedApproachRwy);
     setLetter(el.letterBig.textContent || 'A');
     iniciarTema();
+    iniciarPaginas();
     startClock();
     initVoices();
     renderLog();
@@ -539,7 +541,7 @@
     if (el.langEn.checked) secuencia.push({ lang: 'en', text: lastScripts.en.speech });
     if (!secuencia.length) {
       status(el.scriptStatus, 'No hay ningún idioma marcado para transmitir. ' +
-        'Si las casillas están deshabilitadas, falta instalar la voz: vea el cuadro 8.', 'err');
+        'Si las casillas están deshabilitadas, falta instalar la voz: vea Ajustes, Voces del sistema.', 'err');
       return;
     }
     var ok = ATIS.speech.play(
@@ -595,7 +597,7 @@
     if (!list.length) {
       select.innerHTML = '<option value="">(sin voces ' + lang + ')</option>';
       status(el.scriptStatus, 'El sistema no tiene voces instaladas en ' +
-        (lang === 'es' ? 'español' : 'inglés') + '. Vea el cuadro 8, Calidad de voz.', 'err');
+        (lang === 'es' ? 'español' : 'inglés') + '. Vea Ajustes, Voces del sistema.', 'err');
       return;
     }
     /* Ya vienen de mejor a peor calidad: la primera queda seleccionada */
@@ -605,7 +607,7 @@
     select.selectedIndex = 0;
   }
 
-  /* Cuadro 8: que voces tiene la computadora. Cada una se puede escuchar. */
+  /* Qué voces tiene la computadora. Cada una se puede escuchar. */
   function renderVoiceList(node, lang, selectedName) {
     var list = ATIS.speech.rankedVoices(lang);
     if (!list.length) {
@@ -658,7 +660,7 @@
     el.voiceAlert.innerHTML = html;
   }
 
-  /* Encabezado del cuadro 8: navegador, conexión y qué implica */
+  /* Encabezado de Voces del sistema: navegador, conexión y qué implica */
   function renderVoiceDiag() {
     var d = ATIS.speech.diagnostico();
     renderVoiceAlert(d);
@@ -724,7 +726,7 @@
       var bucle = activos.length ? 'bucle: ' + activos.join(' → ') : 'sin idiomas marcados';
       if (!el.langEs.checked || !el.langEn.checked) {
         el.playDetail.textContent = 'Se transmitirá en ' + bucle +
-          (el.langEs.disabled || el.langEn.disabled ? ' · falta instalar una voz, vea el cuadro 8' : '');
+          (el.langEs.disabled || el.langEn.disabled ? ' · falta instalar una voz, vea Ajustes' : '');
         el.playDetail.classList.add('warn');
       } else if (esNat && enNat) {
         el.playDetail.textContent = 'Voces naturales seleccionadas. Listo para transmitir en ' + bucle;
@@ -732,7 +734,7 @@
       } else {
         el.playDetail.textContent = 'Voz robótica: no hay voz natural en ' +
           (!esNat && !enNat ? 'español ni inglés' : (!esNat ? 'español' : 'inglés')) +
-          '. Vea el cuadro 8, Calidad de voz.';
+          '. Vea Ajustes, Voces del sistema.';
         el.playDetail.classList.add('warn');
       }
     }
@@ -750,37 +752,74 @@
       ? 'light' : 'dark';
   }
 
-  function temaActual() {
-    var elegido = document.documentElement.getAttribute('data-theme');
-    return (elegido === 'light' || elegido === 'dark') ? elegido : temaDelSistema();
+  /* Lo elegido: 'system', 'light' u 'oscuro'. Sin nada guardado, manda el sistema. */
+  function modoGuardado() {
+    var v = null;
+    try { v = localStorage.getItem(TEMA_KEY); } catch (e) { /* ignorado */ }
+    return (v === 'light' || v === 'dark') ? v : 'system';
   }
 
-  function aplicarTema(tema, guardar) {
-    document.documentElement.setAttribute('data-theme', tema);
-    el.temaTexto.textContent = tema === 'dark' ? 'Oscuro' : 'Claro';
-    el.btnTema.setAttribute('title', tema === 'dark'
-      ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
-    if (guardar) {
-      try { localStorage.setItem(TEMA_KEY, tema); } catch (e) { /* ignorado */ }
+  /* El que se está viendo ahora mismo */
+  function temaActual() {
+    var puesto = document.documentElement.getAttribute('data-theme');
+    return (puesto === 'light' || puesto === 'dark') ? puesto : temaDelSistema();
+  }
+
+  function aplicarModo(modo, guardar) {
+    if (modo === 'system') {
+      document.documentElement.removeAttribute('data-theme');
+      if (guardar) { try { localStorage.removeItem(TEMA_KEY); } catch (e) { /* ignorado */ } }
+    } else {
+      document.documentElement.setAttribute('data-theme', modo);
+      if (guardar) { try { localStorage.setItem(TEMA_KEY, modo); } catch (e) { /* ignorado */ } }
     }
+    sincronizarTema();
+  }
+
+  function sincronizarTema() {
+    var visible = temaActual();
+    var modo = modoGuardado();
+    el.temaTexto.textContent = visible === 'dark' ? 'Oscuro' : 'Claro';
+    el.btnTema.setAttribute('title', visible === 'dark'
+      ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+    Array.prototype.forEach.call(el.temaOpciones.querySelectorAll('button'), function (b) {
+      b.classList.toggle('on', b.dataset.tema === modo);
+    });
   }
 
   function iniciarTema() {
-    var guardado = null;
-    try { guardado = localStorage.getItem(TEMA_KEY); } catch (e) { /* ignorado */ }
-    aplicarTema(guardado === 'light' || guardado === 'dark' ? guardado : temaDelSistema(), false);
+    aplicarModo(modoGuardado(), false);
 
     /* Mientras no se elija a mano, la aplicación sigue al sistema */
-    if (!guardado && global.matchMedia) {
+    if (global.matchMedia) {
       var mq = global.matchMedia('(prefers-color-scheme: light)');
-      var alCambiar = function () {
-        var sigueSinElegir = null;
-        try { sigueSinElegir = localStorage.getItem(TEMA_KEY); } catch (e) { /* ignorado */ }
-        if (!sigueSinElegir) aplicarTema(temaDelSistema(), false);
-      };
+      var alCambiar = function () { if (modoGuardado() === 'system') sincronizarTema(); };
       if (mq.addEventListener) mq.addEventListener('change', alCambiar);
       else if (mq.addListener) mq.addListener(alCambiar);
     }
+  }
+
+  /* ================================================================== *
+   * Pestañas
+   * ================================================================== */
+  var PAGINA_KEY = 'atis3.pagina';
+
+  function mostrarPagina(cual) {
+    var esAjustes = cual === 'pageAjustes';
+    el.pageAtis.hidden = esAjustes;
+    el.pageAjustes.hidden = !esAjustes;
+    el.tabAtis.classList.toggle('on', !esAjustes);
+    el.tabAjustes.classList.toggle('on', esAjustes);
+    el.tabAtis.setAttribute('aria-selected', String(!esAjustes));
+    el.tabAjustes.setAttribute('aria-selected', String(esAjustes));
+    try { localStorage.setItem(PAGINA_KEY, cual); } catch (e) { /* ignorado */ }
+    global.scrollTo(0, 0);
+  }
+
+  function iniciarPaginas() {
+    var guardada = null;
+    try { guardada = localStorage.getItem(PAGINA_KEY); } catch (e) { /* ignorado */ }
+    mostrarPagina(guardada === 'pageAjustes' ? 'pageAjustes' : 'pageAtis');
   }
 
   /* ================================================================== *
@@ -1115,11 +1154,6 @@
       status(el.voiceDiagStatus, 'Diagnóstico copiado al portapapeles.', 'ok');
     });
 
-    on(el.btnAjustes, 'click', function () {
-      var abierto = el.pajustes.hidden;
-      el.pajustes.hidden = !abierto;
-      el.btnAjustes.setAttribute('aria-expanded', abierto ? 'true' : 'false');
-    });
     on(el.rate, 'input', function () { el.rateVal.textContent = (+el.rate.value).toFixed(2); });
     on(el.rate, 'input', save);
     on(el.gap, 'input', save);
@@ -1130,8 +1164,15 @@
     on(el.voiceEn, 'change', function () { save(); updateVoiceReport(); });
 
     on(el.btnTema, 'click', function () {
-      aplicarTema(temaActual() === 'dark' ? 'light' : 'dark', true);
+      aplicarModo(temaActual() === 'dark' ? 'light' : 'dark', true);
     });
+    on(el.temaOpciones, 'click', function (e) {
+      var b = e.target.closest ? e.target.closest('button[data-tema]') : null;
+      if (b) aplicarModo(b.dataset.tema, true);
+    });
+
+    on(el.tabAtis, 'click', function () { mostrarPagina('pageAtis'); });
+    on(el.tabAjustes, 'click', function () { mostrarPagina('pageAjustes'); });
 
     on(el.btnLogCopy, 'click', function () {
       var texto = textoRegistro();

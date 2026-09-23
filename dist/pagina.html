@@ -223,19 +223,73 @@ body { transition: background-color .2s ease, color .2s ease; }
 /* ==========================================================================
    Rejilla y tarjetas
    ========================================================================== */
+/* ---- Pestañas: operación y ajustes ---- */
+.tabs {
+  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 62px); z-index: 25;
+  display: flex; gap: 4px;
+  padding: 10px 22px 0;
+  max-width: 1560px; margin: 0 auto;
+  background: var(--bg);
+}
+.tab {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 10px 20px 11px;
+  background: transparent; border: 1px solid transparent; border-bottom: none;
+  border-radius: var(--r-card) var(--r-card) 0 0;
+  font-family: var(--ui-display);
+  font-size: 12.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted);
+}
+.tab:hover { color: var(--text); border-color: transparent; }
+.tab .tnum {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 19px; height: 19px; border-radius: 5px;
+  background: var(--surface-3); color: var(--muted);
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0;
+}
+.tab.on {
+  background: var(--surface); border-color: var(--line); color: var(--text);
+  box-shadow: 0 -1px 2px rgba(0, 0, 0, .04);
+}
+.tab.on .tnum { background: var(--accent-weak); color: var(--accent); }
+
 main {
+  padding: 0 22px 170px;
+  max-width: 1560px; margin: 0 auto;
+}
+.page {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;          /* cada tarjeta con su altura natural */
   gap: 16px;
-  padding: 18px 22px 170px;
-  max-width: 1560px; margin: 0 auto;
+  padding-top: 16px;
 }
 .span2 { grid-column: 1 / -1; }
 @media (max-width: 960px) {
-  main { grid-template-columns: 1fr; padding: 14px 16px 210px; }
-  .span2 { grid-column: auto; }
+  .page { grid-template-columns: 1fr; }
+  main { padding: 0 16px 210px; }
+  .tabs { padding: 10px 16px 0; top: calc(env(safe-area-inset-top, 0px) + 108px); }
+  .tab { padding: 9px 14px 10px; font-size: 11.5px; }
 }
+
+/* ---- Selector segmentado (modo de color) ---- */
+.segmented {
+  display: inline-flex; padding: 3px; gap: 3px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+.segmented button {
+  border: none; background: transparent; color: var(--muted);
+  padding: 8px 16px; border-radius: 6px; font-size: 12.5px; font-weight: 600;
+}
+.segmented button:hover { color: var(--text); }
+.segmented button.on {
+  background: var(--accent); color: var(--accent-ink);
+}
+
+/* ---- Ajustes de locución ---- */
+.ajustesloc { display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.ajustesloc .pnota { flex-basis: 100%; margin-top: 4px; }
 
 .card {
   background: var(--surface);
@@ -655,7 +709,17 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   </div>
 </header>
 
+<nav class="tabs" role="tablist">
+  <button class="tab on" id="tabAtis" data-page="pageAtis" role="tab" aria-selected="true">
+    <span class="tnum">1</span> Operación
+  </button>
+  <button class="tab" id="tabAjustes" data-page="pageAjustes" role="tab" aria-selected="false">
+    <span class="tnum">2</span> Ajustes
+  </button>
+</nav>
+
 <main>
+  <div class="page" id="pageAtis" role="tabpanel">
 
   <!-- ============ METAR ============ -->
   <section class="card span2">
@@ -857,9 +921,66 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     </div>
   </section>
 
-  <!-- ============ CALIDAD DE VOZ ============ -->
+  
+
+  
+
+  </div>
+
+  <div class="page" id="pageAjustes" role="tabpanel" hidden>
+
+    <!-- ============ APARIENCIA ============ -->
+    <section class="card">
+      <h2>Apariencia</h2>
+      <div class="field">
+        <span>Modo de color</span>
+        <div class="segmented" id="temaOpciones">
+          <button type="button" data-tema="system">Seguir al sistema</button>
+          <button type="button" data-tema="light">Claro</button>
+          <button type="button" data-tema="dark">Oscuro</button>
+        </div>
+      </div>
+      <p class="help">
+        La elección se conserva al cerrar el programa. Con <b>Seguir al sistema</b>, la
+        aplicación cambia sola cuando Windows pasa de claro a oscuro. El botón de la barra
+        superior hace lo mismo con un clic.
+      </p>
+    </section>
+
+  <section class="card">
+    <h2>Locución</h2>
+    <div class="ajustesloc">
+    <div class="pgroup">
+      <span class="plabel">Velocidad de locución</span>
+      <div class="prange">
+        <input id="rate" type="range" min="0.6" max="1.4" step="0.05" value="0.95">
+        <span id="rateVal" class="psep">0.95</span>
+      </div>
+    </div>
+    <div class="pgroup">
+      <span class="plabel">Pausa entre idiomas</span>
+      <div class="ppausas">
+        <input id="gap" type="number" min="0" max="30" step="1" value="3">
+        <span class="psep">segundos</span>
+      </div>
+    </div>
+    <div class="pgroup">
+      <span class="plabel">Pausa entre frases</span>
+      <div class="ppausas">
+        <input id="sentencePause" type="number" min="0" max="1500" step="50" value="250">
+        <span class="psep">milisegundos</span>
+      </div>
+    </div>
+    <p class="help pnota">
+      Para que no suene apresurado: velocidad entre 0.85 y 0.95, tres segundos entre
+      idiomas y 250 milisegundos entre frases.
+    </p>
+  </div>
+  </section>
+
+<!-- ============ CALIDAD DE VOZ ============ -->
   <section class="card span2">
-    <h2><span class="num">8</span>Calidad de voz</h2>
+    <h2>Voces del sistema</h2>
     <p class="help">
       Las voces las pone el sistema, no el programa. Las <b>naturales</b> (neuronales) suenan
       como una persona; las antiguas de Windows suenan metálicas. <b>Haga clic en cualquier
@@ -893,15 +1014,11 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
       <li>Si solo aparecen voces con la palabra <i>Desktop</i> en el nombre, son las antiguas de
         Windows: suenan robóticas aunque se baje la velocidad.</li>
     </ol>
-    <p class="help">
-      Para que la locución no suene apresurada: velocidad entre <b>0.85</b> y <b>0.95</b>, pausa
-      entre frases de <b>250 ms</b> y pausa entre idiomas de <b>3 s</b>.
-    </p>
   </section>
 
-  <!-- ============ REGISTRO DE LA TRANSMISIÓN ============ -->
+<!-- ============ REGISTRO DE LA TRANSMISIÓN ============ -->
   <section class="card span2">
-    <h2><span class="num">9</span>Registro de la transmisión</h2>
+    <h2>Registro de la transmisión</h2>
     <p class="help">
       Cada fragmento que sale al aire, con la voz que lo locutó y el tiempo que tardó.
       Si la transmisión se interrumpe, aquí queda el motivo. Se llena solo mientras se
@@ -917,6 +1034,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     <div id="logList" class="loglist"></div>
   </section>
 
+  </div>
 </main>
 
 <!-- ============ BARRA DE REPRODUCCIÓN ============ -->
@@ -951,42 +1069,10 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
         <button id="btnTestEn" class="mini" title="Escuchar esta voz">&#9654;</button>
       </div>
     </div>
-    <div class="pgroup">
-      <span class="plabel">&nbsp;</span>
-      <button id="btnAjustes" class="pgear" title="Velocidad y pausas" aria-expanded="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H2a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H8a1.6 1.6 0 0 0 1-1.5V2a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V8a1.6 1.6 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" stroke-linejoin="round"/></svg>
-        <span>Ajustes</span>
-      </button>
-    </div>
+
   </div>
 
-  <div class="pajustes" id="pajustes" hidden>
-    <div class="pgroup">
-      <span class="plabel">Velocidad de locución</span>
-      <div class="prange">
-        <input id="rate" type="range" min="0.6" max="1.4" step="0.05" value="0.95">
-        <span id="rateVal" class="psep">0.95</span>
-      </div>
-    </div>
-    <div class="pgroup">
-      <span class="plabel">Pausa entre idiomas</span>
-      <div class="ppausas">
-        <input id="gap" type="number" min="0" max="30" step="1" value="3">
-        <span class="psep">segundos</span>
-      </div>
-    </div>
-    <div class="pgroup">
-      <span class="plabel">Pausa entre frases</span>
-      <div class="ppausas">
-        <input id="sentencePause" type="number" min="0" max="1500" step="50" value="250">
-        <span class="psep">milisegundos</span>
-      </div>
-    </div>
-    <p class="help pnota">
-      Para que no suene apresurado: velocidad entre 0.85 y 0.95, tres segundos entre
-      idiomas y 250 milisegundos entre frases.
-    </p>
-  </div>
+
 </footer>
 
 <script>
@@ -3428,7 +3514,8 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
       'voiceListEs', 'voiceListEn', 'voiceDiag', 'btnVoiceDiag', 'voiceDiagStatus',
       'voiceAlert', 'langEs', 'langEn',
       'logList', 'btnLogCopy', 'btnLogClear', 'logAuto', 'logStatus',
-      'btnTema', 'temaTexto', 'btnAjustes', 'pajustes', 'rateVal'
+      'btnTema', 'temaTexto', 'rateVal',
+      'tabAtis', 'tabAjustes', 'pageAtis', 'pageAjustes', 'temaOpciones'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -3440,6 +3527,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     if (savedApproachRwy) selectIfPresent(el.approachRunway, savedApproachRwy);
     setLetter(el.letterBig.textContent || 'A');
     iniciarTema();
+    iniciarPaginas();
     startClock();
     initVoices();
     renderLog();
@@ -3930,7 +4018,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     if (el.langEn.checked) secuencia.push({ lang: 'en', text: lastScripts.en.speech });
     if (!secuencia.length) {
       status(el.scriptStatus, 'No hay ningún idioma marcado para transmitir. ' +
-        'Si las casillas están deshabilitadas, falta instalar la voz: vea el cuadro 8.', 'err');
+        'Si las casillas están deshabilitadas, falta instalar la voz: vea Ajustes, Voces del sistema.', 'err');
       return;
     }
     var ok = ATIS.speech.play(
@@ -3986,7 +4074,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     if (!list.length) {
       select.innerHTML = '<option value="">(sin voces ' + lang + ')</option>';
       status(el.scriptStatus, 'El sistema no tiene voces instaladas en ' +
-        (lang === 'es' ? 'español' : 'inglés') + '. Vea el cuadro 8, Calidad de voz.', 'err');
+        (lang === 'es' ? 'español' : 'inglés') + '. Vea Ajustes, Voces del sistema.', 'err');
       return;
     }
     /* Ya vienen de mejor a peor calidad: la primera queda seleccionada */
@@ -3996,7 +4084,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     select.selectedIndex = 0;
   }
 
-  /* Cuadro 8: que voces tiene la computadora. Cada una se puede escuchar. */
+  /* Qué voces tiene la computadora. Cada una se puede escuchar. */
   function renderVoiceList(node, lang, selectedName) {
     var list = ATIS.speech.rankedVoices(lang);
     if (!list.length) {
@@ -4049,7 +4137,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     el.voiceAlert.innerHTML = html;
   }
 
-  /* Encabezado del cuadro 8: navegador, conexión y qué implica */
+  /* Encabezado de Voces del sistema: navegador, conexión y qué implica */
   function renderVoiceDiag() {
     var d = ATIS.speech.diagnostico();
     renderVoiceAlert(d);
@@ -4115,7 +4203,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
       var bucle = activos.length ? 'bucle: ' + activos.join(' → ') : 'sin idiomas marcados';
       if (!el.langEs.checked || !el.langEn.checked) {
         el.playDetail.textContent = 'Se transmitirá en ' + bucle +
-          (el.langEs.disabled || el.langEn.disabled ? ' · falta instalar una voz, vea el cuadro 8' : '');
+          (el.langEs.disabled || el.langEn.disabled ? ' · falta instalar una voz, vea Ajustes' : '');
         el.playDetail.classList.add('warn');
       } else if (esNat && enNat) {
         el.playDetail.textContent = 'Voces naturales seleccionadas. Listo para transmitir en ' + bucle;
@@ -4123,7 +4211,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
       } else {
         el.playDetail.textContent = 'Voz robótica: no hay voz natural en ' +
           (!esNat && !enNat ? 'español ni inglés' : (!esNat ? 'español' : 'inglés')) +
-          '. Vea el cuadro 8, Calidad de voz.';
+          '. Vea Ajustes, Voces del sistema.';
         el.playDetail.classList.add('warn');
       }
     }
@@ -4141,37 +4229,74 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
       ? 'light' : 'dark';
   }
 
-  function temaActual() {
-    var elegido = document.documentElement.getAttribute('data-theme');
-    return (elegido === 'light' || elegido === 'dark') ? elegido : temaDelSistema();
+  /* Lo elegido: 'system', 'light' u 'oscuro'. Sin nada guardado, manda el sistema. */
+  function modoGuardado() {
+    var v = null;
+    try { v = localStorage.getItem(TEMA_KEY); } catch (e) { /* ignorado */ }
+    return (v === 'light' || v === 'dark') ? v : 'system';
   }
 
-  function aplicarTema(tema, guardar) {
-    document.documentElement.setAttribute('data-theme', tema);
-    el.temaTexto.textContent = tema === 'dark' ? 'Oscuro' : 'Claro';
-    el.btnTema.setAttribute('title', tema === 'dark'
-      ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
-    if (guardar) {
-      try { localStorage.setItem(TEMA_KEY, tema); } catch (e) { /* ignorado */ }
+  /* El que se está viendo ahora mismo */
+  function temaActual() {
+    var puesto = document.documentElement.getAttribute('data-theme');
+    return (puesto === 'light' || puesto === 'dark') ? puesto : temaDelSistema();
+  }
+
+  function aplicarModo(modo, guardar) {
+    if (modo === 'system') {
+      document.documentElement.removeAttribute('data-theme');
+      if (guardar) { try { localStorage.removeItem(TEMA_KEY); } catch (e) { /* ignorado */ } }
+    } else {
+      document.documentElement.setAttribute('data-theme', modo);
+      if (guardar) { try { localStorage.setItem(TEMA_KEY, modo); } catch (e) { /* ignorado */ } }
     }
+    sincronizarTema();
+  }
+
+  function sincronizarTema() {
+    var visible = temaActual();
+    var modo = modoGuardado();
+    el.temaTexto.textContent = visible === 'dark' ? 'Oscuro' : 'Claro';
+    el.btnTema.setAttribute('title', visible === 'dark'
+      ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+    Array.prototype.forEach.call(el.temaOpciones.querySelectorAll('button'), function (b) {
+      b.classList.toggle('on', b.dataset.tema === modo);
+    });
   }
 
   function iniciarTema() {
-    var guardado = null;
-    try { guardado = localStorage.getItem(TEMA_KEY); } catch (e) { /* ignorado */ }
-    aplicarTema(guardado === 'light' || guardado === 'dark' ? guardado : temaDelSistema(), false);
+    aplicarModo(modoGuardado(), false);
 
     /* Mientras no se elija a mano, la aplicación sigue al sistema */
-    if (!guardado && global.matchMedia) {
+    if (global.matchMedia) {
       var mq = global.matchMedia('(prefers-color-scheme: light)');
-      var alCambiar = function () {
-        var sigueSinElegir = null;
-        try { sigueSinElegir = localStorage.getItem(TEMA_KEY); } catch (e) { /* ignorado */ }
-        if (!sigueSinElegir) aplicarTema(temaDelSistema(), false);
-      };
+      var alCambiar = function () { if (modoGuardado() === 'system') sincronizarTema(); };
       if (mq.addEventListener) mq.addEventListener('change', alCambiar);
       else if (mq.addListener) mq.addListener(alCambiar);
     }
+  }
+
+  /* ================================================================== *
+   * Pestañas
+   * ================================================================== */
+  var PAGINA_KEY = 'atis3.pagina';
+
+  function mostrarPagina(cual) {
+    var esAjustes = cual === 'pageAjustes';
+    el.pageAtis.hidden = esAjustes;
+    el.pageAjustes.hidden = !esAjustes;
+    el.tabAtis.classList.toggle('on', !esAjustes);
+    el.tabAjustes.classList.toggle('on', esAjustes);
+    el.tabAtis.setAttribute('aria-selected', String(!esAjustes));
+    el.tabAjustes.setAttribute('aria-selected', String(esAjustes));
+    try { localStorage.setItem(PAGINA_KEY, cual); } catch (e) { /* ignorado */ }
+    global.scrollTo(0, 0);
+  }
+
+  function iniciarPaginas() {
+    var guardada = null;
+    try { guardada = localStorage.getItem(PAGINA_KEY); } catch (e) { /* ignorado */ }
+    mostrarPagina(guardada === 'pageAjustes' ? 'pageAjustes' : 'pageAtis');
   }
 
   /* ================================================================== *
@@ -4506,11 +4631,6 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
       status(el.voiceDiagStatus, 'Diagnóstico copiado al portapapeles.', 'ok');
     });
 
-    on(el.btnAjustes, 'click', function () {
-      var abierto = el.pajustes.hidden;
-      el.pajustes.hidden = !abierto;
-      el.btnAjustes.setAttribute('aria-expanded', abierto ? 'true' : 'false');
-    });
     on(el.rate, 'input', function () { el.rateVal.textContent = (+el.rate.value).toFixed(2); });
     on(el.rate, 'input', save);
     on(el.gap, 'input', save);
@@ -4521,8 +4641,15 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     on(el.voiceEn, 'change', function () { save(); updateVoiceReport(); });
 
     on(el.btnTema, 'click', function () {
-      aplicarTema(temaActual() === 'dark' ? 'light' : 'dark', true);
+      aplicarModo(temaActual() === 'dark' ? 'light' : 'dark', true);
     });
+    on(el.temaOpciones, 'click', function (e) {
+      var b = e.target.closest ? e.target.closest('button[data-tema]') : null;
+      if (b) aplicarModo(b.dataset.tema, true);
+    });
+
+    on(el.tabAtis, 'click', function () { mostrarPagina('pageAtis'); });
+    on(el.tabAjustes, 'click', function () { mostrarPagina('pageAjustes'); });
 
     on(el.btnLogCopy, 'click', function () {
       var texto = textoRegistro();
