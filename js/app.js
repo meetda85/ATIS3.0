@@ -38,7 +38,10 @@
       'voiceAlert', 'langEs', 'langEn',
       'logList', 'btnLogCopy', 'btnLogClear', 'logAuto', 'logStatus',
       'btnTema', 'temaTexto', 'rateVal',
-      'tabAtis', 'tabAjustes', 'pageAtis', 'pageAjustes', 'temaOpciones'
+      'tabAtis', 'tabAjustes', 'pageAtis', 'pageAjustes', 'temaOpciones', 'saltos',
+      'libreActivo', 'libreEs', 'libreEn', 'cardLibre',
+      'pavance', 'posicion', 'posTexto', 'btnPrev', 'btnNext', 'paireDatos',
+      'preflight', 'preflightLista', 'btnIgual', 'btnCorregir', 'metarEdad'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -513,6 +516,10 @@
     if (ATIS.speech.state.playing) {
       el.playDetail.textContent = 'El guion cambió: pulse TRANSMITIR para reiniciar el bucle con la información nueva.';
     }
+    pintarEdadMetar();
+    pintarResumen();
+    pintarVerificacion();
+    el.cardLibre.classList.toggle('libre-on', el.libreActivo.checked);
     save();
   }
 
@@ -528,20 +535,137 @@
   }
 
   /* ================================================================== *
+   * Verificación previa a transmitir
+   * Un ATIS incompleto al aire es un error operativo; más vale detenerlo aquí.
+   * ================================================================== */
+  function minutosDelMetar() {
+    var hhmm = el.obsTime.value.replace(/\D/g, '');
+    if (hhmm.length !== 4) return null;
+    var ahora = new Date();
+    var obs = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(),
+      +hhmm.slice(0, 2), +hhmm.slice(2)));
+    var min = Math.round((ahora - obs) / 60000);
+    if (min < -60) min += 24 * 60;      /* la observación es del día anterior */
+    return min;
+  }
+
+  function verificar() {
+    var avisos = [];
+    function err(t) { avisos.push({ nivel: 'error', texto: t }); }
+    function adv(t) { avisos.push({ nivel: 'aviso', texto: t }); }
+
+    if (!el.langEs.checked && !el.langEn.checked) err('No hay ningún idioma marcado para transmitir.');
+    if (el.langEs.checked && !ATIS.speech.rankedVoices('es').length) err('El español está marcado pero el equipo no tiene voz en español.');
+    if (el.langEn.checked && !ATIS.speech.rankedVoices('en').length) err('El inglés está marcado pero el equipo no tiene voz en inglés.');
+
+    if (el.libreActivo.checked) {
+      var hayEs = el.langEs.checked && el.libreEs.value.trim();
+      var hayEn = el.langEn.checked && el.libreEn.value.trim();
+      if (!hayEs && !hayEn) err('El modo de texto libre está activado y el texto está vacío.');
+      else adv('Modo de texto libre activo: se transmitirá ese texto, no el ATIS.');
+      return avisos;
+    }
+
+    if (!runwaysInUse.length) adv('No hay pista en uso marcada: el mensaje no la va a anunciar.');
+    if (!el.obsTime.value.replace(/\D/g, '')) adv('Falta la hora de la observación.');
+    if (el.windMode.value !== 'calm' && !el.windSpeed.value.replace(/\D/g, '')) adv('Falta el viento.');
+    if (!el.altimeter.value.replace(/\D/g, '')) adv('Falta el altímetro.');
+    if (!el.visValue.value.trim()) adv('Falta la visibilidad.');
+
+    var edad = minutosDelMetar();
+    if (edad !== null && edad >= 60) adv('La observación tiene ' + edad + ' minutos: conviene actualizar el METAR.');
+
+    var vencidos = notams.filter(function (n) {
+      return n.include && ATIS.fns.vigencia(n.meta, new Date()) !== 'vigente';
+    }).length;
+    if (vencidos) adv(vencidos + ' NOTAM marcado(s) para transmitir están fuera de vigencia.');
+
+    return avisos;
+  }
+
+  function pintarVerificacion() {
+    var avisos = verificar();
+    var graves = avisos.filter(function (a) { return a.nivel === 'error'; });
+    if (!avisos.length) {
+      el.preflight.hidden = true;
+    } else {
+      el.preflight.hidden = false;
+      el.preflight.className = 'preflight' + (graves.length ? ' grave' : '');
+      el.preflightLista.innerHTML = avisos.map(function (a) {
+        return '<li class="' + a.nivel + '">' + escapeHtml(a.texto) + '</li>';
+      }).join('');
+    }
+    return { avisos: avisos, graves: graves };
+  }
+
+  /* La edad de la observación, siempre a la vista */
+  function pintarEdadMetar() {
+    var edad = minutosDelMetar();
+    if (edad === null) { el.metarEdad.textContent = ''; el.metarEdad.className = 'edad'; return; }
+    var texto = edad < 1 ? 'recién observado'
+      : edad < 60 ? 'hace ' + edad + ' min'
+      : 'hace ' + Math.floor(edad / 60) + ' h ' + (edad % 60) + ' min';
+    el.metarEdad.textContent = 'Observación ' + texto;
+    el.metarEdad.className = 'edad' + (edad >= 60 ? ' vencida' : (edad >= 30 ? ' vieja' : ''));
+  }
+
+  /* Resumen de lo esencial, sin importar dónde esté uno en la página */
+  function pintarResumen() {
+    var m = readModel();
+    var info = N.letterInfo(el.letterBig.textContent);
+    var datos = [];
+    function dato(clave, valor, clase) {
+      if (!valor) return;
+      datos.push('<div class="dato ' + (clase || '') + '"><span class="dv">' +
+        escapeHtml(valor) + '</span><span class="dk">' + escapeHtml(clave) + '</span></div>');
+    }
+    dato('info', info.letter, 'letra');
+    dato('pista', runwaysInUse.length ? runwaysInUse.join(' · ') : '—', runwaysInUse.length ? '' : 'alerta');
+    var w = m.obs.wind;
+    dato('viento', w.mode === 'calm' ? 'calma'
+      : (w.direction ? w.direction + '/' : 'VRB ') + (w.speed || '—') + (w.gust ? 'G' + w.gust : ''));
+    dato('visib', m.obs.visibility.value ? m.obs.visibility.value + ' ' + m.obs.visibility.unit.toLowerCase() : '');
+    dato('altim', m.obs.altimeter || '');
+    var edad = minutosDelMetar();
+    if (edad !== null) dato('obs', (m.obs.time || '----') + 'Z', edad >= 60 ? 'alerta' : '');
+    el.paireDatos.innerHTML = datos.join('') || '<span class="vacio">sin datos</span>';
+  }
+
+  /* ================================================================== *
    * Reproduccion
    * ================================================================== */
-  function play() {
+  function play(forzar) {
+    forzar = forzar === true;
     if (!ATIS.speech.supported) {
       status(el.scriptStatus, 'Este navegador no soporta síntesis de voz. Use Chrome o Edge.', 'err');
       return;
     }
     render();
+
+    /* Nada sale al aire sin pasar la verificación. Un ATIS completo no genera
+       ningún aviso, así que esto no estorba en la operación normal. */
+    var chequeo = pintarVerificacion();
+    if (chequeo.avisos.length && !forzar) {
+      el.btnIgual.hidden = chequeo.graves.length > 0;   /* un error no se puede forzar */
+      status(el.scriptStatus, chequeo.graves.length
+        ? 'Hay que corregir lo marcado en rojo antes de transmitir.'
+        : 'Revise lo que falta, o pulse «Transmitir de todos modos».', 'err');
+      return;
+    }
+
+    var libre = el.libreActivo.checked;
     var secuencia = [];
-    if (el.langEs.checked) secuencia.push({ lang: 'es', text: lastScripts.es.speech });
-    if (el.langEn.checked) secuencia.push({ lang: 'en', text: lastScripts.en.speech });
+    if (el.langEs.checked) {
+      var textoEs = libre ? S.paraLocutar(el.libreEs.value.trim(), 'es') : lastScripts.es.speech;
+      if (textoEs) secuencia.push({ lang: 'es', text: textoEs });
+    }
+    if (el.langEn.checked) {
+      var textoEn = libre ? S.paraLocutar(el.libreEn.value.trim(), 'en') : lastScripts.en.speech;
+      if (textoEn) secuencia.push({ lang: 'en', text: textoEn });
+    }
     if (!secuencia.length) {
-      status(el.scriptStatus, 'No hay ningún idioma marcado para transmitir. ' +
-        'Si las casillas están deshabilitadas, falta instalar la voz: vea Ajustes, Voces del sistema.', 'err');
+      status(el.scriptStatus, 'No hay nada que transmitir. ' +
+        'Si las casillas de idioma están deshabilitadas, falta instalar la voz: vea Ajustes, Voces del sistema.', 'err');
       return;
     }
     var ok = ATIS.speech.play(
@@ -558,13 +682,35 @@
     if (!ok) { status(el.scriptStatus, 'No hay nada que transmitir.', 'err'); return; }
     el.btnPlay.disabled = true;
     el.btnStop.disabled = false;
+    el.pavance.hidden = false;
+    el.preflight.hidden = true;
     document.querySelector('.brand .dot').classList.add('live');
+    prepararAvance();
+  }
+
+  /* ---- Barra de posición dentro del ciclo ---- */
+  var arrastrando = false;
+
+  function prepararAvance() {
+    var fr = ATIS.speech.fragmentos().filter(function (f) { return !f.pausa; });
+    el.posicion.max = String(Math.max(0, ATIS.speech.fragmentos().length - 1));
+    el.posicion.value = '0';
+    el.posTexto.textContent = fr.length + ' fragmentos';
+  }
+
+  function pintarAvance(st) {
+    if (arrastrando) return;
+    var total = st.total || 1;
+    el.posicion.max = String(Math.max(0, total - 1));
+    el.posicion.value = String(Math.max(0, st.chunk - 1));
+    el.posTexto.textContent = st.chunk + ' / ' + total;
   }
 
   function stop() {
     ATIS.speech.stop();
     el.btnPlay.disabled = false;
     el.btnStop.disabled = true;
+    el.pavance.hidden = true;
     document.querySelector('.brand .dot').classList.remove('live');
     el.playState.textContent = 'Detenido';
     el.playState.classList.remove('live');
@@ -589,6 +735,7 @@
       if (st.aviso) detalle += ' · ' + st.aviso;
       el.playDetail.textContent = detalle;
       el.playDetail.classList.toggle('warn', !!(st.aviso || st.respaldo));
+      pintarAvance(st);
     });
   }
 
@@ -810,6 +957,7 @@
     el.pageAjustes.hidden = !esAjustes;
     el.tabAtis.classList.toggle('on', !esAjustes);
     el.tabAjustes.classList.toggle('on', esAjustes);
+    el.saltos.hidden = esAjustes;
     el.tabAtis.setAttribute('aria-selected', String(!esAjustes));
     el.tabAjustes.setAttribute('aria-selected', String(esAjustes));
     try { localStorage.setItem(PAGINA_KEY, cual); } catch (e) { /* ignorado */ }
@@ -911,7 +1059,8 @@
           notamSoloVigentes: el.notamSoloVigentes.checked,
           voices: { es: el.voiceEs.value, en: el.voiceEn.value },
           rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value,
-          langEs: el.langEs.checked, langEn: el.langEn.checked
+          langEs: el.langEs.checked, langEn: el.langEn.checked,
+          libre: { activo: el.libreActivo.checked, es: el.libreEs.value, en: el.libreEn.value }
         }));
       } catch (e) { /* almacenamiento no disponible */ }
     }, 400);
@@ -961,6 +1110,11 @@
     if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
     if (data.langEs !== undefined) el.langEs.checked = data.langEs;
     if (data.langEn !== undefined) el.langEn.checked = data.langEn;
+    if (data.libre) {
+      el.libreActivo.checked = !!data.libre.activo;
+      el.libreEs.value = data.libre.es || '';
+      el.libreEn.value = data.libre.en || '';
+    }
     savedVoices = data.voices || null;
     savedApproachRwy = c.approachRunway || '';
     if (data.notamSoloVigentes !== undefined) el.notamSoloVigentes.checked = data.notamSoloVigentes;
@@ -1124,7 +1278,28 @@
       }
     });
 
-    on(el.btnPlay, 'click', play);
+    on(el.btnPlay, 'click', function () { play(false); });
+    on(el.btnIgual, 'click', function () { play(true); });
+    on(el.btnCorregir, 'click', function () {
+      el.preflight.hidden = true;
+      mostrarPagina('pageAtis');
+    });
+
+    on(el.btnPrev, 'click', function () { ATIS.speech.saltar(-1); });
+    on(el.btnNext, 'click', function () { ATIS.speech.saltar(1); });
+    on(el.posicion, 'input', function () { arrastrando = true; el.posTexto.textContent = (+el.posicion.value + 1) + ' / ' + (+el.posicion.max + 1); });
+    on(el.posicion, 'change', function () {
+      arrastrando = false;
+      ATIS.speech.irA(+el.posicion.value);
+    });
+
+    ['libreActivo', 'libreEs', 'libreEn'].forEach(function (id) {
+      on(el[id], 'input', scheduleRender);
+      on(el[id], 'change', scheduleRender);
+    });
+
+    /* La edad de la observación avanza sola */
+    setInterval(function () { pintarEdadMetar(); pintarVerificacion(); }, 30000);
     on(el.btnStop, 'click', stop);
     on(el.btnTestEs, 'click', function () {
       ATIS.speech.setOptions({ voices: { es: el.voiceEs.value }, rate: { es: +el.rate.value } });
@@ -1169,6 +1344,14 @@
     on(el.temaOpciones, 'click', function (e) {
       var b = e.target.closest ? e.target.closest('button[data-tema]') : null;
       if (b) aplicarModo(b.dataset.tema, true);
+    });
+
+    on(el.saltos, 'click', function (e) {
+      var b = e.target.closest ? e.target.closest('button[data-ir]') : null;
+      if (!b) return;
+      mostrarPagina('pageAtis');
+      var destino = document.getElementById(b.dataset.ir);
+      if (destino) destino.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
     on(el.tabAtis, 'click', function () { mostrarPagina('pageAtis'); });

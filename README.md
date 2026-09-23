@@ -189,6 +189,34 @@ node test/test-voz.js  # el bucle frente a fallas de voz y de red
 npm test               # las dos
 ```
 
+## Antes de transmitir
+
+Al pulsar **TRANSMITIR**, el programa revisa lo que va a salir al aire y detiene el primer
+intento si encuentra algo: falta la pista en uso, la hora, el viento, el altímetro o la
+visibilidad; la observación tiene más de una hora; hay NOTAM marcados fuera de vigencia; o
+un idioma marcado sin voz instalada. Un ATIS completo no genera ningún aviso, así que esto
+no estorba en la operación normal. Lo que es un **error** (ningún idioma, texto libre
+vacío, voz faltante) no se puede forzar; lo demás sale con *Transmitir de todos modos*.
+
+En la consola, a la derecha, está siempre a la vista el resumen de lo que se transmite:
+letra, pista en uso, viento, visibilidad, altímetro y hora de la observación. La hora se
+pone en ámbar cuando la observación pasa de una hora.
+
+## Texto libre
+
+La tarjeta **7** permite transmitir un texto propio en lugar del ATIS: aeropuerto cerrado,
+una emergencia, una prueba del sistema. Se escribe en español y en inglés, se marca la
+casilla y el bucle transmite ese texto con las mismas reglas de locución (designadores en
+alfabeto fonético, números dígito por dígito, frecuencias con «punto»). Mientras está
+activado, la tarjeta se marca en ámbar para que no se olvide.
+
+## Adelantar y retroceder
+
+Durante la transmisión, la consola muestra la posición dentro del ciclo. Los botones
+&#9664;&#9664; y &#9654;&#9654; saltan un fragmento, y la barra permite ir a cualquier
+punto del ciclo. La Web Speech API no permite buscar dentro de una frase, así que el salto
+es **por fragmento**, no por segundos: se corta la frase actual y arranca la elegida.
+
 ## La transmisión no se detiene
 
 Una vez pulsado **TRANSMITIR**, el bucle se mantiene pase lo que pase:
@@ -206,6 +234,8 @@ Una vez pulsado **TRANSMITIR**, el bucle se mantiene pase lo que pase:
 - Un latido cada dos segundos mantiene viva la síntesis (Chrome la corta a los 15 s) y
   reanuda la transmisión si detecta que se quedó en silencio.
 
+- **La pantalla no se apaga** mientras se transmite (bloqueo de suspensión del navegador),
+  y al volver la ventana al frente se verifica que el motor siga hablando; si no, se reanuda.
 - **Una voz en línea lenta no se corta**: si el motor todavía tiene el fragmento en cola,
   la vigilancia le da prórrogas en lugar de cancelarlo. Solo lo da por muerto cuando el
   motor no tiene nada pendiente ni está hablando.

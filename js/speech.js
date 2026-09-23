@@ -395,6 +395,64 @@
   }
   function detenerLatido() { if (latido) { clearInterval(latido); latido = null; } }
 
+  /* ---- Navegación dentro del ciclo ---- */
+
+  /* Los fragmentos con texto, para pintar la barra de avance */
+  function fragmentos() {
+    return chunks.map(function (c, i) {
+      return { i: i, lang: c.lang, texto: c.text, pausa: !c.text };
+    });
+  }
+
+  /* Saltar a un fragmento: adelantar o retroceder sin cortar la transmisión */
+  function irA(n) {
+    if (!state.playing || !chunks.length) return false;
+    n = Math.max(0, Math.min(chunks.length - 1, n));
+    limpiarTimer();
+    limpiarWatchdog();
+    try { synth.cancel(); } catch (e) { /* ignorado */ }
+    enCurso = false;
+    intentos = 0;
+    idx = n;
+    anotar('salto', { detalle: 'al fragmento ' + (n + 1) + ' de ' + chunks.length });
+    ultimaActividad = Date.now();
+    siguiente();
+    return true;
+  }
+
+  function saltar(delta) {
+    /* idx apunta al siguiente; el que suena es idx-1 */
+    return irA((idx - 1) + delta);
+  }
+
+  /* ---- La pantalla no se debe apagar durante una transmisión ---- */
+  var wakeLock = null;
+  function pedirWakeLock() {
+    if (!global.navigator || !global.navigator.wakeLock) return;
+    global.navigator.wakeLock.request('screen').then(function (w) {
+      wakeLock = w;
+      anotar('pantalla', { detalle: 'suspensión bloqueada mientras se transmite' });
+      w.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () { /* el navegador no lo permitió */ });
+  }
+  function soltarWakeLock() {
+    if (wakeLock) { try { wakeLock.release(); } catch (e) { /* ignorado */ } wakeLock = null; }
+  }
+
+  /* Al volver a primer plano, el motor pudo quedarse detenido */
+  if (global.document && global.document.addEventListener) {
+    global.document.addEventListener('visibilitychange', function () {
+      if (global.document.visibilityState !== 'visible') return;
+      if (!state.playing || state.paused) return;
+      if (wakeLock === null) pedirWakeLock();
+      if (!synth.speaking && !synth.pending) {
+        anotar('reanudada', { detalle: 'la ventana volvió al frente' });
+        ultimaActividad = Date.now();
+        if (enCurso && itemActual) reproducir(itemActual); else siguiente();
+      }
+    });
+  }
+
   function play(sequence, opts) {
     if (!synth) return false;
     stop();
@@ -419,6 +477,7 @@
     });
     emit();
     iniciarLatido();
+    pedirWakeLock();
     siguiente();
     return true;
   }
@@ -436,6 +495,7 @@
     limpiarTimer();
     limpiarWatchdog();
     detenerLatido();
+    soltarWakeLock();
     if (synth) { try { synth.cancel(); } catch (e) { /* ignorado */ } }
     current = null;
     emit();
@@ -532,6 +592,7 @@
     isNatural: isNatural,
     play: play, stop: stop, pause: pause, resume: resume,
     setOptions: setOptions, onState: onState, test: test,
+    fragmentos: fragmentos, irA: irA, saltar: saltar,
     registro: function () { return registro.slice(); },
     onLog: function (cb) { logCbs.push(cb); },
     limpiarRegistro: function () { registro = []; },

@@ -62,13 +62,24 @@
   <button class="tab" id="tabAjustes" data-page="pageAjustes" role="tab" aria-selected="false">
     <span class="tnum">2</span> Ajustes
   </button>
+  <div class="saltos" id="saltos">
+    <span class="plabel">Ir a</span>
+    <button data-ir="secMetar">METAR</button>
+    <button data-ir="secInfo">Información</button>
+    <button data-ir="secViento">Viento</button>
+    <button data-ir="secCielo">Cielo</button>
+    <button data-ir="secNotam">NOTAM</button>
+    <button data-ir="secAdic">Adicional</button>
+    <button data-ir="secLibre">Texto libre</button>
+    <button data-ir="secGuion" class="destacado">Guion</button>
+  </div>
 </nav>
 
 <main>
   <div class="page" id="pageAtis" role="tabpanel">
 
   <!-- ============ METAR ============ -->
-  <section class="card span2">
+  <section class="card span2" id="secMetar">
     <h2><span class="num">1</span>METAR</h2>
     <div class="row">
       <textarea id="metarRaw" rows="3" spellcheck="false"
@@ -79,12 +90,13 @@
       <button id="btnFetch">Obtener en línea</button>
       <button id="btnSample" class="ghost">Ejemplo</button>
       <span id="metarStatus" class="status"></span>
+      <span id="metarEdad" class="edad"></span>
     </div>
     <div id="metarDecoded" class="decoded"></div>
   </section>
 
   <!-- ============ INFORMACIÓN / APROXIMACIÓN / PISTA ============ -->
-  <section class="card">
+  <section class="card" id="secInfo">
     <h2><span class="num">2</span>Información</h2>
     <div class="grid2">
       <label class="field"><span>Tipo</span>
@@ -131,7 +143,7 @@
   </section>
 
   <!-- ============ VIENTO / VISIBILIDAD / AMBIENTE ============ -->
-  <section class="card">
+  <section class="card" id="secViento">
     <h2><span class="num">3</span>Viento</h2>
     <div class="grid2">
       <label class="field"><span>Modo</span>
@@ -192,14 +204,14 @@
   </section>
 
   <!-- ============ CONDICIÓN DE CIELO ============ -->
-  <section class="card">
+  <section class="card" id="secCielo">
     <h2><span class="num">4</span>Condición de cielo</h2>
     <div id="layers" class="layers"></div>
     <button id="btnAddLayer" class="ghost small">+ Agregar capa</button>
   </section>
 
   <!-- ============ NOTAM ============ -->
-  <section class="card span2">
+  <section class="card span2" id="secNotam">
     <h2><span class="num">5</span>NOTAM vigentes</h2>
     <div class="row">
       <textarea id="notamRaw" rows="4" spellcheck="false"
@@ -232,7 +244,7 @@
   </section>
 
   <!-- ============ INFORMACIÓN ADICIONAL ============ -->
-  <section class="card span2">
+  <section class="card span2" id="secAdic">
     <h2><span class="num">6</span>Información adicional</h2>
     <div class="grid2">
       <label class="field"><span>Español (una idea por línea)</span>
@@ -248,9 +260,34 @@
       <span>Incluir en la transmisión los NOTAM marcados</span></label>
   </section>
 
+  <!-- ============ TEXTO LIBRE ============ -->
+  <section class="card span2" id="cardLibre">
+    <h2><span class="num">7</span>Texto libre</h2>
+    <label class="checkline grande">
+      <input type="checkbox" id="libreActivo">
+      <span><b>Transmitir este texto en lugar del ATIS</b> — para avisos que no salen del
+        METAR ni de los NOTAM: aeropuerto cerrado, emergencia, prueba del sistema.</span>
+    </label>
+    <div class="grid2">
+      <label class="field"><span>Español</span>
+        <textarea id="libreEs" rows="5" spellcheck="false"
+          placeholder="Aeropuerto Internacional de la Ciudad de México. Aeropuerto cerrado por condiciones meteorológicas. Manténgase a la escucha."></textarea>
+      </label>
+      <label class="field"><span>Inglés</span>
+        <textarea id="libreEn" rows="5" spellcheck="false"
+          placeholder="Mexico City International Airport. Airport closed due to weather conditions. Stand by."></textarea>
+      </label>
+    </div>
+    <p class="help" id="libreNota">
+      Mientras esté activado, el bucle transmite solo este texto y el guion del ATIS queda
+      en espera. Los números y designadores se locutan con las mismas reglas: cero cinco
+      derecha, Alfa cuatro, uno uno ocho punto cuatro siete cinco.
+    </p>
+  </section>
+
   <!-- ============ GUION ============ -->
-  <section class="card span2">
-    <h2><span class="num">7</span>Guion ATIS</h2>
+  <section class="card span2" id="secGuion">
+    <h2><span class="num">8</span>Guion ATIS</h2>
     <div class="grid2">
       <div>
         <h3>Español <button class="mini copy" data-copy="scriptEs">copiar</button></h3>
@@ -383,8 +420,20 @@
   </div>
 </main>
 
+
+
 <!-- ============ BARRA DE REPRODUCCIÓN ============ -->
 <footer class="player">
+  <!-- verificación previa: dentro de la consola, para que nunca se encimen -->
+  <aside class="preflight" id="preflight" hidden>
+  <div class="pfhead">
+    <strong>Antes de transmitir</strong>
+    <span class="spacer"></span>
+    <button id="btnCorregir" class="small ghost">Ir a corregir</button>
+    <button id="btnIgual" class="small">Transmitir de todos modos</button>
+  </div>
+  <ul id="preflightLista"></ul>
+</aside>
   <div class="pcontrols">
     <button id="btnPlay" class="play">TRANSMITIR</button>
     <button id="btnStop" class="stop" disabled>STOP</button>
@@ -392,6 +441,17 @@
   <div class="pstate">
     <div id="playState" class="pstate-main">Detenido</div>
     <div id="playDetail" class="pstate-sub">Listo para transmitir en bucle: español &rarr; inglés</div>
+    <div class="pavance" id="pavance" hidden>
+      <button id="btnPrev" class="pskip" title="Fragmento anterior">&#9664;&#9664;</button>
+      <input type="range" id="posicion" min="0" max="0" value="0" step="1"
+             title="Posición dentro del ciclo">
+      <button id="btnNext" class="pskip" title="Fragmento siguiente">&#9654;&#9654;</button>
+      <span id="posTexto" class="psep"></span>
+    </div>
+  </div>
+  <div class="paire" id="paire">
+    <span class="plabel">Al aire</span>
+    <div class="paire-datos" id="paireDatos"><span class="vacio">sin datos</span></div>
   </div>
   <div class="popts">
     <div class="pgroup">

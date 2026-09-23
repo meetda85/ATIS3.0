@@ -231,7 +231,7 @@ body { transition: background-color .2s ease, color .2s ease; }
 /* ---- Pestañas: operación y ajustes ---- */
 .tabs {
   position: sticky; top: calc(env(safe-area-inset-top, 0px) + 62px); z-index: 25;
-  display: flex; gap: 4px;
+  display: flex; align-items: flex-end; gap: 4px;
   padding: 10px 22px 0;
   max-width: 1560px; margin: 0 auto;
   background: var(--bg);
@@ -664,6 +664,99 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
+/* ---------- Texto libre ---------- */
+.checkline.grande {
+  align-items: flex-start; gap: 11px; padding: 12px 14px; margin: 0 0 14px;
+  border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface-2);
+  font-size: 13px; line-height: 1.6;
+}
+.checkline.grande input { margin-top: 2px; }
+.card.libre-on { border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-weak); }
+.card.libre-on .checkline.grande { border-color: var(--amber); background: var(--amber-weak); }
+
+/* ---------- Avance dentro del ciclo ---------- */
+.pavance { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.pavance input[type="range"] { flex: 1; min-width: 120px; max-width: 320px; }
+.pskip {
+  padding: 3px 8px; font-size: 10px; line-height: 1;
+  color: var(--muted); background: transparent; border-color: var(--line);
+}
+.pskip:hover { color: var(--accent); }
+
+/* ---------- Resumen de lo que está al aire ---------- */
+.paire {
+  display: flex; flex-direction: column; gap: 6px;
+  padding-left: 18px; border-left: 1px solid var(--line);
+}
+.paire-datos { display: flex; gap: 14px; flex-wrap: wrap; align-items: baseline; }
+.paire-datos .dato {
+  display: flex; flex-direction: column; gap: 1px; line-height: 1.15;
+}
+.paire-datos .dv {
+  font-family: var(--ui-display); font-size: 15px; font-weight: 650;
+  color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.paire-datos .dk {
+  font-size: 9px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted);
+}
+.paire-datos .dato.letra .dv { color: var(--accent); font-size: 17px; }
+.paire-datos .dato.alerta .dv { color: var(--amber); }
+.paire-datos .vacio { font-size: 12px; color: var(--muted); }
+@media (max-width: 1400px) { .paire { display: none; } }
+
+/* ---------- Edad de la observación ---------- */
+.edad { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.edad.vieja { color: var(--amber); font-weight: 600; }
+.edad.vencida { color: var(--red); font-weight: 700; }
+
+/* ---------- Verificación previa ---------- */
+.preflight {
+  flex-basis: 100%; order: -1;
+  margin: -12px -22px 4px; padding: 12px 22px;
+  background: var(--amber-weak);
+  border-bottom: 1px solid var(--amber);
+}
+.preflight.grave { background: var(--red-weak); border-bottom-color: var(--red); }
+.pfhead { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+.pfhead strong {
+  font-family: var(--ui-display); font-size: 11.5px; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--amber);
+}
+.preflight.grave .pfhead strong { color: var(--red); }
+.pfhead .spacer { flex: 1; }
+.preflight ul {
+  margin: 0; padding-left: 20px; columns: 3; column-gap: 32px;
+  font-size: 12.5px; line-height: 1.65; color: var(--text-2);
+}
+.preflight li.error { color: var(--red); font-weight: 600; }
+.preflight li.aviso { color: var(--amber); }
+@media (max-width: 900px) { .preflight ul { columns: 1; } }
+
+/* ---------- La lista de NOTAM no puede empujar toda la página ---------- */
+.notamlist {
+  max-height: 340px; overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* ---------- Saltos dentro de la página ---------- */
+.saltos {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  margin-left: auto; padding-bottom: 8px;
+}
+.saltos .plabel { margin-right: 4px; }
+.saltos button {
+  padding: 5px 11px; font-size: 11.5px; font-weight: 600;
+  background: transparent; border-color: transparent; color: var(--muted);
+  border-radius: var(--r-pill);
+}
+.saltos button:hover { background: var(--surface); border-color: var(--line); color: var(--text); }
+.saltos button.destacado { color: var(--accent); border-color: var(--accent-weak); background: var(--accent-weak); }
+.saltos button.destacado:hover { border-color: var(--accent); }
+@media (max-width: 1200px) { .saltos { display: none; } }
+
+/* Los títulos no quedan debajo de las barras fijas al saltar */
+.card[id^="sec"] { scroll-margin-top: 130px; }
+
 </style>
 </head>
 <body>
@@ -722,13 +815,24 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   <button class="tab" id="tabAjustes" data-page="pageAjustes" role="tab" aria-selected="false">
     <span class="tnum">2</span> Ajustes
   </button>
+  <div class="saltos" id="saltos">
+    <span class="plabel">Ir a</span>
+    <button data-ir="secMetar">METAR</button>
+    <button data-ir="secInfo">Información</button>
+    <button data-ir="secViento">Viento</button>
+    <button data-ir="secCielo">Cielo</button>
+    <button data-ir="secNotam">NOTAM</button>
+    <button data-ir="secAdic">Adicional</button>
+    <button data-ir="secLibre">Texto libre</button>
+    <button data-ir="secGuion" class="destacado">Guion</button>
+  </div>
 </nav>
 
 <main>
   <div class="page" id="pageAtis" role="tabpanel">
 
   <!-- ============ METAR ============ -->
-  <section class="card span2">
+  <section class="card span2" id="secMetar">
     <h2><span class="num">1</span>METAR</h2>
     <div class="row">
       <textarea id="metarRaw" rows="3" spellcheck="false"
@@ -739,12 +843,13 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
       <button id="btnFetch">Obtener en línea</button>
       <button id="btnSample" class="ghost">Ejemplo</button>
       <span id="metarStatus" class="status"></span>
+      <span id="metarEdad" class="edad"></span>
     </div>
     <div id="metarDecoded" class="decoded"></div>
   </section>
 
   <!-- ============ INFORMACIÓN / APROXIMACIÓN / PISTA ============ -->
-  <section class="card">
+  <section class="card" id="secInfo">
     <h2><span class="num">2</span>Información</h2>
     <div class="grid2">
       <label class="field"><span>Tipo</span>
@@ -791,7 +896,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   </section>
 
   <!-- ============ VIENTO / VISIBILIDAD / AMBIENTE ============ -->
-  <section class="card">
+  <section class="card" id="secViento">
     <h2><span class="num">3</span>Viento</h2>
     <div class="grid2">
       <label class="field"><span>Modo</span>
@@ -852,14 +957,14 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   </section>
 
   <!-- ============ CONDICIÓN DE CIELO ============ -->
-  <section class="card">
+  <section class="card" id="secCielo">
     <h2><span class="num">4</span>Condición de cielo</h2>
     <div id="layers" class="layers"></div>
     <button id="btnAddLayer" class="ghost small">+ Agregar capa</button>
   </section>
 
   <!-- ============ NOTAM ============ -->
-  <section class="card span2">
+  <section class="card span2" id="secNotam">
     <h2><span class="num">5</span>NOTAM vigentes</h2>
     <div class="row">
       <textarea id="notamRaw" rows="4" spellcheck="false"
@@ -892,7 +997,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   </section>
 
   <!-- ============ INFORMACIÓN ADICIONAL ============ -->
-  <section class="card span2">
+  <section class="card span2" id="secAdic">
     <h2><span class="num">6</span>Información adicional</h2>
     <div class="grid2">
       <label class="field"><span>Español (una idea por línea)</span>
@@ -908,9 +1013,34 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
       <span>Incluir en la transmisión los NOTAM marcados</span></label>
   </section>
 
+  <!-- ============ TEXTO LIBRE ============ -->
+  <section class="card span2" id="cardLibre">
+    <h2><span class="num">7</span>Texto libre</h2>
+    <label class="checkline grande">
+      <input type="checkbox" id="libreActivo">
+      <span><b>Transmitir este texto en lugar del ATIS</b> — para avisos que no salen del
+        METAR ni de los NOTAM: aeropuerto cerrado, emergencia, prueba del sistema.</span>
+    </label>
+    <div class="grid2">
+      <label class="field"><span>Español</span>
+        <textarea id="libreEs" rows="5" spellcheck="false"
+          placeholder="Aeropuerto Internacional de la Ciudad de México. Aeropuerto cerrado por condiciones meteorológicas. Manténgase a la escucha."></textarea>
+      </label>
+      <label class="field"><span>Inglés</span>
+        <textarea id="libreEn" rows="5" spellcheck="false"
+          placeholder="Mexico City International Airport. Airport closed due to weather conditions. Stand by."></textarea>
+      </label>
+    </div>
+    <p class="help" id="libreNota">
+      Mientras esté activado, el bucle transmite solo este texto y el guion del ATIS queda
+      en espera. Los números y designadores se locutan con las mismas reglas: cero cinco
+      derecha, Alfa cuatro, uno uno ocho punto cuatro siete cinco.
+    </p>
+  </section>
+
   <!-- ============ GUION ============ -->
-  <section class="card span2">
-    <h2><span class="num">7</span>Guion ATIS</h2>
+  <section class="card span2" id="secGuion">
+    <h2><span class="num">8</span>Guion ATIS</h2>
     <div class="grid2">
       <div>
         <h3>Español <button class="mini copy" data-copy="scriptEs">copiar</button></h3>
@@ -1043,8 +1173,20 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   </div>
 </main>
 
+
+
 <!-- ============ BARRA DE REPRODUCCIÓN ============ -->
 <footer class="player">
+  <!-- verificación previa: dentro de la consola, para que nunca se encimen -->
+  <aside class="preflight" id="preflight" hidden>
+  <div class="pfhead">
+    <strong>Antes de transmitir</strong>
+    <span class="spacer"></span>
+    <button id="btnCorregir" class="small ghost">Ir a corregir</button>
+    <button id="btnIgual" class="small">Transmitir de todos modos</button>
+  </div>
+  <ul id="preflightLista"></ul>
+</aside>
   <div class="pcontrols">
     <button id="btnPlay" class="play">TRANSMITIR</button>
     <button id="btnStop" class="stop" disabled>STOP</button>
@@ -1052,6 +1194,17 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   <div class="pstate">
     <div id="playState" class="pstate-main">Detenido</div>
     <div id="playDetail" class="pstate-sub">Listo para transmitir en bucle: español &rarr; inglés</div>
+    <div class="pavance" id="pavance" hidden>
+      <button id="btnPrev" class="pskip" title="Fragmento anterior">&#9664;&#9664;</button>
+      <input type="range" id="posicion" min="0" max="0" value="0" step="1"
+             title="Posición dentro del ciclo">
+      <button id="btnNext" class="pskip" title="Fragmento siguiente">&#9654;&#9654;</button>
+      <span id="posTexto" class="psep"></span>
+    </div>
+  </div>
+  <div class="paire" id="paire">
+    <span class="plabel">Al aire</span>
+    <div class="paire-datos" id="paireDatos"><span class="vacio">sin datos</span></div>
   </div>
   <div class="popts">
     <div class="pgroup">
@@ -3357,6 +3510,64 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
   function detenerLatido() { if (latido) { clearInterval(latido); latido = null; } }
 
+  /* ---- Navegación dentro del ciclo ---- */
+
+  /* Los fragmentos con texto, para pintar la barra de avance */
+  function fragmentos() {
+    return chunks.map(function (c, i) {
+      return { i: i, lang: c.lang, texto: c.text, pausa: !c.text };
+    });
+  }
+
+  /* Saltar a un fragmento: adelantar o retroceder sin cortar la transmisión */
+  function irA(n) {
+    if (!state.playing || !chunks.length) return false;
+    n = Math.max(0, Math.min(chunks.length - 1, n));
+    limpiarTimer();
+    limpiarWatchdog();
+    try { synth.cancel(); } catch (e) { /* ignorado */ }
+    enCurso = false;
+    intentos = 0;
+    idx = n;
+    anotar('salto', { detalle: 'al fragmento ' + (n + 1) + ' de ' + chunks.length });
+    ultimaActividad = Date.now();
+    siguiente();
+    return true;
+  }
+
+  function saltar(delta) {
+    /* idx apunta al siguiente; el que suena es idx-1 */
+    return irA((idx - 1) + delta);
+  }
+
+  /* ---- La pantalla no se debe apagar durante una transmisión ---- */
+  var wakeLock = null;
+  function pedirWakeLock() {
+    if (!global.navigator || !global.navigator.wakeLock) return;
+    global.navigator.wakeLock.request('screen').then(function (w) {
+      wakeLock = w;
+      anotar('pantalla', { detalle: 'suspensión bloqueada mientras se transmite' });
+      w.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () { /* el navegador no lo permitió */ });
+  }
+  function soltarWakeLock() {
+    if (wakeLock) { try { wakeLock.release(); } catch (e) { /* ignorado */ } wakeLock = null; }
+  }
+
+  /* Al volver a primer plano, el motor pudo quedarse detenido */
+  if (global.document && global.document.addEventListener) {
+    global.document.addEventListener('visibilitychange', function () {
+      if (global.document.visibilityState !== 'visible') return;
+      if (!state.playing || state.paused) return;
+      if (wakeLock === null) pedirWakeLock();
+      if (!synth.speaking && !synth.pending) {
+        anotar('reanudada', { detalle: 'la ventana volvió al frente' });
+        ultimaActividad = Date.now();
+        if (enCurso && itemActual) reproducir(itemActual); else siguiente();
+      }
+    });
+  }
+
   function play(sequence, opts) {
     if (!synth) return false;
     stop();
@@ -3381,6 +3592,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     });
     emit();
     iniciarLatido();
+    pedirWakeLock();
     siguiente();
     return true;
   }
@@ -3398,6 +3610,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     limpiarTimer();
     limpiarWatchdog();
     detenerLatido();
+    soltarWakeLock();
     if (synth) { try { synth.cancel(); } catch (e) { /* ignorado */ } }
     current = null;
     emit();
@@ -3494,6 +3707,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     isNatural: isNatural,
     play: play, stop: stop, pause: pause, resume: resume,
     setOptions: setOptions, onState: onState, test: test,
+    fragmentos: fragmentos, irA: irA, saltar: saltar,
     registro: function () { return registro.slice(); },
     onLog: function (cb) { logCbs.push(cb); },
     limpiarRegistro: function () { registro = []; },
@@ -3546,7 +3760,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       'voiceAlert', 'langEs', 'langEn',
       'logList', 'btnLogCopy', 'btnLogClear', 'logAuto', 'logStatus',
       'btnTema', 'temaTexto', 'rateVal',
-      'tabAtis', 'tabAjustes', 'pageAtis', 'pageAjustes', 'temaOpciones'
+      'tabAtis', 'tabAjustes', 'pageAtis', 'pageAjustes', 'temaOpciones', 'saltos',
+      'libreActivo', 'libreEs', 'libreEn', 'cardLibre',
+      'pavance', 'posicion', 'posTexto', 'btnPrev', 'btnNext', 'paireDatos',
+      'preflight', 'preflightLista', 'btnIgual', 'btnCorregir', 'metarEdad'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -4021,6 +4238,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (ATIS.speech.state.playing) {
       el.playDetail.textContent = 'El guion cambió: pulse TRANSMITIR para reiniciar el bucle con la información nueva.';
     }
+    pintarEdadMetar();
+    pintarResumen();
+    pintarVerificacion();
+    el.cardLibre.classList.toggle('libre-on', el.libreActivo.checked);
     save();
   }
 
@@ -4036,20 +4257,137 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
 
   /* ================================================================== *
+   * Verificación previa a transmitir
+   * Un ATIS incompleto al aire es un error operativo; más vale detenerlo aquí.
+   * ================================================================== */
+  function minutosDelMetar() {
+    var hhmm = el.obsTime.value.replace(/\D/g, '');
+    if (hhmm.length !== 4) return null;
+    var ahora = new Date();
+    var obs = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(),
+      +hhmm.slice(0, 2), +hhmm.slice(2)));
+    var min = Math.round((ahora - obs) / 60000);
+    if (min < -60) min += 24 * 60;      /* la observación es del día anterior */
+    return min;
+  }
+
+  function verificar() {
+    var avisos = [];
+    function err(t) { avisos.push({ nivel: 'error', texto: t }); }
+    function adv(t) { avisos.push({ nivel: 'aviso', texto: t }); }
+
+    if (!el.langEs.checked && !el.langEn.checked) err('No hay ningún idioma marcado para transmitir.');
+    if (el.langEs.checked && !ATIS.speech.rankedVoices('es').length) err('El español está marcado pero el equipo no tiene voz en español.');
+    if (el.langEn.checked && !ATIS.speech.rankedVoices('en').length) err('El inglés está marcado pero el equipo no tiene voz en inglés.');
+
+    if (el.libreActivo.checked) {
+      var hayEs = el.langEs.checked && el.libreEs.value.trim();
+      var hayEn = el.langEn.checked && el.libreEn.value.trim();
+      if (!hayEs && !hayEn) err('El modo de texto libre está activado y el texto está vacío.');
+      else adv('Modo de texto libre activo: se transmitirá ese texto, no el ATIS.');
+      return avisos;
+    }
+
+    if (!runwaysInUse.length) adv('No hay pista en uso marcada: el mensaje no la va a anunciar.');
+    if (!el.obsTime.value.replace(/\D/g, '')) adv('Falta la hora de la observación.');
+    if (el.windMode.value !== 'calm' && !el.windSpeed.value.replace(/\D/g, '')) adv('Falta el viento.');
+    if (!el.altimeter.value.replace(/\D/g, '')) adv('Falta el altímetro.');
+    if (!el.visValue.value.trim()) adv('Falta la visibilidad.');
+
+    var edad = minutosDelMetar();
+    if (edad !== null && edad >= 60) adv('La observación tiene ' + edad + ' minutos: conviene actualizar el METAR.');
+
+    var vencidos = notams.filter(function (n) {
+      return n.include && ATIS.fns.vigencia(n.meta, new Date()) !== 'vigente';
+    }).length;
+    if (vencidos) adv(vencidos + ' NOTAM marcado(s) para transmitir están fuera de vigencia.');
+
+    return avisos;
+  }
+
+  function pintarVerificacion() {
+    var avisos = verificar();
+    var graves = avisos.filter(function (a) { return a.nivel === 'error'; });
+    if (!avisos.length) {
+      el.preflight.hidden = true;
+    } else {
+      el.preflight.hidden = false;
+      el.preflight.className = 'preflight' + (graves.length ? ' grave' : '');
+      el.preflightLista.innerHTML = avisos.map(function (a) {
+        return '<li class="' + a.nivel + '">' + escapeHtml(a.texto) + '</li>';
+      }).join('');
+    }
+    return { avisos: avisos, graves: graves };
+  }
+
+  /* La edad de la observación, siempre a la vista */
+  function pintarEdadMetar() {
+    var edad = minutosDelMetar();
+    if (edad === null) { el.metarEdad.textContent = ''; el.metarEdad.className = 'edad'; return; }
+    var texto = edad < 1 ? 'recién observado'
+      : edad < 60 ? 'hace ' + edad + ' min'
+      : 'hace ' + Math.floor(edad / 60) + ' h ' + (edad % 60) + ' min';
+    el.metarEdad.textContent = 'Observación ' + texto;
+    el.metarEdad.className = 'edad' + (edad >= 60 ? ' vencida' : (edad >= 30 ? ' vieja' : ''));
+  }
+
+  /* Resumen de lo esencial, sin importar dónde esté uno en la página */
+  function pintarResumen() {
+    var m = readModel();
+    var info = N.letterInfo(el.letterBig.textContent);
+    var datos = [];
+    function dato(clave, valor, clase) {
+      if (!valor) return;
+      datos.push('<div class="dato ' + (clase || '') + '"><span class="dv">' +
+        escapeHtml(valor) + '</span><span class="dk">' + escapeHtml(clave) + '</span></div>');
+    }
+    dato('info', info.letter, 'letra');
+    dato('pista', runwaysInUse.length ? runwaysInUse.join(' · ') : '—', runwaysInUse.length ? '' : 'alerta');
+    var w = m.obs.wind;
+    dato('viento', w.mode === 'calm' ? 'calma'
+      : (w.direction ? w.direction + '/' : 'VRB ') + (w.speed || '—') + (w.gust ? 'G' + w.gust : ''));
+    dato('visib', m.obs.visibility.value ? m.obs.visibility.value + ' ' + m.obs.visibility.unit.toLowerCase() : '');
+    dato('altim', m.obs.altimeter || '');
+    var edad = minutosDelMetar();
+    if (edad !== null) dato('obs', (m.obs.time || '----') + 'Z', edad >= 60 ? 'alerta' : '');
+    el.paireDatos.innerHTML = datos.join('') || '<span class="vacio">sin datos</span>';
+  }
+
+  /* ================================================================== *
    * Reproduccion
    * ================================================================== */
-  function play() {
+  function play(forzar) {
+    forzar = forzar === true;
     if (!ATIS.speech.supported) {
       status(el.scriptStatus, 'Este navegador no soporta síntesis de voz. Use Chrome o Edge.', 'err');
       return;
     }
     render();
+
+    /* Nada sale al aire sin pasar la verificación. Un ATIS completo no genera
+       ningún aviso, así que esto no estorba en la operación normal. */
+    var chequeo = pintarVerificacion();
+    if (chequeo.avisos.length && !forzar) {
+      el.btnIgual.hidden = chequeo.graves.length > 0;   /* un error no se puede forzar */
+      status(el.scriptStatus, chequeo.graves.length
+        ? 'Hay que corregir lo marcado en rojo antes de transmitir.'
+        : 'Revise lo que falta, o pulse «Transmitir de todos modos».', 'err');
+      return;
+    }
+
+    var libre = el.libreActivo.checked;
     var secuencia = [];
-    if (el.langEs.checked) secuencia.push({ lang: 'es', text: lastScripts.es.speech });
-    if (el.langEn.checked) secuencia.push({ lang: 'en', text: lastScripts.en.speech });
+    if (el.langEs.checked) {
+      var textoEs = libre ? S.paraLocutar(el.libreEs.value.trim(), 'es') : lastScripts.es.speech;
+      if (textoEs) secuencia.push({ lang: 'es', text: textoEs });
+    }
+    if (el.langEn.checked) {
+      var textoEn = libre ? S.paraLocutar(el.libreEn.value.trim(), 'en') : lastScripts.en.speech;
+      if (textoEn) secuencia.push({ lang: 'en', text: textoEn });
+    }
     if (!secuencia.length) {
-      status(el.scriptStatus, 'No hay ningún idioma marcado para transmitir. ' +
-        'Si las casillas están deshabilitadas, falta instalar la voz: vea Ajustes, Voces del sistema.', 'err');
+      status(el.scriptStatus, 'No hay nada que transmitir. ' +
+        'Si las casillas de idioma están deshabilitadas, falta instalar la voz: vea Ajustes, Voces del sistema.', 'err');
       return;
     }
     var ok = ATIS.speech.play(
@@ -4066,13 +4404,35 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (!ok) { status(el.scriptStatus, 'No hay nada que transmitir.', 'err'); return; }
     el.btnPlay.disabled = true;
     el.btnStop.disabled = false;
+    el.pavance.hidden = false;
+    el.preflight.hidden = true;
     document.querySelector('.brand .dot').classList.add('live');
+    prepararAvance();
+  }
+
+  /* ---- Barra de posición dentro del ciclo ---- */
+  var arrastrando = false;
+
+  function prepararAvance() {
+    var fr = ATIS.speech.fragmentos().filter(function (f) { return !f.pausa; });
+    el.posicion.max = String(Math.max(0, ATIS.speech.fragmentos().length - 1));
+    el.posicion.value = '0';
+    el.posTexto.textContent = fr.length + ' fragmentos';
+  }
+
+  function pintarAvance(st) {
+    if (arrastrando) return;
+    var total = st.total || 1;
+    el.posicion.max = String(Math.max(0, total - 1));
+    el.posicion.value = String(Math.max(0, st.chunk - 1));
+    el.posTexto.textContent = st.chunk + ' / ' + total;
   }
 
   function stop() {
     ATIS.speech.stop();
     el.btnPlay.disabled = false;
     el.btnStop.disabled = true;
+    el.pavance.hidden = true;
     document.querySelector('.brand .dot').classList.remove('live');
     el.playState.textContent = 'Detenido';
     el.playState.classList.remove('live');
@@ -4097,6 +4457,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (st.aviso) detalle += ' · ' + st.aviso;
       el.playDetail.textContent = detalle;
       el.playDetail.classList.toggle('warn', !!(st.aviso || st.respaldo));
+      pintarAvance(st);
     });
   }
 
@@ -4318,6 +4679,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     el.pageAjustes.hidden = !esAjustes;
     el.tabAtis.classList.toggle('on', !esAjustes);
     el.tabAjustes.classList.toggle('on', esAjustes);
+    el.saltos.hidden = esAjustes;
     el.tabAtis.setAttribute('aria-selected', String(!esAjustes));
     el.tabAjustes.setAttribute('aria-selected', String(esAjustes));
     try { localStorage.setItem(PAGINA_KEY, cual); } catch (e) { /* ignorado */ }
@@ -4419,7 +4781,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           notamSoloVigentes: el.notamSoloVigentes.checked,
           voices: { es: el.voiceEs.value, en: el.voiceEn.value },
           rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value,
-          langEs: el.langEs.checked, langEn: el.langEn.checked
+          langEs: el.langEs.checked, langEn: el.langEn.checked,
+          libre: { activo: el.libreActivo.checked, es: el.libreEs.value, en: el.libreEn.value }
         }));
       } catch (e) { /* almacenamiento no disponible */ }
     }, 400);
@@ -4469,6 +4832,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
     if (data.langEs !== undefined) el.langEs.checked = data.langEs;
     if (data.langEn !== undefined) el.langEn.checked = data.langEn;
+    if (data.libre) {
+      el.libreActivo.checked = !!data.libre.activo;
+      el.libreEs.value = data.libre.es || '';
+      el.libreEn.value = data.libre.en || '';
+    }
     savedVoices = data.voices || null;
     savedApproachRwy = c.approachRunway || '';
     if (data.notamSoloVigentes !== undefined) el.notamSoloVigentes.checked = data.notamSoloVigentes;
@@ -4632,7 +5000,28 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
     });
 
-    on(el.btnPlay, 'click', play);
+    on(el.btnPlay, 'click', function () { play(false); });
+    on(el.btnIgual, 'click', function () { play(true); });
+    on(el.btnCorregir, 'click', function () {
+      el.preflight.hidden = true;
+      mostrarPagina('pageAtis');
+    });
+
+    on(el.btnPrev, 'click', function () { ATIS.speech.saltar(-1); });
+    on(el.btnNext, 'click', function () { ATIS.speech.saltar(1); });
+    on(el.posicion, 'input', function () { arrastrando = true; el.posTexto.textContent = (+el.posicion.value + 1) + ' / ' + (+el.posicion.max + 1); });
+    on(el.posicion, 'change', function () {
+      arrastrando = false;
+      ATIS.speech.irA(+el.posicion.value);
+    });
+
+    ['libreActivo', 'libreEs', 'libreEn'].forEach(function (id) {
+      on(el[id], 'input', scheduleRender);
+      on(el[id], 'change', scheduleRender);
+    });
+
+    /* La edad de la observación avanza sola */
+    setInterval(function () { pintarEdadMetar(); pintarVerificacion(); }, 30000);
     on(el.btnStop, 'click', stop);
     on(el.btnTestEs, 'click', function () {
       ATIS.speech.setOptions({ voices: { es: el.voiceEs.value }, rate: { es: +el.rate.value } });
@@ -4677,6 +5066,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     on(el.temaOpciones, 'click', function (e) {
       var b = e.target.closest ? e.target.closest('button[data-tema]') : null;
       if (b) aplicarModo(b.dataset.tema, true);
+    });
+
+    on(el.saltos, 'click', function (e) {
+      var b = e.target.closest ? e.target.closest('button[data-ir]') : null;
+      if (!b) return;
+      mostrarPagina('pageAtis');
+      var destino = document.getElementById(b.dataset.ir);
+      if (destino) destino.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
     on(el.tabAtis, 'click', function () { mostrarPagina('pageAtis'); });
