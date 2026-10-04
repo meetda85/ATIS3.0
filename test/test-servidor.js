@@ -4,9 +4,23 @@ const path = require('path');
 const fs = require('fs');
 const assert = require('assert');
 
-const PUERTO = 8123;
+/* Puerto distinto en cada corrida: una prueba anterior no puede estorbar */
+const PUERTO = 8100 + Math.floor(Math.random() * 800);
 const BASE = 'http://127.0.0.1:' + PUERTO;
 const ESTADO = path.join(__dirname, '..', 'servidor', 'estado.json');
+
+/* Todo servidor que arranque la prueba se apaga al terminar, pase lo que pase */
+const hijos = new Set();
+function arrancarServidor() {
+  const h = spawn('node', [path.join(__dirname, '..', 'servidor', 'servidor.js'), '--puerto', String(PUERTO)],
+    { stdio: 'ignore' });
+  hijos.add(h);
+  h.on('exit', () => hijos.delete(h));
+  return h;
+}
+function apagarTodo() { for (const h of hijos) { try { h.kill('SIGKILL'); } catch (e) { /* ignorado */ } } }
+process.on('exit', apagarTodo);
+['SIGINT', 'SIGTERM', 'uncaughtException'].forEach(ev => process.on(ev, () => { apagarTodo(); process.exit(1); }));
 
 let pass = 0, fail = 0;
 const dormir = (ms) => new Promise(r => setTimeout(r, ms));
@@ -18,11 +32,18 @@ const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json())
 
 (async () => {
   try { fs.unlinkSync(ESTADO); } catch (e) { /* no existía */ }
-  const srv = spawn('node', [path.join(__dirname, '..', 'servidor', 'servidor.js'), '--puerto', String(PUERTO)],
-    { stdio: 'ignore' });
+  const srv = arrancarServidor();
   await dormir(1200);
 
-  console.log('\nServidor de control remoto');
+  console.log('\nServidor de control remoto (puerto ' + PUERTO + ')');
+
+  /* Si el puerto estuviera ocupado por otra cosa, mejor saberlo de inmediato */
+  const inicial = await api('/api/estado').catch(() => null);
+  if (!inicial) { console.error('  El servidor no respondió.'); apagarTodo(); process.exit(1); }
+  if (inicial.version !== 0) {
+    console.error('  Hay otro servidor en el puerto ' + PUERTO + '; se aborta.');
+    apagarTodo(); process.exit(1);
+  }
 
   await test('sirve la aplicación', async () => {
     const r = await fetch(BASE + '/');
@@ -105,12 +126,12 @@ const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json())
   await test('el estado sobrevive al reinicio del servidor', async () => {
     srv.kill('SIGKILL');
     await dormir(600);
-    const srv2 = spawn('node', [path.join(__dirname, '..', 'servidor', 'servidor.js'), '--puerto', String(PUERTO)],
-      { stdio: 'ignore' });
+    const srv2 = arrancarServidor();
     await dormir(1200);
     const r = await api('/api/estado');
     assert.strictEqual(r.datos.letter, 'F', 'perdió el estado al reiniciar');
     srv2.kill('SIGKILL');
+    await dormir(300);
   });
 
   try { fs.unlinkSync(ESTADO); } catch (e) { /* ignorado */ }
