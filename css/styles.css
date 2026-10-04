@@ -757,3 +757,46 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   font-size: 11px; color: var(--muted); text-transform: none;
   letter-spacing: 0; font-weight: 400; margin-top: 2px;
 }
+
+/* ---------- Control remoto ---------- */
+.enlace-badge {
+  margin-left: auto; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+  font-weight: 700; padding: 3px 9px; border-radius: var(--r-pill);
+  border: 1px solid var(--line); color: var(--muted); background: var(--surface-2);
+}
+.enlace-badge.ok { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
+.enlace-badge.mal { border-color: var(--red); color: var(--red); background: var(--red-weak); }
+.equipos { display: flex; flex-direction: column; gap: 5px; }
+.equipo {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-ctl);
+  background: var(--surface-2); font-size: 12.5px;
+}
+.equipo .eqp {
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700;
+  padding: 2px 8px; border-radius: var(--r-pill);
+  border: 1px solid var(--line); color: var(--muted);
+}
+.equipo .eqp.transmisor { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
+.equipo .eqn { flex: 1; font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
+.badge.enaire { border-color: var(--red); color: var(--red); background: var(--red-weak); }
+
+/* En modo control, la consola deja claro que el audio sale en otra máquina */
+body.modo-control .player { border-top: 2px solid var(--blue); }
+body.modo-control .pstate-main::after {
+  content: ' · CONTROL REMOTO'; color: var(--blue); font-size: 11px; letter-spacing: .12em;
+}
+
+/* ---------- Datos recibidos, en espera del corte de ciclo ---------- */
+.pendiente {
+  flex-basis: 100%; order: -2;
+  display: flex; align-items: center; gap: 11px;
+  margin: -12px -22px 4px; padding: 10px 22px;
+  background: rgba(10, 86, 176, .10); border-bottom: 1px solid var(--blue);
+  font-size: 13px; color: var(--text-2);
+}
+.pendiente .pendpunto {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--blue); flex: none;
+  animation: latido 1.6s ease-in-out infinite;
+}
+.pendiente button { margin-left: auto; }

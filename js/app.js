@@ -41,7 +41,9 @@
       'tabAtis', 'tabAjustes', 'pageAtis', 'pageAjustes', 'temaOpciones', 'saltos',
       'libreActivo', 'libreEs', 'libreEn', 'cardLibre',
       'pavance', 'posicion', 'posTexto', 'btnPrev', 'btnNext', 'paireDatos',
-      'preflight', 'preflightLista', 'btnIgual', 'btnCorregir', 'metarEdad'
+      'preflight', 'preflightLista', 'btnIgual', 'btnCorregir', 'metarEdad',
+      'enlaceEstado', 'enlaceDetalle', 'enlacePapel', 'enlaceEquipos',
+      'pendiente', 'pendienteTexto', 'btnAplicarYa'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -54,6 +56,7 @@
     setLetter(el.letterBig.textContent || 'A');
     iniciarTema();
     iniciarPaginas();
+    iniciarEnlace();
     startClock();
     initVoices();
     renderLog();
@@ -919,6 +922,116 @@
   }
 
   /* ================================================================== *
+   * Control remoto: esta PC transmite, otra manda los datos
+   * ================================================================== */
+  var enlaceListo = false;
+  var aplicandoRemoto = false;
+
+  function nombreEquipo() {
+    var papel = ATIS.enlace.estado().papel === 'control' ? 'control' : 'torre';
+    return papel + '@' + (location.hostname || 'local');
+  }
+
+  function iniciarEnlace() {
+    if (!ATIS.enlace.disponible()) { pintarEnlace(ATIS.enlace.estado()); return; }
+
+    ATIS.enlace.alCambiar(pintarEnlace);
+    ATIS.enlace.iniciar({
+      nombre: nombreEquipo,
+      recoger: estadoCompartido,
+      aplicar: function (datos, origen) {
+        pendienteRemoto = { datos: datos, origen: origen || 'control remoto' };
+        /* Nunca a media frase: si se está transmitiendo, espera al corte de ciclo */
+        if (ATIS.speech.alFinDeCiclo(aplicarRemotoAhora)) pintarPendiente();
+      },
+      aire: function () {
+        var st = ATIS.speech.state;
+        return {
+          transmitiendo: st.playing,
+          ciclo: st.cycle,
+          letra: el.letterBig.textContent,
+          pistas: runwaysInUse.join(',')
+        };
+      }
+    });
+    enlaceListo = true;
+  }
+
+  var pendienteRemoto = null;
+
+  /* Aplica los datos recibidos y, si se estaba transmitiendo, reinicia el bucle
+     para que el ciclo siguiente salga ya con la información nueva. */
+  function aplicarRemotoAhora() {
+    if (!pendienteRemoto) return;
+    var p = pendienteRemoto;
+    pendienteRemoto = null;
+    var transmitiendo = ATIS.speech.state.playing;
+
+    aplicandoRemoto = true;
+    try { aplicarCompartido(p.datos, false); } finally { aplicandoRemoto = false; }
+
+    el.pendiente.hidden = true;
+    status(el.scriptStatus, 'Datos de ' + p.origen + ' aplicados a las ' +
+      new Date().toLocaleTimeString() + '.', 'ok');
+    if (transmitiendo) play(true);     /* el bucle arranca con el guion nuevo */
+  }
+
+  function pintarPendiente() {
+    if (!pendienteRemoto) { el.pendiente.hidden = true; return; }
+    el.pendiente.hidden = false;
+    el.pendienteTexto.textContent = 'Datos nuevos de ' + pendienteRemoto.origen +
+      ': entran al terminar el ciclo en curso.';
+  }
+
+  function pintarEnlace(st) {
+    var badge = el.enlaceEstado, detalle = el.enlaceDetalle;
+    if (!badge) return;
+
+    if (!st.disponible) {
+      badge.textContent = 'sin servidor';
+      badge.className = 'enlace-badge';
+      detalle.innerHTML = 'La aplicación se abrió como archivo suelto, así que trabaja sola. ' +
+        'Para controlarla desde otra computadora hay que iniciarla con <code>SERVIDOR.bat</code>.';
+      el.enlacePapel.hidden = true;
+      el.enlaceEquipos.innerHTML = '';
+      return;
+    }
+
+    el.enlacePapel.hidden = false;
+    badge.textContent = st.conectado ? 'conectado' : 'sin conexión';
+    badge.className = 'enlace-badge ' + (st.conectado ? 'ok' : 'mal');
+
+    var partes = [];
+    partes.push('Esta computadora es <b>' +
+      (st.papel === 'control' ? 'control remoto' : 'la que transmite') + '</b>.');
+    partes.push('Dirección para las demás: <code>' + escapeHtml(st.direccion) + '</code>');
+    if (st.ultimaRecepcion) partes.push('Último dato recibido: ' + st.ultimaRecepcion.toLocaleTimeString() +
+      (st.origen ? ' de ' + escapeHtml(st.origen) : ''));
+    if (st.ultimoEnvio) partes.push('Último envío: ' + st.ultimoEnvio.toLocaleTimeString());
+    if (!st.conectado && st.error) partes.push('<span class="status err">Sin contacto con el servidor (' +
+      escapeHtml(st.error) + '). La transmisión sigue con los últimos datos.</span>');
+    detalle.innerHTML = partes.join('<br>');
+
+    Array.prototype.forEach.call(el.enlacePapel.querySelectorAll('button'), function (b) {
+      b.classList.toggle('on', b.dataset.papel === st.papel);
+    });
+
+    el.enlaceEquipos.innerHTML = (st.equipos || []).map(function (eq) {
+      var aire = eq.aire && eq.aire.transmitiendo
+        ? '<span class="badge enaire">al aire · ciclo ' + eq.aire.ciclo + ' · info ' + escapeHtml(eq.aire.letra || '') + '</span>'
+        : '';
+      return '<div class="equipo"><span class="eqp ' + eq.papel + '">' + eq.papel + '</span>' +
+        '<span class="eqn">' + escapeHtml(eq.nombre) + '</span>' + aire + '</div>';
+    }).join('') || '<span class="status">Nadie más conectado.</span>';
+
+    /* En modo control esta PC no saca audio: manda datos */
+    var control = st.papel === 'control';
+    el.btnPlay.disabled = control || ATIS.speech.state.playing;
+    el.btnPlay.title = control ? 'Esta computadora es control remoto: el audio sale en la PC de la torre' : '';
+    document.body.classList.toggle('modo-control', control);
+  }
+
+  /* ================================================================== *
    * Modo claro / oscuro
    * El modo elegido se conserva entre sesiones; si nunca se ha elegido, se
    * sigue el del sistema operativo.
@@ -1064,36 +1177,52 @@
   /* ================================================================== *
    * Persistencia
    * ================================================================== */
+  /* Lo operativo: el ATIS en sí. Es lo que viaja entre computadoras. */
+  function estadoCompartido() {
+    var m = readModel();
+    return {
+      metar: el.metarRaw.value,
+      letter: el.letterBig.textContent,
+      obs: m.obs, cfg: m.cfg,
+      runwaysInUse: runwaysInUse,
+      includeNotams: el.includeNotams.checked,
+      includeHpa: el.includeHpa.checked,
+      notams: notams.map(function (n) {
+        return {
+          raw: n.raw, include: n.include,
+          meta: {
+            id: n.meta.id, location: n.meta.location, codigoQ: n.meta.codigoQ,
+            propio: n.meta.propio,
+            desde: n.meta.desde ? n.meta.desde.toISOString() : null,
+            hasta: n.meta.hasta ? n.meta.hasta.toISOString() : null
+          }
+        };
+      }),
+      notamSoloVigentes: el.notamSoloVigentes.checked,
+      libre: { activo: el.libreActivo.checked, es: el.libreEs.value, en: el.libreEn.value }
+    };
+  }
+
+  /* Lo de esta máquina: voces instaladas, velocidad, idiomas disponibles.
+     No se comparte, porque cada computadora tiene lo suyo. */
+  function estadoLocal() {
+    return {
+      voices: { es: el.voiceEs.value, en: el.voiceEn.value },
+      rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value,
+      langEs: el.langEs.checked, langEn: el.langEn.checked
+    };
+  }
+
   function save() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       try {
-        var m = readModel();
-        localStorage.setItem(STORE_KEY, JSON.stringify({
-          metar: el.metarRaw.value,
-          letter: el.letterBig.textContent,
-          obs: m.obs, cfg: m.cfg,
-          runwaysInUse: runwaysInUse,
-          includeNotams: el.includeNotams.checked,
-          includeHpa: el.includeHpa.checked,
-          notams: notams.map(function (n) {
-            return {
-              raw: n.raw, include: n.include,
-              meta: {
-                id: n.meta.id, location: n.meta.location, codigoQ: n.meta.codigoQ,
-                propio: n.meta.propio,
-                desde: n.meta.desde ? n.meta.desde.toISOString() : null,
-                hasta: n.meta.hasta ? n.meta.hasta.toISOString() : null
-              }
-            };
-          }),
-          notamSoloVigentes: el.notamSoloVigentes.checked,
-          voices: { es: el.voiceEs.value, en: el.voiceEn.value },
-          rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value,
-          langEs: el.langEs.checked, langEn: el.langEn.checked,
-          libre: { activo: el.libreActivo.checked, es: el.libreEs.value, en: el.libreEn.value }
-        }));
+        var datos = estadoCompartido();
+        var local = estadoLocal();
+        for (var k in local) if (Object.prototype.hasOwnProperty.call(local, k)) datos[k] = local[k];
+        localStorage.setItem(STORE_KEY, JSON.stringify(datos));
       } catch (e) { /* almacenamiento no disponible */ }
+      if (enlaceListo) ATIS.enlace.enviar();
     }, 400);
   }
 
@@ -1101,6 +1230,13 @@
     var data;
     try { data = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { data = null; }
     if (!data) { renderNotams(); return; }
+    aplicarCompartido(data, true);
+    aplicarLocal(data);
+  }
+
+  /* Aplica el ATIS recibido (del disco o de otra computadora) */
+  function aplicarCompartido(data, inicial) {
+    if (!data) return;
     var o = data.obs || {}, c = data.cfg || {};
     el.metarRaw.value = data.metar || '';
     lastMetar = data.metar || '';
@@ -1131,24 +1267,18 @@
     runwaysInUse = data.runwaysInUse || [];
     el.runwayCondition.value = c.runwayCondition || '';
     el.approach.value = c.approach || '';
+    savedApproachRwy = c.approachRunway || '';
     el.additionalEs.value = c.additionalEs || '';
     el.additionalEn.value = c.additionalEn || '';
     el.includeNotams.checked = data.includeNotams !== false;
     el.includeHpa.checked = !!data.includeHpa;
-    if (data.rate) el.rate.value = data.rate;
-    el.rateVal.textContent = (+el.rate.value).toFixed(2);
-    if (data.gap) el.gap.value = data.gap;
-    if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
-    if (data.langEs !== undefined) el.langEs.checked = data.langEs;
-    if (data.langEn !== undefined) el.langEn.checked = data.langEn;
+    if (data.notamSoloVigentes !== undefined) el.notamSoloVigentes.checked = data.notamSoloVigentes;
     if (data.libre) {
       el.libreActivo.checked = !!data.libre.activo;
       el.libreEs.value = data.libre.es || '';
       el.libreEn.value = data.libre.en || '';
     }
-    savedVoices = data.voices || null;
-    savedApproachRwy = c.approachRunway || '';
-    if (data.notamSoloVigentes !== undefined) el.notamSoloVigentes.checked = data.notamSoloVigentes;
+    notams = [];
     (data.notams || []).forEach(function (n) {
       var es = ATIS.notam.parse(n.raw, 'es');
       var m = n.meta || {};
@@ -1165,6 +1295,18 @@
       });
     });
     renderNotams();
+    if (!inicial) { applyAirport(el.station.value, true); paintChips(); render(); }
+  }
+
+  function aplicarLocal(data) {
+    if (!data) return;
+    if (data.rate) el.rate.value = data.rate;
+    el.rateVal.textContent = (+el.rate.value).toFixed(2);
+    if (data.gap) el.gap.value = data.gap;
+    if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
+    if (data.langEs !== undefined) el.langEs.checked = data.langEs;
+    if (data.langEn !== undefined) el.langEn.checked = data.langEn;
+    savedVoices = data.voices || null;
   }
 
   var savedVoices = null, savedApproachRwy = '';
@@ -1383,6 +1525,18 @@
     on(el.btnTema, 'click', function () {
       aplicarModo(temaActual() === 'dark' ? 'light' : 'dark', true);
     });
+    on(el.btnAplicarYa, 'click', aplicarRemotoAhora);
+
+    on(el.enlacePapel, 'click', function (e) {
+      var b = e.target.closest ? e.target.closest('button[data-papel]') : null;
+      if (!b) return;
+      if (b.dataset.papel === 'transmisor' || confirm(
+          'En modo control remoto esta computadora deja de sacar audio y solo manda ' +
+          'los datos a la PC de la torre. ¿Continuar?')) {
+        ATIS.enlace.fijarPapel(b.dataset.papel);
+      }
+    });
+
     on(el.temaOpciones, 'click', function (e) {
       var b = e.target.closest ? e.target.closest('button[data-tema]') : null;
       if (b) aplicarModo(b.dataset.tema, true);

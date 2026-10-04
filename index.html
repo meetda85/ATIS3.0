@@ -315,6 +315,28 @@
 
   <div class="page" id="pageAjustes" role="tabpanel" hidden>
 
+    <!-- ============ CONTROL REMOTO ============ -->
+    <section class="card span2">
+      <h2>Control remoto <span class="enlace-badge" id="enlaceEstado">sin servidor</span></h2>
+      <p class="help" id="enlaceDetalle"></p>
+      <div class="field" id="enlacePapel" hidden>
+        <span>Papel de esta computadora</span>
+        <div class="segmented">
+          <button type="button" data-papel="transmisor">Transmite el audio</button>
+          <button type="button" data-papel="control">Control remoto</button>
+        </div>
+      </div>
+      <h3>Equipos conectados</h3>
+      <div id="enlaceEquipos" class="equipos"></div>
+      <p class="help">
+        La PC de la torre transmite; cualquier otra de la misma red abre esa dirección y
+        manda los datos. Los cambios entran <b>al terminar el ciclo en curso</b>, nunca a
+        media frase. Si se cae la red o el servidor, la PC de la torre <b>sigue al aire</b>
+        con los últimos datos recibidos: el enlace alimenta información, no manda sobre el
+        audio.
+      </p>
+    </section>
+
     <!-- ============ APARIENCIA ============ -->
     <section class="card">
       <h2>Apariencia</h2>
@@ -427,6 +449,13 @@
 
 <!-- ============ BARRA DE REPRODUCCIÓN ============ -->
 <footer class="player">
+  <!-- datos recibidos del control remoto, en espera del corte de ciclo -->
+  <aside class="pendiente" id="pendiente" hidden>
+    <span class="pendpunto"></span>
+    <span id="pendienteTexto"></span>
+    <button id="btnAplicarYa" class="small">Aplicar ahora</button>
+  </aside>
+
   <!-- verificación previa: dentro de la consola, para que nunca se encimen -->
   <aside class="preflight" id="preflight" hidden>
   <div class="pfhead">
@@ -488,6 +517,7 @@
 <script src="js/data/airports.js"></script>
 <script src="js/lib/numbers.js"></script>
 <script src="js/vendor/xlsx.full.min.js"></script>
+<script src="js/enlace.js"></script>
 <script src="js/metar.js"></script>
 <script src="js/notam.js"></script>
 <script src="js/fns.js"></script>

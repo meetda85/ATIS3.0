@@ -53,6 +53,33 @@ deja en el portapapeles la lista completa, para pedir apoyo o comparar entre equ
 Ajustes recomendados: velocidad **0.85–0.95**, pausa entre frases **250 ms**, pausa entre
 idiomas **3 s**.
 
+## Control remoto desde otra computadora
+
+La PC de la torre transmite; cualquier otra de la misma red puede alimentarle los datos.
+
+1. En la PC de la torre, doble clic en **`SERVIDOR.bat`**. Abre el ATIS y deja una ventana
+   negra con las direcciones. Esa ventana se queda abierta.
+2. En la otra PC, abrir el navegador y escribir la dirección que mostró, por ejemplo
+   `http://192.168.1.50:8080/`. Aparece el mismo programa.
+3. Listo: lo que se escriba en cualquiera de las dos aparece en la otra.
+
+Quien abre en `localhost` queda como **transmisor** (saca el audio); las demás quedan como
+**control remoto** y su botón TRANSMITIR se deshabilita, para que el audio salga en un solo
+lugar. El papel se cambia en *Ajustes → Control remoto*, donde además se ve quién está
+conectado y si la torre está al aire.
+
+**Los cambios entran al terminar el ciclo en curso**, nunca a media frase. Mientras tanto,
+la consola avisa «Datos nuevos de …: entran al terminar el ciclo», con un botón *Aplicar
+ahora* para no esperar.
+
+**Si se cae la red o el servidor, la PC de la torre sigue al aire** con los últimos datos
+recibidos. El enlace alimenta información; no manda sobre el audio. Esto está probado:
+se mata el servidor y la transmisión continúa.
+
+Requiere **Node.js** en la PC de la torre (solo ahí). Si no está, `SERVIDOR.bat` explica
+las dos formas de ponerlo, incluida la que no instala nada. Sin Node, el ATIS funciona
+igual que siempre; lo único que no hay es control remoto.
+
 ## Dos páginas
 
 La aplicación está dividida en dos pestañas:
@@ -157,6 +184,8 @@ ocho». En pantalla el texto se conserva tal como viene en el NOTAM.
 
 ```
 INSTALAR.bat          instalador para Windows
+SERVIDOR.bat          arranca el servidor de control remoto
+servidor/servidor.js  servidor local: sirve la app y guarda el estado compartido
 DESINSTALAR.bat       desinstalador
 install/              scripts del instalador
 index.html            interfaz
@@ -167,6 +196,7 @@ js/lib/numbers.js     locución de números, alfabeto OACI y designadores de pis
 js/metar.js           decodificador METAR
 js/notam.js           decodificador y traductor de NOTAM
 js/fns.js             lectura de la descarga del FNS
+js/enlace.js          sincronización con el servidor (control remoto)
 js/vendor/            librería para leer hojas de cálculo (SheetJS, licencia Apache 2.0)
 js/atis.js            modelo de observación y generación del guion ES/EN
 js/speech.js          motor de voz y bucle

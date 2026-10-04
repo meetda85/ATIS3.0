@@ -4,8 +4,9 @@
   "description": "Sistema ATIS de laboratorio: decodifica METAR y NOTAM y los transmite en bucle en espanol e ingles",
   "private": true,
   "scripts": {
-    "start": "npx --yes http-server . -p 8080 -c-1",
-    "test": "node test/test.js && node test/test-voz.js"
+    "start": "node servidor/servidor.js",
+    "servidor": "node servidor/servidor.js",
+    "test": "node test/test.js && node test/test-voz.js && node test/test-servidor.js"
   },
   "license": "MIT"
 }

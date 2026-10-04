@@ -760,6 +760,49 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   letter-spacing: 0; font-weight: 400; margin-top: 2px;
 }
 
+/* ---------- Control remoto ---------- */
+.enlace-badge {
+  margin-left: auto; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+  font-weight: 700; padding: 3px 9px; border-radius: var(--r-pill);
+  border: 1px solid var(--line); color: var(--muted); background: var(--surface-2);
+}
+.enlace-badge.ok { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
+.enlace-badge.mal { border-color: var(--red); color: var(--red); background: var(--red-weak); }
+.equipos { display: flex; flex-direction: column; gap: 5px; }
+.equipo {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-ctl);
+  background: var(--surface-2); font-size: 12.5px;
+}
+.equipo .eqp {
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700;
+  padding: 2px 8px; border-radius: var(--r-pill);
+  border: 1px solid var(--line); color: var(--muted);
+}
+.equipo .eqp.transmisor { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
+.equipo .eqn { flex: 1; font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
+.badge.enaire { border-color: var(--red); color: var(--red); background: var(--red-weak); }
+
+/* En modo control, la consola deja claro que el audio sale en otra máquina */
+body.modo-control .player { border-top: 2px solid var(--blue); }
+body.modo-control .pstate-main::after {
+  content: ' · CONTROL REMOTO'; color: var(--blue); font-size: 11px; letter-spacing: .12em;
+}
+
+/* ---------- Datos recibidos, en espera del corte de ciclo ---------- */
+.pendiente {
+  flex-basis: 100%; order: -2;
+  display: flex; align-items: center; gap: 11px;
+  margin: -12px -22px 4px; padding: 10px 22px;
+  background: rgba(10, 86, 176, .10); border-bottom: 1px solid var(--blue);
+  font-size: 13px; color: var(--text-2);
+}
+.pendiente .pendpunto {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--blue); flex: none;
+  animation: latido 1.6s ease-in-out infinite;
+}
+.pendiente button { margin-left: auto; }
+
 </style>
 
 <script>
@@ -1070,6 +1113,28 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
 
   <div class="page" id="pageAjustes" role="tabpanel" hidden>
 
+    <!-- ============ CONTROL REMOTO ============ -->
+    <section class="card span2">
+      <h2>Control remoto <span class="enlace-badge" id="enlaceEstado">sin servidor</span></h2>
+      <p class="help" id="enlaceDetalle"></p>
+      <div class="field" id="enlacePapel" hidden>
+        <span>Papel de esta computadora</span>
+        <div class="segmented">
+          <button type="button" data-papel="transmisor">Transmite el audio</button>
+          <button type="button" data-papel="control">Control remoto</button>
+        </div>
+      </div>
+      <h3>Equipos conectados</h3>
+      <div id="enlaceEquipos" class="equipos"></div>
+      <p class="help">
+        La PC de la torre transmite; cualquier otra de la misma red abre esa dirección y
+        manda los datos. Los cambios entran <b>al terminar el ciclo en curso</b>, nunca a
+        media frase. Si se cae la red o el servidor, la PC de la torre <b>sigue al aire</b>
+        con los últimos datos recibidos: el enlace alimenta información, no manda sobre el
+        audio.
+      </p>
+    </section>
+
     <!-- ============ APARIENCIA ============ -->
     <section class="card">
       <h2>Apariencia</h2>
@@ -1182,6 +1247,13 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
 
 <!-- ============ BARRA DE REPRODUCCIÓN ============ -->
 <footer class="player">
+  <!-- datos recibidos del control remoto, en espera del corte de ciclo -->
+  <aside class="pendiente" id="pendiente" hidden>
+    <span class="pendpunto"></span>
+    <span id="pendienteTexto"></span>
+    <button id="btnAplicarYa" class="small">Aplicar ahora</button>
+  </aside>
+
   <!-- verificación previa: dentro de la consola, para que nunca se encimen -->
   <aside class="preflight" id="preflight" hidden>
   <div class="pfhead">
@@ -1915,6 +1987,224 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
 
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* js/enlace.js */
+/* ATIS 3.0 — Enlace con el servidor local (control remoto)
+ *
+ * La PC de la torre transmite; otra PC de la misma red manda los datos. El
+ * enlace solo alimenta información: si el servidor se cae o la red se corta,
+ * la PC que transmite sigue al aire con lo último que recibió.
+ *
+ * Solo se activa cuando la página se abrió por http, es decir, servida por
+ * servidor/servidor.js. Abierta como archivo suelto, el programa funciona
+ * igual que siempre y este módulo queda inerte.
+ */
+(function (global) {
+  'use strict';
+  var ATIS = global.ATIS = global.ATIS || {};
+
+  var CLAVE_PAPEL = 'atis3.papel';
+  var CLAVE_ID = 'atis3.equipoId';
+
+  var cfg = null;
+  var activo = false;
+  var fuente = null;          /* EventSource */
+  var sondeo = null;          /* respaldo por sondeo */
+  var latido = null;
+  var enviando = null;
+  var oyentes = [];
+  var ultimoJSON = null;   /* lo último enviado o recibido: evita el ida y vuelta */
+
+  var est = {
+    disponible: false,
+    conectado: false,
+    papel: 'transmisor',
+    version: 0,
+    ultimoEnvio: null,
+    ultimaRecepcion: null,
+    origen: '',
+    equipos: [],
+    error: ''
+  };
+
+  function disponible() {
+    return global.location && /^https?:$/.test(global.location.protocol);
+  }
+
+  function esLocal() {
+    var h = global.location.hostname;
+    return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '';
+  }
+
+  function idEquipo() {
+    var id = null;
+    try { id = localStorage.getItem(CLAVE_ID); } catch (e) { /* ignorado */ }
+    if (!id) {
+      id = 'eq-' + Math.random().toString(36).slice(2, 8) + '-' + Date.now().toString(36).slice(-4);
+      try { localStorage.setItem(CLAVE_ID, id); } catch (e) { /* ignorado */ }
+    }
+    return id;
+  }
+
+  function papelGuardado() {
+    var p = null;
+    try { p = localStorage.getItem(CLAVE_PAPEL); } catch (e) { /* ignorado */ }
+    if (p === 'transmisor' || p === 'control') return p;
+    /* Por omisión: la PC donde corre el servidor transmite; las demás controlan */
+    return esLocal() ? 'transmisor' : 'control';
+  }
+
+  function fijarPapel(papel) {
+    est.papel = (papel === 'control') ? 'control' : 'transmisor';
+    try { localStorage.setItem(CLAVE_PAPEL, est.papel); } catch (e) { /* ignorado */ }
+    avisar();
+  }
+
+  function avisar() {
+    oyentes.forEach(function (cb) { try { cb(estado()); } catch (e) { /* ignorado */ } });
+  }
+
+  function estado() {
+    return {
+      disponible: est.disponible, conectado: est.conectado, papel: est.papel,
+      version: est.version, ultimoEnvio: est.ultimoEnvio, ultimaRecepcion: est.ultimaRecepcion,
+      origen: est.origen, equipos: est.equipos.slice(), error: est.error,
+      direccion: direccion()
+    };
+  }
+
+  function direccion() {
+    if (!disponible()) return '';
+    return global.location.protocol + '//' + global.location.host + '/';
+  }
+
+  function pedir(ruta, opciones) {
+    return fetch(ruta, Object.assign({ cache: 'no-store' }, opciones || {}))
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      });
+  }
+
+  /* ---- Traer el estado y aplicarlo ---- */
+  function traer(forzar) {
+    return pedir('/api/estado').then(function (r) {
+      est.conectado = true;
+      est.error = '';
+      if (!r || !r.datos) { est.version = r ? r.version : 0; avisar(); return false; }
+      if (!forzar && r.version <= est.version) { avisar(); return false; }
+      est.version = r.version;
+      est.origen = r.origen || '';
+      est.ultimaRecepcion = new Date();
+      try { ultimoJSON = JSON.stringify(r.datos); } catch (e) { ultimoJSON = null; }
+      cfg.aplicar(r.datos, r.origen);
+      avisar();
+      return true;
+    }).catch(function (e) {
+      est.conectado = false;
+      est.error = e.message;
+      avisar();
+      return false;
+    });
+  }
+
+  /* ---- Mandar el estado al servidor ---- */
+  function enviar() {
+    if (!activo) return;
+    clearTimeout(enviando);
+    enviando = setTimeout(function () {
+      var datos, texto;
+      try { datos = cfg.recoger(); texto = JSON.stringify(datos); } catch (e) { return; }
+      /* Si es idéntico a lo último que pasó por aquí, no hay nada que mandar:
+         así una computadora no devuelve el eco de lo que acaba de recibir. */
+      if (texto === ultimoJSON) return;
+      ultimoJSON = texto;
+      pedir('/api/estado', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origen: cfg.nombre(), datos: datos })
+      }).then(function (r) {
+        est.conectado = true;
+        est.error = '';
+        est.version = r.version;          /* lo nuestro no se vuelve a aplicar */
+        est.ultimoEnvio = new Date();
+        avisar();
+      }).catch(function (e) {
+        est.conectado = false;
+        est.error = e.message;
+        avisar();
+      });
+    }, 600);
+  }
+
+  /* ---- Avisos del servidor, con sondeo de respaldo ---- */
+  function escuchar() {
+    if (!global.EventSource) return;
+    try { fuente = new EventSource('/api/eventos'); } catch (e) { return; }
+
+    fuente.addEventListener('estado', function (ev) {
+      var d = {};
+      try { d = JSON.parse(ev.data); } catch (e) { /* ignorado */ }
+      est.conectado = true;
+      if (d.version && d.version > est.version) traer(false);
+      else avisar();
+    });
+    fuente.onopen = function () { est.conectado = true; est.error = ''; avisar(); };
+    fuente.onerror = function () { est.conectado = false; avisar(); };
+  }
+
+  function mandarLatido() {
+    pedir('/api/latido', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: idEquipo(), nombre: cfg.nombre(), papel: est.papel, aire: cfg.aire ? cfg.aire() : null
+      })
+    }).then(function (r) {
+      est.conectado = true;
+      est.equipos = r.equipos || [];
+      if (r.version > est.version) traer(false); else avisar();
+    }).catch(function () { est.conectado = false; avisar(); });
+  }
+
+  /* ---- Arranque ---- */
+  function iniciar(opciones) {
+    cfg = opciones || {};
+    est.disponible = disponible();
+    if (!est.disponible) { avisar(); return false; }
+
+    activo = true;
+    est.papel = papelGuardado();
+
+    traer(true);
+    escuchar();
+    mandarLatido();
+    latido = setInterval(mandarLatido, 10000);
+    /* Respaldo por si el flujo de avisos se cae */
+    sondeo = setInterval(function () { if (!fuente || fuente.readyState !== 1) traer(false); }, 7000);
+    avisar();
+    return true;
+  }
+
+  function detener() {
+    activo = false;
+    clearInterval(latido); clearInterval(sondeo); clearTimeout(enviando);
+    if (fuente) { try { fuente.close(); } catch (e) { /* ignorado */ } fuente = null; }
+  }
+
+  ATIS.enlace = {
+    disponible: disponible,
+    iniciar: iniciar,
+    detener: detener,
+    enviar: enviar,
+    traer: traer,
+    estado: estado,
+    fijarPapel: fijarPapel,
+    alCambiar: function (cb) { oyentes.push(cb); }
+  };
+})(this);
+
+</script>
 <script>
 /* js/metar.js */
 /* ATIS 3.0 - Decodificador METAR / SPECI */
@@ -3298,6 +3588,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   var enCurso = false;
   var ultimaActividad = 0;
   var itemActual = null;
+  var finDeCiclo = [];   /* tareas que esperan el corte entre ciclos */
 
   function limpiarTimer() { if (timer) { clearTimeout(timer); timer = null; } }
   function esperar(ms, fn) {
@@ -3365,6 +3656,13 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     if (idx >= chunks.length) {
       state.cycle++;
       anotar('ciclo', { detalle: 'inicia el ciclo ' + state.cycle + ', fragmentos logrados ' + exitosCiclo });
+      /* Punto seguro para aplicar datos nuevos: entre un ciclo y el siguiente,
+         nunca a media frase. */
+      if (finDeCiclo.length) {
+        var pendientes = finDeCiclo.slice();
+        finDeCiclo = [];
+        pendientes.forEach(function (cb) { try { cb(); } catch (e) { /* ignorado */ } });
+      }
       fallosIdioma = {};
       if (!options.loop) { stop(); return; }
       idx = 0;
@@ -3697,6 +3995,13 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     play: play, stop: stop, pause: pause, resume: resume,
     setOptions: setOptions, onState: onState, test: test,
     fragmentos: fragmentos, irA: irA, saltar: saltar,
+    /* Ejecuta la tarea al terminar el ciclo en curso; si no se transmite, ahora mismo */
+    alFinDeCiclo: function (cb) {
+      if (!state.playing) { cb(); return false; }
+      finDeCiclo.push(cb);
+      return true;
+    },
+    ciclosPendientes: function () { return finDeCiclo.length; },
     registro: function () { return registro.slice(); },
     onLog: function (cb) { logCbs.push(cb); },
     limpiarRegistro: function () { registro = []; },
@@ -3752,7 +4057,9 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
       'tabAtis', 'tabAjustes', 'pageAtis', 'pageAjustes', 'temaOpciones', 'saltos',
       'libreActivo', 'libreEs', 'libreEn', 'cardLibre',
       'pavance', 'posicion', 'posTexto', 'btnPrev', 'btnNext', 'paireDatos',
-      'preflight', 'preflightLista', 'btnIgual', 'btnCorregir', 'metarEdad'
+      'preflight', 'preflightLista', 'btnIgual', 'btnCorregir', 'metarEdad',
+      'enlaceEstado', 'enlaceDetalle', 'enlacePapel', 'enlaceEquipos',
+      'pendiente', 'pendienteTexto', 'btnAplicarYa'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -3765,6 +4072,7 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     setLetter(el.letterBig.textContent || 'A');
     iniciarTema();
     iniciarPaginas();
+    iniciarEnlace();
     startClock();
     initVoices();
     renderLog();
@@ -4630,6 +4938,116 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   }
 
   /* ================================================================== *
+   * Control remoto: esta PC transmite, otra manda los datos
+   * ================================================================== */
+  var enlaceListo = false;
+  var aplicandoRemoto = false;
+
+  function nombreEquipo() {
+    var papel = ATIS.enlace.estado().papel === 'control' ? 'control' : 'torre';
+    return papel + '@' + (location.hostname || 'local');
+  }
+
+  function iniciarEnlace() {
+    if (!ATIS.enlace.disponible()) { pintarEnlace(ATIS.enlace.estado()); return; }
+
+    ATIS.enlace.alCambiar(pintarEnlace);
+    ATIS.enlace.iniciar({
+      nombre: nombreEquipo,
+      recoger: estadoCompartido,
+      aplicar: function (datos, origen) {
+        pendienteRemoto = { datos: datos, origen: origen || 'control remoto' };
+        /* Nunca a media frase: si se está transmitiendo, espera al corte de ciclo */
+        if (ATIS.speech.alFinDeCiclo(aplicarRemotoAhora)) pintarPendiente();
+      },
+      aire: function () {
+        var st = ATIS.speech.state;
+        return {
+          transmitiendo: st.playing,
+          ciclo: st.cycle,
+          letra: el.letterBig.textContent,
+          pistas: runwaysInUse.join(',')
+        };
+      }
+    });
+    enlaceListo = true;
+  }
+
+  var pendienteRemoto = null;
+
+  /* Aplica los datos recibidos y, si se estaba transmitiendo, reinicia el bucle
+     para que el ciclo siguiente salga ya con la información nueva. */
+  function aplicarRemotoAhora() {
+    if (!pendienteRemoto) return;
+    var p = pendienteRemoto;
+    pendienteRemoto = null;
+    var transmitiendo = ATIS.speech.state.playing;
+
+    aplicandoRemoto = true;
+    try { aplicarCompartido(p.datos, false); } finally { aplicandoRemoto = false; }
+
+    el.pendiente.hidden = true;
+    status(el.scriptStatus, 'Datos de ' + p.origen + ' aplicados a las ' +
+      new Date().toLocaleTimeString() + '.', 'ok');
+    if (transmitiendo) play(true);     /* el bucle arranca con el guion nuevo */
+  }
+
+  function pintarPendiente() {
+    if (!pendienteRemoto) { el.pendiente.hidden = true; return; }
+    el.pendiente.hidden = false;
+    el.pendienteTexto.textContent = 'Datos nuevos de ' + pendienteRemoto.origen +
+      ': entran al terminar el ciclo en curso.';
+  }
+
+  function pintarEnlace(st) {
+    var badge = el.enlaceEstado, detalle = el.enlaceDetalle;
+    if (!badge) return;
+
+    if (!st.disponible) {
+      badge.textContent = 'sin servidor';
+      badge.className = 'enlace-badge';
+      detalle.innerHTML = 'La aplicación se abrió como archivo suelto, así que trabaja sola. ' +
+        'Para controlarla desde otra computadora hay que iniciarla con <code>SERVIDOR.bat</code>.';
+      el.enlacePapel.hidden = true;
+      el.enlaceEquipos.innerHTML = '';
+      return;
+    }
+
+    el.enlacePapel.hidden = false;
+    badge.textContent = st.conectado ? 'conectado' : 'sin conexión';
+    badge.className = 'enlace-badge ' + (st.conectado ? 'ok' : 'mal');
+
+    var partes = [];
+    partes.push('Esta computadora es <b>' +
+      (st.papel === 'control' ? 'control remoto' : 'la que transmite') + '</b>.');
+    partes.push('Dirección para las demás: <code>' + escapeHtml(st.direccion) + '</code>');
+    if (st.ultimaRecepcion) partes.push('Último dato recibido: ' + st.ultimaRecepcion.toLocaleTimeString() +
+      (st.origen ? ' de ' + escapeHtml(st.origen) : ''));
+    if (st.ultimoEnvio) partes.push('Último envío: ' + st.ultimoEnvio.toLocaleTimeString());
+    if (!st.conectado && st.error) partes.push('<span class="status err">Sin contacto con el servidor (' +
+      escapeHtml(st.error) + '). La transmisión sigue con los últimos datos.</span>');
+    detalle.innerHTML = partes.join('<br>');
+
+    Array.prototype.forEach.call(el.enlacePapel.querySelectorAll('button'), function (b) {
+      b.classList.toggle('on', b.dataset.papel === st.papel);
+    });
+
+    el.enlaceEquipos.innerHTML = (st.equipos || []).map(function (eq) {
+      var aire = eq.aire && eq.aire.transmitiendo
+        ? '<span class="badge enaire">al aire · ciclo ' + eq.aire.ciclo + ' · info ' + escapeHtml(eq.aire.letra || '') + '</span>'
+        : '';
+      return '<div class="equipo"><span class="eqp ' + eq.papel + '">' + eq.papel + '</span>' +
+        '<span class="eqn">' + escapeHtml(eq.nombre) + '</span>' + aire + '</div>';
+    }).join('') || '<span class="status">Nadie más conectado.</span>';
+
+    /* En modo control esta PC no saca audio: manda datos */
+    var control = st.papel === 'control';
+    el.btnPlay.disabled = control || ATIS.speech.state.playing;
+    el.btnPlay.title = control ? 'Esta computadora es control remoto: el audio sale en la PC de la torre' : '';
+    document.body.classList.toggle('modo-control', control);
+  }
+
+  /* ================================================================== *
    * Modo claro / oscuro
    * El modo elegido se conserva entre sesiones; si nunca se ha elegido, se
    * sigue el del sistema operativo.
@@ -4775,36 +5193,52 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
   /* ================================================================== *
    * Persistencia
    * ================================================================== */
+  /* Lo operativo: el ATIS en sí. Es lo que viaja entre computadoras. */
+  function estadoCompartido() {
+    var m = readModel();
+    return {
+      metar: el.metarRaw.value,
+      letter: el.letterBig.textContent,
+      obs: m.obs, cfg: m.cfg,
+      runwaysInUse: runwaysInUse,
+      includeNotams: el.includeNotams.checked,
+      includeHpa: el.includeHpa.checked,
+      notams: notams.map(function (n) {
+        return {
+          raw: n.raw, include: n.include,
+          meta: {
+            id: n.meta.id, location: n.meta.location, codigoQ: n.meta.codigoQ,
+            propio: n.meta.propio,
+            desde: n.meta.desde ? n.meta.desde.toISOString() : null,
+            hasta: n.meta.hasta ? n.meta.hasta.toISOString() : null
+          }
+        };
+      }),
+      notamSoloVigentes: el.notamSoloVigentes.checked,
+      libre: { activo: el.libreActivo.checked, es: el.libreEs.value, en: el.libreEn.value }
+    };
+  }
+
+  /* Lo de esta máquina: voces instaladas, velocidad, idiomas disponibles.
+     No se comparte, porque cada computadora tiene lo suyo. */
+  function estadoLocal() {
+    return {
+      voices: { es: el.voiceEs.value, en: el.voiceEn.value },
+      rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value,
+      langEs: el.langEs.checked, langEn: el.langEn.checked
+    };
+  }
+
   function save() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       try {
-        var m = readModel();
-        localStorage.setItem(STORE_KEY, JSON.stringify({
-          metar: el.metarRaw.value,
-          letter: el.letterBig.textContent,
-          obs: m.obs, cfg: m.cfg,
-          runwaysInUse: runwaysInUse,
-          includeNotams: el.includeNotams.checked,
-          includeHpa: el.includeHpa.checked,
-          notams: notams.map(function (n) {
-            return {
-              raw: n.raw, include: n.include,
-              meta: {
-                id: n.meta.id, location: n.meta.location, codigoQ: n.meta.codigoQ,
-                propio: n.meta.propio,
-                desde: n.meta.desde ? n.meta.desde.toISOString() : null,
-                hasta: n.meta.hasta ? n.meta.hasta.toISOString() : null
-              }
-            };
-          }),
-          notamSoloVigentes: el.notamSoloVigentes.checked,
-          voices: { es: el.voiceEs.value, en: el.voiceEn.value },
-          rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value,
-          langEs: el.langEs.checked, langEn: el.langEn.checked,
-          libre: { activo: el.libreActivo.checked, es: el.libreEs.value, en: el.libreEn.value }
-        }));
+        var datos = estadoCompartido();
+        var local = estadoLocal();
+        for (var k in local) if (Object.prototype.hasOwnProperty.call(local, k)) datos[k] = local[k];
+        localStorage.setItem(STORE_KEY, JSON.stringify(datos));
       } catch (e) { /* almacenamiento no disponible */ }
+      if (enlaceListo) ATIS.enlace.enviar();
     }, 400);
   }
 
@@ -4812,6 +5246,13 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     var data;
     try { data = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { data = null; }
     if (!data) { renderNotams(); return; }
+    aplicarCompartido(data, true);
+    aplicarLocal(data);
+  }
+
+  /* Aplica el ATIS recibido (del disco o de otra computadora) */
+  function aplicarCompartido(data, inicial) {
+    if (!data) return;
     var o = data.obs || {}, c = data.cfg || {};
     el.metarRaw.value = data.metar || '';
     lastMetar = data.metar || '';
@@ -4842,24 +5283,18 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     runwaysInUse = data.runwaysInUse || [];
     el.runwayCondition.value = c.runwayCondition || '';
     el.approach.value = c.approach || '';
+    savedApproachRwy = c.approachRunway || '';
     el.additionalEs.value = c.additionalEs || '';
     el.additionalEn.value = c.additionalEn || '';
     el.includeNotams.checked = data.includeNotams !== false;
     el.includeHpa.checked = !!data.includeHpa;
-    if (data.rate) el.rate.value = data.rate;
-    el.rateVal.textContent = (+el.rate.value).toFixed(2);
-    if (data.gap) el.gap.value = data.gap;
-    if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
-    if (data.langEs !== undefined) el.langEs.checked = data.langEs;
-    if (data.langEn !== undefined) el.langEn.checked = data.langEn;
+    if (data.notamSoloVigentes !== undefined) el.notamSoloVigentes.checked = data.notamSoloVigentes;
     if (data.libre) {
       el.libreActivo.checked = !!data.libre.activo;
       el.libreEs.value = data.libre.es || '';
       el.libreEn.value = data.libre.en || '';
     }
-    savedVoices = data.voices || null;
-    savedApproachRwy = c.approachRunway || '';
-    if (data.notamSoloVigentes !== undefined) el.notamSoloVigentes.checked = data.notamSoloVigentes;
+    notams = [];
     (data.notams || []).forEach(function (n) {
       var es = ATIS.notam.parse(n.raw, 'es');
       var m = n.meta || {};
@@ -4876,6 +5311,18 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
       });
     });
     renderNotams();
+    if (!inicial) { applyAirport(el.station.value, true); paintChips(); render(); }
+  }
+
+  function aplicarLocal(data) {
+    if (!data) return;
+    if (data.rate) el.rate.value = data.rate;
+    el.rateVal.textContent = (+el.rate.value).toFixed(2);
+    if (data.gap) el.gap.value = data.gap;
+    if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
+    if (data.langEs !== undefined) el.langEs.checked = data.langEs;
+    if (data.langEn !== undefined) el.langEn.checked = data.langEn;
+    savedVoices = data.voices || null;
   }
 
   var savedVoices = null, savedApproachRwy = '';
@@ -5094,6 +5541,18 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
     on(el.btnTema, 'click', function () {
       aplicarModo(temaActual() === 'dark' ? 'light' : 'dark', true);
     });
+    on(el.btnAplicarYa, 'click', aplicarRemotoAhora);
+
+    on(el.enlacePapel, 'click', function (e) {
+      var b = e.target.closest ? e.target.closest('button[data-papel]') : null;
+      if (!b) return;
+      if (b.dataset.papel === 'transmisor' || confirm(
+          'En modo control remoto esta computadora deja de sacar audio y solo manda ' +
+          'los datos a la PC de la torre. ¿Continuar?')) {
+        ATIS.enlace.fijarPapel(b.dataset.papel);
+      }
+    });
+
     on(el.temaOpciones, 'click', function (e) {
       var b = e.target.closest ? e.target.closest('button[data-tema]') : null;
       if (b) aplicarModo(b.dataset.tema, true);

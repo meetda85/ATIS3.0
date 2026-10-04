@@ -194,6 +194,7 @@
   var enCurso = false;
   var ultimaActividad = 0;
   var itemActual = null;
+  var finDeCiclo = [];   /* tareas que esperan el corte entre ciclos */
 
   function limpiarTimer() { if (timer) { clearTimeout(timer); timer = null; } }
   function esperar(ms, fn) {
@@ -261,6 +262,13 @@
     if (idx >= chunks.length) {
       state.cycle++;
       anotar('ciclo', { detalle: 'inicia el ciclo ' + state.cycle + ', fragmentos logrados ' + exitosCiclo });
+      /* Punto seguro para aplicar datos nuevos: entre un ciclo y el siguiente,
+         nunca a media frase. */
+      if (finDeCiclo.length) {
+        var pendientes = finDeCiclo.slice();
+        finDeCiclo = [];
+        pendientes.forEach(function (cb) { try { cb(); } catch (e) { /* ignorado */ } });
+      }
       fallosIdioma = {};
       if (!options.loop) { stop(); return; }
       idx = 0;
@@ -593,6 +601,13 @@
     play: play, stop: stop, pause: pause, resume: resume,
     setOptions: setOptions, onState: onState, test: test,
     fragmentos: fragmentos, irA: irA, saltar: saltar,
+    /* Ejecuta la tarea al terminar el ciclo en curso; si no se transmite, ahora mismo */
+    alFinDeCiclo: function (cb) {
+      if (!state.playing) { cb(); return false; }
+      finDeCiclo.push(cb);
+      return true;
+    },
+    ciclosPendientes: function () { return finDeCiclo.length; },
     registro: function () { return registro.slice(); },
     onLog: function (cb) { logCbs.push(cb); },
     limpiarRegistro: function () { registro = []; },
