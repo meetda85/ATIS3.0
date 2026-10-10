@@ -19,6 +19,13 @@ const URL_CAPMA = 'http://capma.mx/reportemetar/elegir_samx_3.php';
    aunque con unos minutos más de retraso que la AFTN. */
 const URL_AWC = 'https://aviationweather.gov/api/data/metar?format=raw&hours=3&ids=';
 
+/* Cuánto se espera a cada fuente. La del CAPMA es una página hecha a mano que
+   arma la lista de todo el país en cada visita: puede tardar más de diez
+   segundos, y es normal. Como esto va en segundo plano y nada se detiene
+   mientras tanto, más vale esperarla que darla por muerta. */
+const ESPERA_CAPMA = 45000;
+const ESPERA_AWC = 15000;
+
 /* Cada informe empieza en el indicador de estación y termina en "=" */
 const RE_INFORME = /(?:\b(METAR|SPECI)\s+)?(?:\b(COR)\s+)?\b([A-Z]{4})\s+(\d{2})(\d{2})(\d{2})Z\s+([^=]{10,400}?)=/g;
 
@@ -101,13 +108,14 @@ function masReciente(html, estacion) {
 }
 
 /** Descarga una página. Acepta http, que es lo que usa el CAPMA. */
-function descargar(url, tiempoLimite) {
+function descargar(url, tiempoLimite, metodo) {
   return new Promise((resolver, rechazar) => {
     let destino;
     try { destino = new URL(url); } catch (e) { return rechazar(new Error('dirección inválida')); }
     const cliente = destino.protocol === 'https:' ? https : http;
 
-    const peticion = cliente.get({
+    const peticion = cliente.request({
+      method: metodo || 'GET',
       protocol: destino.protocol,
       hostname: destino.hostname,
       port: destino.port || (destino.protocol === 'https:' ? 443 : 80),
@@ -116,7 +124,7 @@ function descargar(url, tiempoLimite) {
     }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
-        return resolver(descargar(new URL(res.headers.location, url).href, tiempoLimite));
+        return resolver(descargar(new URL(res.headers.location, url).href, tiempoLimite, metodo));
       }
       /* 204 es "no tengo nada de esa estación": no es una falla del sitio */
       if (res.statusCode === 204) { res.resume(); return resolver(''); }
@@ -135,11 +143,13 @@ function descargar(url, tiempoLimite) {
       res.on('end', () => resolver(Buffer.concat(trozos).toString('latin1')));
     });
 
-    peticion.setTimeout(tiempoLimite || 20000, () => {
+    const limite = tiempoLimite || 20000;
+    peticion.setTimeout(limite, () => {
       peticion.destroy();
-      rechazar(new Error('el sitio no respondió a tiempo'));
+      rechazar(new Error('el sitio no respondió en ' + Math.round(limite / 1000) + ' s'));
     });
     peticion.on('error', (e) => rechazar(new Error(e.message)));
+    peticion.end();
   });
 }
 
@@ -187,10 +197,17 @@ async function buscar(estacion, opciones) {
 
   const fuentes = [];
   if (opciones.capma !== false) {
-    fuentes.push({ nombre: 'CAPMA', url: opciones.url || URL_CAPMA, leer: () => consultar(opciones.url || URL_CAPMA, sitio, opciones.tiempoLimite) });
+    const dir = opciones.url || URL_CAPMA;
+    fuentes.push({
+      nombre: 'CAPMA', url: dir,
+      leer: () => consultar(dir, sitio, opciones.tiempoLimite || ESPERA_CAPMA)
+    });
   }
   if (opciones.awc !== false) {
-    fuentes.push({ nombre: 'NOAA', url: URL_AWC + sitio, leer: () => consultarAWC(sitio, opciones.tiempoLimite) });
+    fuentes.push({
+      nombre: 'NOAA', url: URL_AWC + sitio,
+      leer: () => consultarAWC(sitio, opciones.tiempoLimite || ESPERA_AWC)
+    });
   }
 
   const intentos = [];
@@ -219,7 +236,67 @@ async function buscar(estacion, opciones) {
   };
 }
 
+/* --------------------------------------------------- prueba de conexión -- */
+
+/* Qué alcanza de verdad esta computadora. Es la pregunta que hay que
+   responder cuando «no se pudo traer el METAR»: puede ser que no haya internet,
+   que el sitio esté caído, o que la red del trabajo lo tenga bloqueado, y cada
+   una se arregla distinto. */
+const PRUEBAS = [
+  { nombre: 'Internet', url: 'https://www.google.com/generate_204', espera: 8000,
+    para: 'una dirección cualquiera, solo para ver si hay salida a internet' },
+  { nombre: 'CAPMA', url: URL_CAPMA, espera: 20000,
+    para: 'la fuente operativa del METAR (red AFTN)' },
+  { nombre: 'NOAA', url: URL_AWC + 'MMMX', espera: 15000,
+    para: 'el respaldo del METAR' },
+  { nombre: 'Voces neuronales', espera: 15000,
+    url: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_MX/claude/high/es_MX-claude-high.onnx.json',
+    para: 'de aquí se bajan las voces' },
+  { nombre: 'Motor de voz', espera: 15000, metodo: 'HEAD',
+    url: 'https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip',
+    para: 'de aquí se baja el programa que habla (solo se pregunta, no se descarga)' }
+];
+
+async function probarRed(tiempoLimite) {
+  const salida = [];
+  for (const p of PRUEBAS) {
+    const t0 = Date.now();
+    try {
+      const texto = await descargar(p.url, tiempoLimite || p.espera, p.metodo);
+      salida.push({
+        nombre: p.nombre, url: p.url, para: p.para, ok: true,
+        ms: Date.now() - t0, bytes: texto.length
+      });
+    } catch (e) {
+      salida.push({
+        nombre: p.nombre, url: p.url, para: p.para, ok: false,
+        ms: Date.now() - t0, error: e.message
+      });
+    }
+  }
+  /* Hay internet si cualquiera de las direcciones contestó: basta una para
+     descartar «esta computadora está sin red». */
+  const hayInternet = salida.some((p) => p.ok);
+  return { internet: hayInternet, pruebas: salida, resumen: resumirRed(salida, hayInternet) };
+}
+
+function resumirRed(lista, hayInternet) {
+  const caidas = lista.filter((p) => !p.ok);
+  if (!caidas.length) return 'Todo bien: esta computadora alcanza las ' + lista.length + ' direcciones.';
+  if (!hayInternet) {
+    return 'Esta computadora no tiene salida a internet: no respondió ninguna de las ' +
+      lista.length + ' direcciones. El ATIS funciona igual pegando el METAR a mano, pero ' +
+      'no puede traerlo solo ni descargar la voz neuronal; la voz se puede instalar a mano, ' +
+      'copiando la carpeta «voz» desde otra computadora.';
+  }
+  const llega = lista.filter((p) => p.ok).map((p) => p.nombre);
+  return 'Sí hay internet (responden ' + llega.join(', ') + '), pero no se alcanza ' +
+    caidas.map((p) => p.nombre).join(' ni ') + '. Eso casi siempre es el cortafuegos o el ' +
+    'proxy de la red del trabajo: hay que pedir que dejen pasar esas direcciones.';
+}
+
 module.exports = {
-  URL_CAPMA, URL_AWC, extraer, masReciente, descargar, consultar, consultarAWC,
-  buscar, quitarEtiquetas, normalizarLineas
+  URL_CAPMA, URL_AWC, PRUEBAS, ESPERA_CAPMA, ESPERA_AWC,
+  extraer, masReciente, descargar, consultar, consultarAWC,
+  buscar, probarRed, quitarEtiquetas, normalizarLineas
 };

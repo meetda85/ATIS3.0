@@ -847,6 +847,13 @@ body.modo-control .pstate-main::after {
   color: var(--muted); white-space: pre-wrap; word-break: break-word;
 }
 
+/* Version a la vista: responde de un vistazo a "¿se actualizo?" */
+.brand .ver {
+  font: 600 11px/1 ui-monospace, Consolas, monospace; letter-spacing: .04em;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 999px;
+  padding: 4px 8px; margin-left: 10px; white-space: nowrap;
+}
+
 </style>
 </head>
 <body>
@@ -866,6 +873,7 @@ body.modo-control .pstate-main::after {
     <span class="dot"></span>
     <h1>ATIS 3.0</h1>
     <span class="sub">Laboratorio de Torre</span>
+    <span class="ver" id="verBadge" title="Versión instalada">&nbsp;</span>
   </div>
   <div class="topfields">
     <label class="field compact">
@@ -1193,9 +1201,11 @@ body.modo-control .pstate-main::after {
       </div>
       <div class="row buttons">
         <button id="btnVigAhora" class="small">Revisar ahora</button>
+        <button id="btnProbarRed" class="small ghost">Probar la conexi&oacute;n</button>
         <span id="vigStatus" class="status"></span>
       </div>
       <div id="vigUltimo" class="vigultimo"></div>
+      <div id="redPrueba" class="vigultimo" hidden></div>
     </section>
 
     <!-- ============ ESTADO DEL PROGRAMA ============ -->
@@ -1323,6 +1333,16 @@ body.modo-control .pstate-main::after {
       Tambi&eacute;n se puede instalar sin abrir el programa, con <b>VOZ.bat</b>, que hace
       exactamente lo mismo. Si se corta a medias, se vuelve a pulsar: lo ya descargado no
       se baja otra vez.
+    </p>
+    <h3>Si esta computadora no tiene internet</h3>
+    <p class="help">
+      La voz se puede instalar a mano, copi&aacute;ndola de otra computadora. En una que s&iacute;
+      tenga internet se instala igual (con <b>VOZ.bat</b> o con este bot&oacute;n) y despu&eacute;s se
+      copia a una memoria USB la carpeta <b>voz</b> entera, que queda junto a
+      <code>index.html</code>. Aqu&iacute; se pega en el mismo lugar y se pulsa
+      <b>Comprobar de nuevo</b>: el programa la reconoce sola, no hay nada que configurar.
+      En <i>METAR autom&aacute;tico</i>, el bot&oacute;n <b>Probar la conexi&oacute;n</b> dice si esta
+      computadora alcanza internet y cu&aacute;les direcciones tiene bloqueadas.
     </p>
     <p class="help">
       Si la carpeta <b>voz</b> no est&aacute;, no pasa nada: el programa sigue hablando con la voz
@@ -1465,6 +1485,31 @@ body.modo-control .pstate-main::after {
 
 </footer>
 
+<script>
+/* js/version.js */
+/* ATIS 3.0 — Versión del programa
+ *
+ * Un solo lugar para el número y la fecha. Lo leen la pantalla, el servidor y
+ * la comprobación de la instalación, así no hay manera de que digan cosas
+ * distintas. Sirve para responder de un vistazo a «¿se actualizó o no?».
+ */
+(function (global) {
+  'use strict';
+  var datos = {
+    VERSION: '3.3',
+    FECHA: '2026-10-10',
+    /* Lo que trae esta versión, para saber qué esperar en pantalla */
+    NOVEDADES: 'voz neuronal local, METAR por el servidor, instalación desde Ajustes'
+  };
+  var ATIS = global.ATIS = global.ATIS || {};
+  ATIS.VERSION = datos.VERSION;
+  ATIS.FECHA = datos.FECHA;
+  ATIS.NOVEDADES = datos.NOVEDADES;
+  ATIS.versionLarga = function () { return datos.VERSION + ' (' + datos.FECHA + ')'; };
+  if (typeof module !== 'undefined' && module.exports) module.exports = datos;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
 <script>
 /* js/data/dictionary.js */
 /* ATIS 3.0 - Diccionarios de codigos aeronauticos (METAR / NOTAM)
@@ -4880,6 +4925,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       'saludBadge', 'saludLista', 'btnSaludCopy', 'saludStatus',
       'vigBadge', 'vigActiva', 'vigUrl', 'vigEstacion', 'vigMinutos', 'btnVigAhora',
       'vigStatus', 'vigUltimo', 'avisoMetar', 'avisoMetarTexto', 'btnUsarMetar', 'btnIgnorarMetar',
+      'btnProbarRed', 'redPrueba', 'verBadge',
       'pendiente', 'pendienteTexto', 'btnAplicarYa',
       'motorSel', 'vozNBadge', 'vozNInfo', 'btnVozNRevisar', 'btnVozNLimpiar', 'vozNStatus',
       'btnVozNInstalar', 'vozNConsola',
@@ -4896,6 +4942,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     setLetter(el.letterBig.textContent || 'A');
     iniciarTema();
     iniciarPaginas();
+    if (el.verBadge) {
+      el.verBadge.textContent = 'v' + (ATIS.VERSION || '?');
+      el.verBadge.title = 'Versión instalada: ' + VERSION +
+        (ATIS.NOVEDADES ? ' — ' + ATIS.NOVEDADES : '');
+    }
     iniciarEnlace();
     iniciarMotor();
     comprobarInstalacion();
@@ -6351,11 +6402,43 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     metarPropuesto = null;
   }
 
+  /* ---- Qué alcanza esta computadora ---- */
+  function probarRed() {
+    if (!vigDisponible()) {
+      status(el.vigStatus, 'La prueba la hace el servidor: abra el ATIS con SERVIDOR.bat.', 'err');
+      return;
+    }
+    el.btnProbarRed.disabled = true;
+    status(el.vigStatus, 'Probando cada dirección… tarda hasta un minuto.');
+    el.redPrueba.hidden = false;
+    el.redPrueba.innerHTML = '<span class="vacio">Probando…</span>';
+    fetch('/api/red').then(function (r) { return r.json(); })
+      .then(function (d) {
+        el.btnProbarRed.disabled = false;
+        status(el.vigStatus, d.internet ? 'Prueba terminada.' : 'Sin salida a internet.',
+          d.internet ? 'ok' : 'err');
+        var filas = (d.pruebas || []).map(function (p) {
+          return '<div class="voiceitem' + (p.ok ? ' natural' : ' falla') + '">' +
+            '<span>' + (p.ok ? '✓' : '✕') + '</span>' +
+            '<span class="vname">' + escapeHtml(p.nombre) + '</span>' +
+            '<span class="vlang">' + (p.ok ? p.ms + ' ms' : escapeHtml(p.error || 'falló')) + '</span>' +
+            '</div>';
+        });
+        el.redPrueba.innerHTML = filas.join('') +
+          '<p class="help" style="margin-top:8px">' + escapeHtml(d.resumen || '') + '</p>';
+      })
+      .catch(function (e) {
+        el.btnProbarRed.disabled = false;
+        status(el.vigStatus, 'No se pudo hacer la prueba: ' + e.message, 'err');
+        el.redPrueba.innerHTML = '<span class="status err">' + escapeHtml(e.message) + '</span>';
+      });
+  }
+
   /* ================================================================== *
    * Comprobación de la instalación
    * Responde a "¿quedó bien instalado?" sin tener que revisar carpetas.
    * ================================================================== */
-  var VERSION = '3.0';
+  var VERSION = (ATIS.VERSION || '3.0') + (ATIS.FECHA ? ' · ' + ATIS.FECHA : '');
 
   function comprobarInstalacion() {
     var piezas = [
@@ -7032,6 +7115,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     ['vigActiva', 'vigUrl', 'vigEstacion', 'vigMinutos'].forEach(function (id) {
       on(el[id], 'change', guardarVigilancia);
     });
+    on(el.btnProbarRed, 'click', probarRed);
+
     on(el.btnVigAhora, 'click', function () {
       status(el.vigStatus, 'Revisando la fuente…');
       fetch('/api/metar?revisar=1', { cache: 'no-store' })

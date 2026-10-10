@@ -24,6 +24,7 @@
     <span class="dot"></span>
     <h1>ATIS 3.0</h1>
     <span class="sub">Laboratorio de Torre</span>
+    <span class="ver" id="verBadge" title="Versión instalada">&nbsp;</span>
   </div>
   <div class="topfields">
     <label class="field compact">
@@ -351,9 +352,11 @@
       </div>
       <div class="row buttons">
         <button id="btnVigAhora" class="small">Revisar ahora</button>
+        <button id="btnProbarRed" class="small ghost">Probar la conexi&oacute;n</button>
         <span id="vigStatus" class="status"></span>
       </div>
       <div id="vigUltimo" class="vigultimo"></div>
+      <div id="redPrueba" class="vigultimo" hidden></div>
     </section>
 
     <!-- ============ ESTADO DEL PROGRAMA ============ -->
@@ -481,6 +484,16 @@
       Tambi&eacute;n se puede instalar sin abrir el programa, con <b>VOZ.bat</b>, que hace
       exactamente lo mismo. Si se corta a medias, se vuelve a pulsar: lo ya descargado no
       se baja otra vez.
+    </p>
+    <h3>Si esta computadora no tiene internet</h3>
+    <p class="help">
+      La voz se puede instalar a mano, copi&aacute;ndola de otra computadora. En una que s&iacute;
+      tenga internet se instala igual (con <b>VOZ.bat</b> o con este bot&oacute;n) y despu&eacute;s se
+      copia a una memoria USB la carpeta <b>voz</b> entera, que queda junto a
+      <code>index.html</code>. Aqu&iacute; se pega en el mismo lugar y se pulsa
+      <b>Comprobar de nuevo</b>: el programa la reconoce sola, no hay nada que configurar.
+      En <i>METAR autom&aacute;tico</i>, el bot&oacute;n <b>Probar la conexi&oacute;n</b> dice si esta
+      computadora alcanza internet y cu&aacute;les direcciones tiene bloqueadas.
     </p>
     <p class="help">
       Si la carpeta <b>voz</b> no est&aacute;, no pasa nada: el programa sigue hablando con la voz
@@ -623,6 +636,7 @@
 
 </footer>
 
+<script src="js/version.js"></script>
 <script src="js/data/dictionary.js"></script>
 <script src="js/data/airports.js"></script>
 <script src="js/lib/numbers.js"></script>

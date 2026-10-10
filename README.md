@@ -79,6 +79,11 @@ Si la voz neuronal falla justo al pulsar TRANSMITIR, el programa **sale al aire 
 del navegador** y lo dice; nunca se queda callado. Y si la carpeta `voz` no está instalada,
 todo funciona como antes, con las voces del sistema.
 
+**Si esa computadora no tiene internet**, la voz se instala a mano: en otra que sí tenga se
+instala igual, y después se copia por memoria USB la carpeta `voz` entera —la que queda
+junto a `index.html`—. Aquí se pega en el mismo lugar y se pulsa *Comprobar de nuevo*: el
+programa la reconoce sola, no hay nada que configurar.
+
 Otras voces: `node servidor/instalar-voz.js --voz-es es_MX-ald-medium --voz-en en_US-ryan-high`
 (el catálogo está en <https://huggingface.co/rhasspy/piper-voices>; los nombres tienen la
 forma `es_MX-voz-calidad`).
@@ -149,6 +154,25 @@ con los últimos datos buenos.
 
 El lector está probado contra la página real del CAPMA: de ahí salen los 65 informes de
 las estaciones del país, y de esos se toma el de la estación configurada.
+
+### Si no trae el METAR
+
+En *Ajustes → METAR automático* hay un botón **Probar la conexión**. Lo hace el servidor y
+prueba, una por una, las direcciones que el ATIS necesita: una cualquiera de internet, el
+CAPMA, el NOAA, y las dos de donde se bajan las voces. Dice cuál responde, en cuántos
+milisegundos, y cuál no, con el motivo.
+
+Con eso se distingue de una vez lo que antes era un mismo error para todo:
+
+| Lo que sale | Qué significa |
+|---|---|
+| Ninguna responde | esa computadora no tiene salida a internet |
+| Responden unas sí y otras no | hay internet, pero el cortafuegos o el proxy del trabajo bloquea las demás |
+| Todas responden pero el METAR no llega | el problema está en la página, no en la red |
+
+La página del CAPMA arma la lista de todo el país en cada visita y puede tardar **más de
+diez segundos**; el ATIS la espera hasta 45, porque esto va en segundo plano y nada se
+detiene mientras tanto.
 
 ### El puerto
 
@@ -293,6 +317,16 @@ y los designadores de letra con dígitos, para que la «y» de una enumeración 
 «Yanki». Los tipos de aeronave se leen como en radio: *B747-8* → «Boeing siete cuatro siete
 ocho». En pantalla el texto se conserva tal como viene en el NOTAM.
 
+## Qué versión está instalada
+
+Arriba a la izquierda, junto al nombre, está el número de versión (`v3.3`). Al pasarle el
+ratón dice la fecha y qué trae. También aparece en *Ajustes → Estado del programa* y en la
+ventana del servidor al arrancar. Sirve para responder de un vistazo a «¿se actualizó o
+no?»: si la pantalla no cambió después de actualizar, ese número lo dice.
+
+Para actualizar: extraer el ZIP nuevo y ejecutar **`INSTALAR.bat`** desde la carpeta
+extraída. Conserva la carpeta `voz` y el último ATIS guardado.
+
 ## Archivos
 
 ```
@@ -317,6 +351,7 @@ js/fns.js             lectura de la descarga del FNS
 js/enlace.js          sincronización con el servidor (control remoto)
 js/vendor/            librería para leer hojas de cálculo (SheetJS, licencia Apache 2.0)
 js/atis.js            modelo de observación y generación del guion ES/EN
+js/version.js         numero de version, en un solo lugar
 js/speech.js          motor de voz del navegador y su bucle
 js/voz-neural.js      bucle con la voz neuronal: descarga el audio y lo reproduce
 js/app.js             interfaz y control

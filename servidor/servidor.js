@@ -16,6 +16,7 @@ const path = require('path');
 const os = require('os');
 const { spawn } = require('child_process');
 const fuente = require('./fuente-metar');
+const version = require('../js/version.js');
 const voz = require('./voz-piper');
 
 const RAIZ = path.join(__dirname, '..');
@@ -68,7 +69,7 @@ async function revisarMetar(motivo) {
   metar.revisado = new Date().toISOString();
   metar.revisiones++;
   try {
-    const r = await fuente.buscar(metar.estacion, { url: metar.url, tiempoLimite: 20000 });
+    const r = await fuente.buscar(metar.estacion, { url: metar.url });
     if (!r.ok) {
       metar.error = r.error;
       console.error('[' + new Date().toLocaleTimeString() + '] no se pudo revisar el METAR: ' + r.error);
@@ -380,7 +381,7 @@ const servidor = http.createServer(async (req, res) => {
   if (url.startsWith('/api/metar/buscar') && req.method === 'GET') {
     const pedido = new URL(url, 'http://local');
     const estacion = String(pedido.searchParams.get('estacion') || metar.estacion).toUpperCase();
-    const r = await fuente.buscar(estacion, { url: metar.url, tiempoLimite: 15000 });
+    const r = await fuente.buscar(estacion, { url: metar.url });
     console.log('[' + new Date().toLocaleTimeString() + '] METAR de ' + estacion + ': ' +
       (r.ok ? r.fuente + ' → ' + r.raw : 'no se pudo (' + r.error + ')'));
     return json(res, r.ok ? 200 : 502, r);
@@ -460,10 +461,19 @@ const servidor = http.createServer(async (req, res) => {
     return json(res, 200, { borrados: borrados, estado: voz.estado(true) });
   }
 
+  /* Qué alcanza de verdad esta computadora. Tarda, porque prueba de a de veras. */
+  if (url === '/api/red' && req.method === 'GET') {
+    const r = await fuente.probarRed();
+    console.log('[' + new Date().toLocaleTimeString() + '] prueba de conexión: ' + r.resumen);
+    return json(res, 200, r);
+  }
+
   if (url === '/api/salud') {
     limpiarEquipos();
     return json(res, 200, {
       ok: true,
+      programa: version.VERSION,
+      fecha: version.FECHA,
       version: estado.version,
       actualizado: estado.actualizado,
       equipos: [...equipos.values()],
@@ -527,6 +537,7 @@ function anunciar(puerto) {
   console.log('');
   console.log('  ATIS 3.0 — servidor de control remoto');
   console.log('  =====================================');
+  console.log('  versión ' + version.VERSION + ' del ' + version.FECHA);
   console.log('');
   console.log('  En esta computadora (la que transmite):');
   console.log('     http://localhost:' + puerto + '/');

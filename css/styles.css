@@ -838,3 +838,10 @@ body.modo-control .pstate-main::after {
   border-radius: 8px; font: 12px/1.5 ui-monospace, Consolas, monospace;
   color: var(--muted); white-space: pre-wrap; word-break: break-word;
 }
+
+/* Version a la vista: responde de un vistazo a "¿se actualizo?" */
+.brand .ver {
+  font: 600 11px/1 ui-monospace, Consolas, monospace; letter-spacing: .04em;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 999px;
+  padding: 4px 8px; margin-left: 10px; white-space: nowrap;
+}

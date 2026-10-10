@@ -46,6 +46,7 @@
       'saludBadge', 'saludLista', 'btnSaludCopy', 'saludStatus',
       'vigBadge', 'vigActiva', 'vigUrl', 'vigEstacion', 'vigMinutos', 'btnVigAhora',
       'vigStatus', 'vigUltimo', 'avisoMetar', 'avisoMetarTexto', 'btnUsarMetar', 'btnIgnorarMetar',
+      'btnProbarRed', 'redPrueba', 'verBadge',
       'pendiente', 'pendienteTexto', 'btnAplicarYa',
       'motorSel', 'vozNBadge', 'vozNInfo', 'btnVozNRevisar', 'btnVozNLimpiar', 'vozNStatus',
       'btnVozNInstalar', 'vozNConsola',
@@ -62,6 +63,11 @@
     setLetter(el.letterBig.textContent || 'A');
     iniciarTema();
     iniciarPaginas();
+    if (el.verBadge) {
+      el.verBadge.textContent = 'v' + (ATIS.VERSION || '?');
+      el.verBadge.title = 'Versión instalada: ' + VERSION +
+        (ATIS.NOVEDADES ? ' — ' + ATIS.NOVEDADES : '');
+    }
     iniciarEnlace();
     iniciarMotor();
     comprobarInstalacion();
@@ -1517,11 +1523,43 @@
     metarPropuesto = null;
   }
 
+  /* ---- Qué alcanza esta computadora ---- */
+  function probarRed() {
+    if (!vigDisponible()) {
+      status(el.vigStatus, 'La prueba la hace el servidor: abra el ATIS con SERVIDOR.bat.', 'err');
+      return;
+    }
+    el.btnProbarRed.disabled = true;
+    status(el.vigStatus, 'Probando cada dirección… tarda hasta un minuto.');
+    el.redPrueba.hidden = false;
+    el.redPrueba.innerHTML = '<span class="vacio">Probando…</span>';
+    fetch('/api/red').then(function (r) { return r.json(); })
+      .then(function (d) {
+        el.btnProbarRed.disabled = false;
+        status(el.vigStatus, d.internet ? 'Prueba terminada.' : 'Sin salida a internet.',
+          d.internet ? 'ok' : 'err');
+        var filas = (d.pruebas || []).map(function (p) {
+          return '<div class="voiceitem' + (p.ok ? ' natural' : ' falla') + '">' +
+            '<span>' + (p.ok ? '✓' : '✕') + '</span>' +
+            '<span class="vname">' + escapeHtml(p.nombre) + '</span>' +
+            '<span class="vlang">' + (p.ok ? p.ms + ' ms' : escapeHtml(p.error || 'falló')) + '</span>' +
+            '</div>';
+        });
+        el.redPrueba.innerHTML = filas.join('') +
+          '<p class="help" style="margin-top:8px">' + escapeHtml(d.resumen || '') + '</p>';
+      })
+      .catch(function (e) {
+        el.btnProbarRed.disabled = false;
+        status(el.vigStatus, 'No se pudo hacer la prueba: ' + e.message, 'err');
+        el.redPrueba.innerHTML = '<span class="status err">' + escapeHtml(e.message) + '</span>';
+      });
+  }
+
   /* ================================================================== *
    * Comprobación de la instalación
    * Responde a "¿quedó bien instalado?" sin tener que revisar carpetas.
    * ================================================================== */
-  var VERSION = '3.0';
+  var VERSION = (ATIS.VERSION || '3.0') + (ATIS.FECHA ? ' · ' + ATIS.FECHA : '');
 
   function comprobarInstalacion() {
     var piezas = [
@@ -2198,6 +2236,8 @@
     ['vigActiva', 'vigUrl', 'vigEstacion', 'vigMinutos'].forEach(function (id) {
       on(el[id], 'change', guardarVigilancia);
     });
+    on(el.btnProbarRed, 'click', probarRed);
+
     on(el.btnVigAhora, 'click', function () {
       status(el.vigStatus, 'Revisando la fuente…');
       fetch('/api/metar?revisar=1', { cache: 'no-store' })
