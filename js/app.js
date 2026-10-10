@@ -48,6 +48,7 @@
       'vigStatus', 'vigUltimo', 'avisoMetar', 'avisoMetarTexto', 'btnUsarMetar', 'btnIgnorarMetar',
       'pendiente', 'pendienteTexto', 'btnAplicarYa',
       'motorSel', 'vozNBadge', 'vozNInfo', 'btnVozNRevisar', 'btnVozNLimpiar', 'vozNStatus',
+      'btnVozNInstalar', 'vozNConsola',
       'rotVozEs', 'rotVozEn'
     ].forEach(function (id) { el[id] = $(id); });
 
@@ -1186,6 +1187,40 @@
     if (v === 'auto' || v === 'neuronal' || v === 'navegador') prefMotor = v;
     if (el.motorSel) el.motorSel.value = prefMotor;
     revisarNeural(false);
+
+    if (!ATIS.neural || !ATIS.neural.conServidor) return;
+
+    /* Si la instalación venía andando (por ejemplo, se recargó la página o se
+       está viendo desde la otra computadora), se retoma donde iba. */
+    fetch('/api/voz/instalacion').then(function (r) { return r.json(); }).then(function (d) {
+      if (d.andando) {
+        marcarInstalando(true);
+        pintarConsolaVoz(d.lineas || []);
+        status(el.vozNStatus, 'Hay una instalación en marcha…');
+        vigilarInstalacion();
+      } else if (d.lineas && d.lineas.length) {
+        pintarConsolaVoz(d.lineas);
+      }
+    }).catch(function () { /* servidor viejo o sin la ruta: no estorba */ });
+
+    /* Avisos en vivo del servidor */
+    if (ATIS.enlace && ATIS.enlace.alVoz) {
+      ATIS.enlace.alVoz(function (d) {
+        if (d.avance) { pintarConsolaVoz(null, d.avance); return; }
+        if (d.linea) {
+          var txt = el.vozNConsola.textContent.replace(/\n?\[avance\][^\n]*$/, '');
+          el.vozNConsola.hidden = false;
+          el.vozNConsola.textContent = (txt ? txt + '\n' : '') + d.linea;
+          el.vozNConsola.scrollTop = el.vozNConsola.scrollHeight;
+        }
+        if (d.andando === true) marcarInstalando(true);
+        if (d.andando === false) {
+          clearInterval(relojInstalacion);
+          relojInstalacion = null;
+          terminoInstalacion(d);
+        }
+      });
+    }
   }
 
   /* Pregunta al servidor si la voz neuronal está instalada y repinta todo */
@@ -1234,6 +1269,86 @@
       (sv.falta || []).forEach(function (f) { tag('falta', f, 'warn'); });
     }
     el.vozNInfo.innerHTML = tags.join('');
+  }
+
+  /* ---- Instalar la voz neuronal sin salir del programa ---- */
+  var instalandoVoz = false;
+
+  function pintarConsolaVoz(lineas, avance) {
+    if (!el.vozNConsola) return;
+    el.vozNConsola.hidden = false;
+    if (lineas) el.vozNConsola.textContent = lineas.join('\n');
+    if (avance) {
+      var txt = el.vozNConsola.textContent;
+      /* El avance se reescribe en su propio renglón, no se acumula */
+      txt = txt.replace(/\n?\[avance\][^\n]*$/, '');
+      el.vozNConsola.textContent = txt + '\n[avance] ' + avance;
+    }
+    el.vozNConsola.scrollTop = el.vozNConsola.scrollHeight;
+  }
+
+  function marcarInstalando(andando) {
+    instalandoVoz = andando;
+    if (el.btnVozNInstalar) {
+      el.btnVozNInstalar.disabled = andando;
+      el.btnVozNInstalar.textContent = andando ? 'Instalando…' : 'Instalar la voz neuronal';
+    }
+  }
+
+  function instalarVozNeural() {
+    if (!ATIS.neural || !ATIS.neural.conServidor) {
+      status(el.vozNStatus, 'Hace falta abrir el ATIS con SERVIDOR.bat: la descarga la hace ' +
+        'el servidor, no el navegador.', 'err');
+      return;
+    }
+    if (instalandoVoz) return;
+    marcarInstalando(true);
+    status(el.vozNStatus, 'Descargando… son unos 170 MB, puede tardar varios minutos. ' +
+      'Puede seguir trabajando mientras tanto.');
+    el.vozNConsola.textContent = '';
+    fetch('/api/voz/instalar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
+    }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) throw new Error(d.error);
+        if (d.yaEstaba) status(el.vozNStatus, 'La instalación ya estaba en marcha.');
+        pintarConsolaVoz(d.lineas || []);
+        /* Si el flujo de avisos no llega, se pregunta de vez en cuando */
+        vigilarInstalacion();
+      })
+      .catch(function (e) {
+        marcarInstalando(false);
+        status(el.vozNStatus, 'No se pudo arrancar la instalación: ' + e.message, 'err');
+      });
+  }
+
+  var relojInstalacion = null;
+  function vigilarInstalacion() {
+    clearInterval(relojInstalacion);
+    relojInstalacion = setInterval(function () {
+      fetch('/api/voz/instalacion').then(function (r) { return r.json(); })
+        .then(function (d) {
+          pintarConsolaVoz(d.lineas || []);
+          if (d.andando) { marcarInstalando(true); return; }
+          clearInterval(relojInstalacion);
+          relojInstalacion = null;
+          terminoInstalacion(d);
+        })
+        .catch(function () { /* el servidor se cayó; el latido del enlace lo dirá */ });
+    }, 3000);
+  }
+
+  function terminoInstalacion(d) {
+    marcarInstalando(false);
+    revisarNeural(true).then(function () {
+      if (d.ok || neuralLista()) {
+        status(el.vozNStatus, 'Listo: la voz neuronal ya está instalada y es la que sale al aire.', 'ok');
+      } else {
+        status(el.vozNStatus, 'No se pudo terminar la instalación' +
+          (d.error ? ': ' + d.error : '') + '. Revise que haya internet y vuelva a pulsar; ' +
+          'lo que ya se bajó no se baja otra vez.', 'err');
+      }
+    });
   }
 
   /* ---- Las voces del pie son siempre las del motor que va a salir ---- */
@@ -2127,6 +2242,8 @@
         : 'Guardado.', 'ok');
       save();
     });
+
+    on(el.btnVozNInstalar, 'click', instalarVozNeural);
 
     on(el.btnVozNRevisar, 'click', function () {
       status(el.vozNStatus, 'Comprobando…');

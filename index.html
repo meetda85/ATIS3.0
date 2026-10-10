@@ -460,21 +460,28 @@
     </div>
     <div id="vozNInfo" class="diag"></div>
     <div class="row buttons">
+      <button id="btnVozNInstalar" class="small primary">Instalar la voz neuronal</button>
       <button id="btnVozNRevisar" class="small ghost">Comprobar de nuevo</button>
       <button id="btnVozNLimpiar" class="small ghost">Vaciar audios guardados</button>
       <span id="vozNStatus" class="status"></span>
     </div>
+    <pre id="vozNConsola" class="vozconsola" hidden></pre>
     <h3>C&oacute;mo instalarla</h3>
     <ol class="help">
       <li>Abrir el ATIS con <b>SERVIDOR.bat</b>: la voz neuronal la genera el servidor, as&iacute; que
         hace falta esa ventana abierta.</li>
-      <li>Ejecutar <b>VOZ.bat</b> una sola vez, con internet. Descarga el motor y las dos
-        voces (unos 170 MB) y las deja en la carpeta <b>voz</b> del programa.</li>
-      <li>Volver aqu&iacute; y pulsar <b>Comprobar de nuevo</b>. Cuando diga <i>lista</i>, la voz
-        neuronal ya es la que sale al aire; las voces de la barra de abajo cambian a las
-        neuronales.</li>
+      <li>Pulsar <b>Instalar la voz neuronal</b>, aqu&iacute; arriba, con internet conectado.
+        Baja el motor y las dos voces (unos 170 MB) y las deja en la carpeta <b>voz</b> del
+        programa. Tarda unos minutos y se ve el avance; se puede seguir trabajando.</li>
+      <li>Al terminar, la voz neuronal ya es la que sale al aire: las voces de la barra de
+        abajo cambian a las neuronales.</li>
       <li>De ah&iacute; en adelante no necesita internet nunca m&aacute;s.</li>
     </ol>
+    <p class="help">
+      Tambi&eacute;n se puede instalar sin abrir el programa, con <b>VOZ.bat</b>, que hace
+      exactamente lo mismo. Si se corta a medias, se vuelve a pulsar: lo ya descargado no
+      se baja otra vez.
+    </p>
     <p class="help">
       Si la carpeta <b>voz</b> no est&aacute;, no pasa nada: el programa sigue hablando con la voz
       del navegador, igual que antes.

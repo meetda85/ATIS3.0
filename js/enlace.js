@@ -23,6 +23,7 @@
   var enviando = null;
   var oyentes = [];
   var oyentesMetar = [];
+  var oyentesVoz = [];
   var ultimoJSON = null;   /* lo último enviado o recibido: evita el ida y vuelta */
 
   var est = {
@@ -165,6 +166,12 @@
       try { d = JSON.parse(ev.data); } catch (e) { return; }
       oyentesMetar.forEach(function (cb) { try { cb(d); } catch (e) { /* ignorado */ } });
     });
+    /* Cómo va la instalación de la voz neuronal */
+    fuente.addEventListener('voz', function (ev) {
+      var d = null;
+      try { d = JSON.parse(ev.data); } catch (e) { return; }
+      oyentesVoz.forEach(function (cb) { try { cb(d); } catch (e) { /* ignorado */ } });
+    });
     fuente.onopen = function () { est.conectado = true; est.error = ''; avisar(); };
     fuente.onerror = function () { est.conectado = false; avisar(); };
   }
@@ -217,6 +224,7 @@
     estado: estado,
     fijarPapel: fijarPapel,
     alCambiar: function (cb) { oyentes.push(cb); },
-    alMetar: function (cb) { oyentesMetar.push(cb); }
+    alMetar: function (cb) { oyentesMetar.push(cb); },
+    alVoz: function (cb) { oyentesVoz.push(cb); }
   };
 })(this);

@@ -832,3 +832,9 @@ body.modo-control .pstate-main::after {
 /* La voz neuronal: el desplegable del motor no necesita toda la tarjeta */
 #secVozN .pgroup { margin: 10px 0 14px; max-width: 32rem; }
 #secVozN #vozNInfo { margin-bottom: 10px; }
+.vozconsola {
+  margin: 10px 0 4px; padding: 10px 12px; max-height: 190px; overflow: auto;
+  background: var(--panel-2, rgba(0,0,0,.18)); border: 1px solid var(--line);
+  border-radius: 8px; font: 12px/1.5 ui-monospace, Consolas, monospace;
+  color: var(--muted); white-space: pre-wrap; word-break: break-word;
+}

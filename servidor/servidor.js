@@ -14,6 +14,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { spawn } = require('child_process');
 const fuente = require('./fuente-metar');
 const voz = require('./voz-piper');
 
@@ -216,6 +217,89 @@ function servirAudio(req, res, archivo) {
   flujo.pipe(res);
 }
 
+/* --------------------------------------------- instalar la voz neuronal -- */
+/* Lo mismo que hace VOZ.bat, pero desde la pantalla de Ajustes: así no hay que
+   ir a buscar un archivo a una carpeta. Va contando lo que lleva, para que no
+   parezca que se colgó mientras bajan los 170 MB. */
+let instalacion = { andando: false, lineas: [], empezo: null, termino: null, ok: null, error: '' };
+
+function apuntar(linea) {
+  const t = String(linea).replace(/\r/g, '').trim();
+  if (!t) return;
+  instalacion.lineas.push(t);
+  if (instalacion.lineas.length > 200) instalacion.lineas.shift();
+  avisar('voz', { andando: instalacion.andando, linea: t });
+}
+
+function estadoInstalacion() {
+  return {
+    andando: instalacion.andando,
+    empezo: instalacion.empezo,
+    termino: instalacion.termino,
+    ok: instalacion.ok,
+    error: instalacion.error,
+    lineas: instalacion.lineas.slice(-60)
+  };
+}
+
+const RE_VOZ = /^[a-z]{2}_[A-Z]{2}-[A-Za-z0-9]+-(x_low|low|medium|high)$/;
+
+function instalarVoz(cuerpo) {
+  if (instalacion.andando) return { andando: true, yaEstaba: true };
+
+  const argumentos = [path.join(__dirname, 'instalar-voz.js')];
+  /* Solo se aceptan nombres con la forma de un modelo de Piper: nada más
+     puede llegar a la línea de órdenes. */
+  if (cuerpo && RE_VOZ.test(String(cuerpo.es || ''))) argumentos.push('--voz-es', String(cuerpo.es));
+  if (cuerpo && RE_VOZ.test(String(cuerpo.en || ''))) argumentos.push('--voz-en', String(cuerpo.en));
+
+  instalacion = { andando: true, lineas: [], empezo: new Date().toISOString(), termino: null, ok: null, error: '' };
+  apuntar('Instalando la voz neuronal. Son unos 170 MB; puede tardar varios minutos.');
+
+  const hijo = spawn(process.execPath, argumentos, { cwd: RAIZ, windowsHide: true });
+  let resto = '';
+
+  function trozo(datos) {
+    resto += datos;
+    const partes = resto.split(/\n/);
+    resto = partes.pop();
+    partes.forEach(apuntar);
+    /* El instalador pinta el avance con \r en la misma línea */
+    const ultimo = resto.split(/\r/).filter(Boolean).pop();
+    if (ultimo && /%/.test(ultimo)) avisar('voz', { andando: true, avance: ultimo.trim() });
+  }
+
+  hijo.stdout.on('data', trozo);
+  hijo.stderr.on('data', trozo);
+
+  hijo.on('error', (e) => {
+    instalacion.andando = false;
+    instalacion.ok = false;
+    instalacion.error = e.message;
+    instalacion.termino = new Date().toISOString();
+    apuntar('No se pudo arrancar el instalador: ' + e.message);
+    avisar('voz', { andando: false, ok: false, error: e.message });
+  });
+
+  hijo.on('close', (codigo) => {
+    if (resto) apuntar(resto);
+    voz.olvidarEstado();
+    const est = voz.estado(true);
+    instalacion.andando = false;
+    instalacion.termino = new Date().toISOString();
+    instalacion.ok = codigo === 0 && est.completa;
+    if (!instalacion.ok) {
+      instalacion.error = est.falta.length ? 'quedó incompleta: falta ' + est.falta.join(' y ')
+        : 'el instalador terminó con error ' + codigo;
+    }
+    apuntar(instalacion.ok ? 'Listo: la voz neuronal quedó instalada.' : instalacion.error);
+    avisar('voz', { andando: false, ok: instalacion.ok, error: instalacion.error, estado: est });
+    console.log('Instalación de la voz neuronal: ' + (instalacion.ok ? 'lista' : 'falló — ' + instalacion.error));
+  });
+
+  return { andando: true, yaEstaba: false };
+}
+
 /* Sintetiza las piezas que le pidan. Si un idioma falla, el otro sale igual:
    más vale un ATIS en español que ningún ATIS. */
 async function sintetizarPiezas(cuerpo) {
@@ -330,7 +414,9 @@ const servidor = http.createServer(async (req, res) => {
     return servirAudio(req, res, url.split('?')[0]);
   }
 
-  if (url.startsWith('/api/voz') && req.method === 'GET') {
+  /* Exacto a propósito: si fuera «empieza con», se tragaría las demás rutas
+     de /api/voz que vienen abajo. */
+  if ((url === '/api/voz' || url.indexOf('/api/voz?') === 0) && req.method === 'GET') {
     return json(res, 200, voz.estado(/revisar=1/.test(url)));
   }
 
@@ -352,6 +438,20 @@ const servidor = http.createServer(async (req, res) => {
     } catch (e) {
       return json(res, 400, { error: e.message });
     }
+  }
+
+  if (url === '/api/voz/instalar' && req.method === 'POST') {
+    try {
+      const c = await leerCuerpo(req);
+      const r = instalarVoz(c);
+      return json(res, 200, Object.assign(r, estadoInstalacion()));
+    } catch (e) {
+      return json(res, 400, { error: e.message });
+    }
+  }
+
+  if (url === '/api/voz/instalacion' && req.method === 'GET') {
+    return json(res, 200, estadoInstalacion());
   }
 
   if (url === '/api/voz/limpiar' && req.method === 'POST') {
@@ -404,28 +504,98 @@ function direccionesLocales() {
   return salida;
 }
 
-servidor.listen(PUERTO, '0.0.0.0', () => {
+/* ¿Lo que está en ese puerto es otro ATIS, o un programa ajeno? */
+function quienOcupa(puerto) {
+  return new Promise((resolver) => {
+    const pet = http.get({ host: '127.0.0.1', port: puerto, path: '/api/salud', timeout: 2000 }, (res) => {
+      let cuerpo = '';
+      res.on('data', (t) => { cuerpo += t; if (cuerpo.length > 20000) res.destroy(); });
+      res.on('end', () => {
+        try {
+          const d = JSON.parse(cuerpo);
+          resolver(d && d.ok && d.desde ? { atis: true, desde: d.desde, version: d.version } : { atis: false });
+        } catch (e) { resolver({ atis: false }); }
+      });
+    });
+    pet.on('timeout', () => { pet.destroy(); resolver({ atis: false }); });
+    pet.on('error', () => resolver({ atis: false }));
+  });
+}
+
+function anunciar(puerto) {
   const ips = direccionesLocales();
   console.log('');
   console.log('  ATIS 3.0 — servidor de control remoto');
   console.log('  =====================================');
   console.log('');
   console.log('  En esta computadora (la que transmite):');
-  console.log('     http://localhost:' + PUERTO + '/');
+  console.log('     http://localhost:' + puerto + '/');
   console.log('');
   console.log('  Desde otra computadora de la misma red:');
-  if (ips.length) ips.forEach((ip) => console.log('     http://' + ip + ':' + PUERTO + '/'));
+  if (ips.length) ips.forEach((ip) => console.log('     http://' + ip + ':' + puerto + '/'));
   else console.log('     (no se detectó ninguna red; revise la conexión)');
   console.log('');
   const ev = voz.estado(true);
   console.log('  Voz neuronal (Piper): ' + (ev.completa
     ? 'lista, ' + ev.voces.filter((v) => v.lang).map((v) => v.nombre).join(' / ')
     : (ev.disponible ? 'incompleta, falta ' + ev.falta.join(' y ')
-      : 'no instalada (se usará la voz del navegador)')));
+      : 'no instalada — se instala desde Ajustes → Voz neuronal, o con VOZ.bat')));
   console.log('');
   console.log('  Esta ventana debe quedarse abierta. Ctrl+C para detener.');
   console.log('');
+  /* Línea para el .bat: así sabe a qué dirección abrir el navegador */
+  console.log('ATIS_PUERTO=' + puerto);
+}
+
+/* Si el puerto está ocupado no se da por vencido:
+   - si lo ocupa otro ATIS, lo dice y manda a usar esa dirección, que ya sirve;
+   - si lo ocupa cualquier otro programa, se corre al siguiente puerto libre.
+   El operador nunca se queda sin servidor por un puerto. */
+const MAX_PUERTOS = 12;
+
+function arrancar(puerto, movido) {
+  servidor.once('error', async (e) => {
+    if (e.code !== 'EADDRINUSE') {
+      console.error('\n  ERROR del servidor: ' + e.message + '\n');
+      process.exit(1);
+    }
+    const quien = await quienOcupa(puerto);
+    if (quien.atis) {
+      console.log('');
+      console.log('  Ya hay un ATIS andando en el puerto ' + puerto + ', desde las ' +
+        new Date(quien.desde).toLocaleTimeString() + '.');
+      console.log('  No hace falta otro: use esa misma ventana del navegador.');
+      console.log('');
+      console.log('     http://localhost:' + puerto + '/');
+      direccionesLocales().forEach((ip) => console.log('     http://' + ip + ':' + puerto + '/'));
+      console.log('');
+      console.log('ATIS_PUERTO=' + puerto);
+      console.log('ATIS_YA_ANDABA=1');
+      process.exit(0);
+    }
+    if (movido >= MAX_PUERTOS) {
+      console.error('\n  ERROR: del puerto ' + PUERTO + ' al ' + (PUERTO + MAX_PUERTOS) +
+        ' están todos ocupados por otros programas.');
+      console.error('  Elija uno a mano: node servidor/servidor.js --puerto 9100\n');
+      process.exit(1);
+    }
+    console.log('  El puerto ' + puerto + ' lo ocupa otro programa; se usa el ' + (puerto + 1) + '.');
+    arrancar(puerto + 1, movido + 1);
+  });
+
+  servidor.listen(puerto, '0.0.0.0');
+}
+
+/* El aviso sale de aquí y no del listen: así dice el puerto en el que de
+   verdad quedó, aunque haya tenido que correrse a otro. */
+let puertoEnUso = PUERTO;
+servidor.on('listening', () => {
+  const dir = servidor.address();
+  puertoEnUso = (dir && dir.port) || PUERTO;
+  anunciar(puertoEnUso);
 });
+
+arrancar(PUERTO, 0);
 
 ['SIGINT', 'SIGTERM'].forEach((senal) => {
   process.on(senal, () => {
@@ -433,14 +603,4 @@ servidor.listen(PUERTO, '0.0.0.0', () => {
     guardarEstado();
     process.exit(0);
   });
-});
-
-servidor.on('error', (e) => {
-  if (e.code === 'EADDRINUSE') {
-    console.error('\n  ERROR: el puerto ' + PUERTO + ' ya está ocupado.');
-    console.error('  Cierre el otro servidor o use: node servidor/servidor.js --puerto 8081\n');
-  } else {
-    console.error('\n  ERROR del servidor: ' + e.message + '\n');
-  }
-  process.exit(1);
 });

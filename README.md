@@ -42,11 +42,16 @@ en bucle. Es la opción que mejor suena y la más estable para trabajar 24/7.
 Instalación, una sola vez y con internet:
 
 1. Abrir el ATIS con **SERVIDOR.bat** (la voz neuronal la genera el servidor).
-2. Ejecutar **VOZ.bat**. Descarga el motor y dos voces (unos 170 MB) y las deja en la
-   carpeta `voz` del programa.
-3. En *Ajustes → Voz neuronal* pulsar **Comprobar de nuevo**. Cuando diga *lista*, ya es
-   la que sale al aire: las voces de la barra inferior cambian a las neuronales.
+2. En *Ajustes → Voz neuronal*, pulsar **Instalar la voz neuronal**. Baja el motor y dos
+   voces (unos 170 MB) y las deja en la carpeta `voz` del programa. Tarda unos minutos y
+   el avance se ve en la misma pantalla; se puede seguir trabajando mientras tanto.
+3. Al terminar queda *lista* y ya es la que sale al aire: las voces de la barra inferior
+   cambian a las neuronales.
 4. De ahí en adelante no hace falta internet nunca más.
+
+También se puede instalar sin abrir el programa, con **VOZ.bat**, que hace exactamente lo
+mismo. Si la descarga se corta a medias, se vuelve a pulsar: lo ya bajado no se baja otra
+vez.
 
 Qué resuelve:
 
@@ -144,6 +149,18 @@ con los últimos datos buenos.
 
 El lector está probado contra la página real del CAPMA: de ahí salen los 65 informes de
 las estaciones del país, y de esos se toma el de la estación configurada.
+
+### El puerto
+
+`SERVIDOR.bat` usa el puerto 8080. Si está ocupado no se queda atorado:
+
+- **Si lo que está ahí es otro ATIS** (porque ya se había abierto antes), lo dice y abre
+  esa misma dirección en lugar de levantar un segundo servidor.
+- **Si lo ocupa cualquier otro programa**, se corre al siguiente puerto libre (8081, 8082…)
+  y avisa en qué dirección quedó.
+
+Solo si del 8080 al 8092 estuvieran todos ocupados pide elegir uno a mano
+(`node servidor/servidor.js --puerto 9100`).
 
 ## Control remoto desde otra computadora
 

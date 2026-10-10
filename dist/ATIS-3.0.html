@@ -840,6 +840,12 @@ body.modo-control .pstate-main::after {
 /* La voz neuronal: el desplegable del motor no necesita toda la tarjeta */
 #secVozN .pgroup { margin: 10px 0 14px; max-width: 32rem; }
 #secVozN #vozNInfo { margin-bottom: 10px; }
+.vozconsola {
+  margin: 10px 0 4px; padding: 10px 12px; max-height: 190px; overflow: auto;
+  background: var(--panel-2, rgba(0,0,0,.18)); border: 1px solid var(--line);
+  border-radius: 8px; font: 12px/1.5 ui-monospace, Consolas, monospace;
+  color: var(--muted); white-space: pre-wrap; word-break: break-word;
+}
 
 </style>
 </head>
@@ -1296,21 +1302,28 @@ body.modo-control .pstate-main::after {
     </div>
     <div id="vozNInfo" class="diag"></div>
     <div class="row buttons">
+      <button id="btnVozNInstalar" class="small primary">Instalar la voz neuronal</button>
       <button id="btnVozNRevisar" class="small ghost">Comprobar de nuevo</button>
       <button id="btnVozNLimpiar" class="small ghost">Vaciar audios guardados</button>
       <span id="vozNStatus" class="status"></span>
     </div>
+    <pre id="vozNConsola" class="vozconsola" hidden></pre>
     <h3>C&oacute;mo instalarla</h3>
     <ol class="help">
       <li>Abrir el ATIS con <b>SERVIDOR.bat</b>: la voz neuronal la genera el servidor, as&iacute; que
         hace falta esa ventana abierta.</li>
-      <li>Ejecutar <b>VOZ.bat</b> una sola vez, con internet. Descarga el motor y las dos
-        voces (unos 170 MB) y las deja en la carpeta <b>voz</b> del programa.</li>
-      <li>Volver aqu&iacute; y pulsar <b>Comprobar de nuevo</b>. Cuando diga <i>lista</i>, la voz
-        neuronal ya es la que sale al aire; las voces de la barra de abajo cambian a las
-        neuronales.</li>
+      <li>Pulsar <b>Instalar la voz neuronal</b>, aqu&iacute; arriba, con internet conectado.
+        Baja el motor y las dos voces (unos 170 MB) y las deja en la carpeta <b>voz</b> del
+        programa. Tarda unos minutos y se ve el avance; se puede seguir trabajando.</li>
+      <li>Al terminar, la voz neuronal ya es la que sale al aire: las voces de la barra de
+        abajo cambian a las neuronales.</li>
       <li>De ah&iacute; en adelante no necesita internet nunca m&aacute;s.</li>
     </ol>
+    <p class="help">
+      Tambi&eacute;n se puede instalar sin abrir el programa, con <b>VOZ.bat</b>, que hace
+      exactamente lo mismo. Si se corta a medias, se vuelve a pulsar: lo ya descargado no
+      se baja otra vez.
+    </p>
     <p class="help">
       Si la carpeta <b>voz</b> no est&aacute;, no pasa nada: el programa sigue hablando con la voz
       del navegador, igual que antes.
@@ -2180,6 +2193,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   var enviando = null;
   var oyentes = [];
   var oyentesMetar = [];
+  var oyentesVoz = [];
   var ultimoJSON = null;   /* lo último enviado o recibido: evita el ida y vuelta */
 
   var est = {
@@ -2322,6 +2336,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       try { d = JSON.parse(ev.data); } catch (e) { return; }
       oyentesMetar.forEach(function (cb) { try { cb(d); } catch (e) { /* ignorado */ } });
     });
+    /* Cómo va la instalación de la voz neuronal */
+    fuente.addEventListener('voz', function (ev) {
+      var d = null;
+      try { d = JSON.parse(ev.data); } catch (e) { return; }
+      oyentesVoz.forEach(function (cb) { try { cb(d); } catch (e) { /* ignorado */ } });
+    });
     fuente.onopen = function () { est.conectado = true; est.error = ''; avisar(); };
     fuente.onerror = function () { est.conectado = false; avisar(); };
   }
@@ -2374,7 +2394,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     estado: estado,
     fijarPapel: fijarPapel,
     alCambiar: function (cb) { oyentes.push(cb); },
-    alMetar: function (cb) { oyentesMetar.push(cb); }
+    alMetar: function (cb) { oyentesMetar.push(cb); },
+    alVoz: function (cb) { oyentesVoz.push(cb); }
   };
 })(this);
 
@@ -4861,6 +4882,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       'vigStatus', 'vigUltimo', 'avisoMetar', 'avisoMetarTexto', 'btnUsarMetar', 'btnIgnorarMetar',
       'pendiente', 'pendienteTexto', 'btnAplicarYa',
       'motorSel', 'vozNBadge', 'vozNInfo', 'btnVozNRevisar', 'btnVozNLimpiar', 'vozNStatus',
+      'btnVozNInstalar', 'vozNConsola',
       'rotVozEs', 'rotVozEn'
     ].forEach(function (id) { el[id] = $(id); });
 
@@ -5999,6 +6021,40 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (v === 'auto' || v === 'neuronal' || v === 'navegador') prefMotor = v;
     if (el.motorSel) el.motorSel.value = prefMotor;
     revisarNeural(false);
+
+    if (!ATIS.neural || !ATIS.neural.conServidor) return;
+
+    /* Si la instalación venía andando (por ejemplo, se recargó la página o se
+       está viendo desde la otra computadora), se retoma donde iba. */
+    fetch('/api/voz/instalacion').then(function (r) { return r.json(); }).then(function (d) {
+      if (d.andando) {
+        marcarInstalando(true);
+        pintarConsolaVoz(d.lineas || []);
+        status(el.vozNStatus, 'Hay una instalación en marcha…');
+        vigilarInstalacion();
+      } else if (d.lineas && d.lineas.length) {
+        pintarConsolaVoz(d.lineas);
+      }
+    }).catch(function () { /* servidor viejo o sin la ruta: no estorba */ });
+
+    /* Avisos en vivo del servidor */
+    if (ATIS.enlace && ATIS.enlace.alVoz) {
+      ATIS.enlace.alVoz(function (d) {
+        if (d.avance) { pintarConsolaVoz(null, d.avance); return; }
+        if (d.linea) {
+          var txt = el.vozNConsola.textContent.replace(/\n?\[avance\][^\n]*$/, '');
+          el.vozNConsola.hidden = false;
+          el.vozNConsola.textContent = (txt ? txt + '\n' : '') + d.linea;
+          el.vozNConsola.scrollTop = el.vozNConsola.scrollHeight;
+        }
+        if (d.andando === true) marcarInstalando(true);
+        if (d.andando === false) {
+          clearInterval(relojInstalacion);
+          relojInstalacion = null;
+          terminoInstalacion(d);
+        }
+      });
+    }
   }
 
   /* Pregunta al servidor si la voz neuronal está instalada y repinta todo */
@@ -6047,6 +6103,86 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       (sv.falta || []).forEach(function (f) { tag('falta', f, 'warn'); });
     }
     el.vozNInfo.innerHTML = tags.join('');
+  }
+
+  /* ---- Instalar la voz neuronal sin salir del programa ---- */
+  var instalandoVoz = false;
+
+  function pintarConsolaVoz(lineas, avance) {
+    if (!el.vozNConsola) return;
+    el.vozNConsola.hidden = false;
+    if (lineas) el.vozNConsola.textContent = lineas.join('\n');
+    if (avance) {
+      var txt = el.vozNConsola.textContent;
+      /* El avance se reescribe en su propio renglón, no se acumula */
+      txt = txt.replace(/\n?\[avance\][^\n]*$/, '');
+      el.vozNConsola.textContent = txt + '\n[avance] ' + avance;
+    }
+    el.vozNConsola.scrollTop = el.vozNConsola.scrollHeight;
+  }
+
+  function marcarInstalando(andando) {
+    instalandoVoz = andando;
+    if (el.btnVozNInstalar) {
+      el.btnVozNInstalar.disabled = andando;
+      el.btnVozNInstalar.textContent = andando ? 'Instalando…' : 'Instalar la voz neuronal';
+    }
+  }
+
+  function instalarVozNeural() {
+    if (!ATIS.neural || !ATIS.neural.conServidor) {
+      status(el.vozNStatus, 'Hace falta abrir el ATIS con SERVIDOR.bat: la descarga la hace ' +
+        'el servidor, no el navegador.', 'err');
+      return;
+    }
+    if (instalandoVoz) return;
+    marcarInstalando(true);
+    status(el.vozNStatus, 'Descargando… son unos 170 MB, puede tardar varios minutos. ' +
+      'Puede seguir trabajando mientras tanto.');
+    el.vozNConsola.textContent = '';
+    fetch('/api/voz/instalar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
+    }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) throw new Error(d.error);
+        if (d.yaEstaba) status(el.vozNStatus, 'La instalación ya estaba en marcha.');
+        pintarConsolaVoz(d.lineas || []);
+        /* Si el flujo de avisos no llega, se pregunta de vez en cuando */
+        vigilarInstalacion();
+      })
+      .catch(function (e) {
+        marcarInstalando(false);
+        status(el.vozNStatus, 'No se pudo arrancar la instalación: ' + e.message, 'err');
+      });
+  }
+
+  var relojInstalacion = null;
+  function vigilarInstalacion() {
+    clearInterval(relojInstalacion);
+    relojInstalacion = setInterval(function () {
+      fetch('/api/voz/instalacion').then(function (r) { return r.json(); })
+        .then(function (d) {
+          pintarConsolaVoz(d.lineas || []);
+          if (d.andando) { marcarInstalando(true); return; }
+          clearInterval(relojInstalacion);
+          relojInstalacion = null;
+          terminoInstalacion(d);
+        })
+        .catch(function () { /* el servidor se cayó; el latido del enlace lo dirá */ });
+    }, 3000);
+  }
+
+  function terminoInstalacion(d) {
+    marcarInstalando(false);
+    revisarNeural(true).then(function () {
+      if (d.ok || neuralLista()) {
+        status(el.vozNStatus, 'Listo: la voz neuronal ya está instalada y es la que sale al aire.', 'ok');
+      } else {
+        status(el.vozNStatus, 'No se pudo terminar la instalación' +
+          (d.error ? ': ' + d.error : '') + '. Revise que haya internet y vuelva a pulsar; ' +
+          'lo que ya se bajó no se baja otra vez.', 'err');
+      }
+    });
   }
 
   /* ---- Las voces del pie son siempre las del motor que va a salir ---- */
@@ -6940,6 +7076,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         : 'Guardado.', 'ok');
       save();
     });
+
+    on(el.btnVozNInstalar, 'click', instalarVozNeural);
 
     on(el.btnVozNRevisar, 'click', function () {
       status(el.vozNStatus, 'Comprobando…');

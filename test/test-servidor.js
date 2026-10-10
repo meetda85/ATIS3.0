@@ -258,6 +258,57 @@ const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json())
     }
   });
 
+  await test('dos veces SERVIDOR.bat: el segundo reconoce al primero y no se pelea', async () => {
+    const otro = spawn('node', [path.join(__dirname, '..', 'servidor', 'servidor.js'), '--puerto', String(PUERTO)],
+      { stdio: ['ignore', 'pipe', 'pipe'] });
+    hijos.add(otro);
+    let salida = '';
+    otro.stdout.on('data', (t) => { salida += t; });
+    otro.stderr.on('data', (t) => { salida += t; });
+    const codigo = await new Promise((r) => otro.on('close', r));
+    assert.strictEqual(codigo, 0, 'no debe terminar con error: ' + salida);
+    assert.ok(/ATIS_YA_ANDABA=1/.test(salida), 'no reconocio al que ya andaba: ' + salida);
+    assert.ok(salida.indexOf('ATIS_PUERTO=' + PUERTO) >= 0, 'no dijo en que puerto esta: ' + salida);
+    assert.ok(/Ya hay un ATIS andando/.test(salida), 'no lo explico: ' + salida);
+    /* y el primero sigue atendiendo */
+    const salud = await api('/api/salud');
+    assert.strictEqual(salud.ok, true, 'el primero se cayo');
+  });
+
+  await test('si el puerto lo ocupa otro programa, se corre al siguiente libre', async () => {
+    const net = require('net');
+    const estorbo = net.createServer(() => {});
+    const libre = PUERTO + 40;
+    await new Promise((r) => estorbo.listen(libre, '127.0.0.1', r));
+    const otro = spawn('node', [path.join(__dirname, '..', 'servidor', 'servidor.js'), '--puerto', String(libre)],
+      { stdio: ['ignore', 'pipe', 'pipe'] });
+    hijos.add(otro);
+    let salida = '';
+    otro.stdout.on('data', (t) => { salida += t; });
+    try {
+      /* a esperar a que anuncie en que puerto quedo */
+      for (let i = 0; i < 60 && !/ATIS_PUERTO=/.test(salida); i++) await dormir(100);
+      const puesto = parseInt((/ATIS_PUERTO=(\d+)/.exec(salida) || [])[1], 10);
+      assert.strictEqual(puesto, libre + 1, 'quedo en ' + puesto + ', salida: ' + salida);
+      assert.ok(/lo ocupa otro programa/.test(salida), 'no dijo por que se movio');
+      const r = await fetch('http://127.0.0.1:' + (libre + 1) + '/api/salud').then((x) => x.json());
+      assert.strictEqual(r.ok, true, 'no esta atendiendo en el puerto nuevo');
+      /* el aviso de la pantalla trae el puerto de verdad, no el pedido */
+      assert.ok(salida.indexOf('http://localhost:' + (libre + 1) + '/') >= 0,
+        'el aviso dice un puerto que no es: ' + salida);
+    } finally {
+      otro.kill('SIGKILL');
+      estorbo.close();
+    }
+  });
+
+  await test('dice si hay una instalacion de voz en marcha', async () => {
+    const d = await api('/api/voz/instalacion');
+    assert.strictEqual(typeof d.andando, 'boolean');
+    assert.ok(Array.isArray(d.lineas));
+    assert.strictEqual(d.andando, false, 'no deberia haber ninguna andando');
+  });
+
   await test('el estado sobrevive al reinicio del servidor', async () => {
     srv.kill('SIGKILL');
     await dormir(600);
