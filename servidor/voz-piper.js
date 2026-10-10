@@ -202,6 +202,7 @@ function podarCache() {
   const lista = archivosCache();
   for (let i = MAX_CACHE; i < lista.length; i++) {
     try { fs.unlinkSync(lista[i].ruta); } catch (e) { /* ya no estaba */ }
+    borrar(lista[i].ruta.replace(/\.wav$/, '.marcas.json'));
   }
 }
 
@@ -209,7 +210,14 @@ function limpiarCache() {
   let borrados = 0;
   archivosCache().forEach((a) => {
     try { fs.unlinkSync(a.ruta); borrados++; } catch (e) { /* ignorado */ }
+    borrar(a.ruta.replace(/\.wav$/, '.marcas.json'));
   });
+  /* y lo que haya quedado a medias de una corrida anterior */
+  try {
+    fs.readdirSync(CACHE).forEach((n) => {
+      if (/\.trozos-\d+$/.test(n)) fs.rmSync(path.join(CACHE, n), { recursive: true, force: true });
+    });
+  } catch (e) { /* ignorado */ }
   olvidarEstado();
   return borrados;
 }
@@ -258,6 +266,109 @@ function duracionWav(ruta) {
   }
 }
 
+/* --------------------------------------------------- juntar varios WAV -- */
+
+/* Devuelve el formato y el audio crudo de un WAV, sin su encabezado */
+function leerWav(ruta) {
+  const b = fs.readFileSync(ruta);
+  if (b.length < 44 || b.toString('ascii', 0, 4) !== 'RIFF') return null;
+  let canales = 1, muestreo = 22050, bits = 16;
+  let p = 12, datos = null;
+  while (p + 8 <= b.length) {
+    const id = b.toString('ascii', p, p + 4);
+    const largo = b.readUInt32LE(p + 4);
+    if (id === 'fmt ' && p + 24 <= b.length) {
+      canales = b.readUInt16LE(p + 10) || 1;
+      muestreo = b.readUInt32LE(p + 12) || 22050;
+      bits = b.readUInt16LE(p + 22) || 16;
+    } else if (id === 'data') {
+      const fin = largo > 0 && p + 8 + largo <= b.length ? p + 8 + largo : b.length;
+      datos = b.slice(p + 8, fin);
+      break;
+    }
+    p += 8 + largo + (largo % 2);
+  }
+  if (!datos) return null;
+  return { canales: canales, muestreo: muestreo, bits: bits, pcm: datos };
+}
+
+function encabezadoWav(formato, bytesDatos) {
+  const b = Buffer.alloc(44);
+  const porSegundo = formato.muestreo * formato.canales * (formato.bits / 8);
+  b.write('RIFF', 0, 'ascii');
+  b.writeUInt32LE(36 + bytesDatos, 4);
+  b.write('WAVE', 8, 'ascii');
+  b.write('fmt ', 12, 'ascii');
+  b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20);
+  b.writeUInt16LE(formato.canales, 22);
+  b.writeUInt32LE(formato.muestreo, 24);
+  b.writeUInt32LE(porSegundo, 28);
+  b.writeUInt16LE(formato.canales * (formato.bits / 8), 32);
+  b.writeUInt16LE(formato.bits, 34);
+  b.write('data', 36, 'ascii');
+  b.writeUInt32LE(bytesDatos, 40);
+  return b;
+}
+
+/* Junta los audios de cada frase en uno solo y anota en qué segundo empieza y
+   termina cada una. Eso es lo que permite subrayar el guion mientras suena:
+   los tiempos son los de verdad, no una estimación. */
+function juntarWav(rutas, frases, destino) {
+  const trozos = [];
+  const marcas = [];
+  let formato = null;
+  let segundos = 0;
+
+  for (let i = 0; i < rutas.length; i++) {
+    const w = leerWav(rutas[i]);
+    if (!w) return null;
+    if (!formato) formato = { canales: w.canales, muestreo: w.muestreo, bits: w.bits };
+    else if (w.muestreo !== formato.muestreo || w.canales !== formato.canales) return null;
+    const porSegundo = formato.muestreo * formato.canales * (formato.bits / 8);
+    const dura = w.pcm.length / porSegundo;
+    marcas.push({
+      i: i,
+      texto: frases[i] || '',
+      inicio: Math.round(segundos * 1000) / 1000,
+      fin: Math.round((segundos + dura) * 1000) / 1000
+    });
+    segundos += dura;
+    trozos.push(w.pcm);
+  }
+
+  if (!formato || !trozos.length) return null;
+  const pcm = Buffer.concat(trozos);
+  fs.writeFileSync(destino, Buffer.concat([encabezadoWav(formato, pcm.length), pcm]));
+  return { marcas: marcas, segundos: Math.round(segundos * 1000) / 1000 };
+}
+
+/* ----------------------------------------------------------- las frases -- */
+
+/* El guion se parte en frases para poder subrayarlas una por una. Se respeta
+   el punto y los renglones, que es como está escrito el ATIS. */
+function frasear(texto) {
+  const limpio = String(texto || '').replace(/\s+/g, ' ').trim();
+  if (!limpio) return [];
+  const crudas = limpio.match(/[^.!?]+[.!?]*/g) || [limpio];
+  const salida = [];
+  crudas.forEach((f) => {
+    const t = f.trim();
+    if (!t) return;
+    /* Una enumeración muy larga (la lista de NOTAM) se parte por comas, para
+       que el subrayado no se quede fijo medio minuto */
+    if (t.length <= 200) { salida.push(t); return; }
+    let acum = '';
+    t.split(/,\s*/).forEach((pedazo, i, todos) => {
+      const pieza = pedazo + (i === todos.length - 1 ? '' : ',');
+      if ((acum + ' ' + pieza).trim().length > 200 && acum) { salida.push(acum.trim()); acum = pieza; }
+      else acum = (acum + ' ' + pieza).trim();
+    });
+    if (acum) salida.push(acum.trim());
+  });
+  return salida;
+}
+
 /* ------------------------------------------------------------- sintetizar -- */
 
 /* Dos peticiones del mismo texto (la torre y el control remoto a la vez) no
@@ -298,13 +409,22 @@ function sintetizar(peticion) {
 
   const largo = escalaLargo(peticion.velocidad);
   const silencio = Math.max(0, Math.min(2, Number(peticion.pausaFrase) || 0.2));
-  const hash = firma({ t: texto, v: voz.nombre, l: largo, s: silencio, m: 1 });
+  /* Si quien pide trae el guion ya partido en piezas, se respetan: así cada
+     marca de tiempo corresponde exactamente a una pieza de las que se ven en
+     pantalla, y el subrayado cae donde debe. Si no, se parte por frases. */
+  const partes = Array.isArray(peticion.partes)
+    ? peticion.partes.map((x) => normalizar(x)).filter(Boolean)
+    : [];
+  const frases = partes.length ? partes : frasear(texto);
+  const hash = firma({ t: texto, v: voz.nombre, l: largo, s: silencio, p: frases, m: 2 });
 
   /* Ya estaba generado: se entrega al instante y sin tocar el disco */
   const listo = rutaDe(hash);
   if (listo) {
     try { fs.utimesSync(listo, new Date(), new Date()); } catch (e) { /* ignorado */ }
-    return Promise.resolve(describir(hash, listo, { lang: lang, voz: voz.nombre, texto: texto, nuevo: false }));
+    return Promise.resolve(describir(hash, listo, {
+      lang: lang, voz: voz.nombre, texto: texto, nuevo: false, marcas: marcasGuardadas(hash)
+    }));
   }
 
   if (enVuelo.has(hash)) return enVuelo.get(hash);
@@ -312,12 +432,18 @@ function sintetizar(peticion) {
   if (!asegurarCache()) return Promise.reject(new Error('no se pudo crear la carpeta ' + CACHE));
 
   const destino = path.join(CACHE, hash + '.wav');
-  const temporal = path.join(CACHE, hash + '.parte-' + process.pid + '.wav');
+  const carpetaTrozos = path.join(CACHE, hash + '.trozos-' + process.pid);
 
   const tarea = new Promise((resolver, rechazar) => {
+    try { fs.mkdirSync(carpetaTrozos, { recursive: true }); }
+    catch (e) { rechazar(new Error('no se pudo crear la carpeta de trabajo: ' + e.message)); return; }
+
+    /* Una frase por renglón y un archivo por frase, en una sola corrida: así se
+       carga el modelo una vez y de paso se sabe cuánto dura cada frase. Piper
+       imprime el nombre de cada archivo conforme los va terminando, en orden. */
     const argumentos = [
       '--model', voz.ruta,
-      '--output_file', temporal,
+      '--output_dir', carpetaTrozos,
       '--length_scale', String(largo),
       '--sentence_silence', String(silencio),
       '--quiet'
@@ -343,19 +469,27 @@ function sintetizar(peticion) {
     }
 
     let errores = '';
+    let salidaStd = '';
     let cerrado = false;
     const reloj = setTimeout(() => {
       if (cerrado) return;
       try { hijo.kill('SIGKILL'); } catch (e) { /* ignorado */ }
+      limpiarTrozos();
       rechazar(new Error('Piper no respondió en ' + Math.round(TIEMPO_LIMITE / 1000) + ' s'));
     }, TIEMPO_LIMITE);
 
     if (hijo.stderr) hijo.stderr.on('data', (t) => { if (errores.length < 4000) errores += t; });
+    if (hijo.stdout) hijo.stdout.on('data', (t) => { if (salidaStd.length < 40000) salidaStd += t; });
+
+    function limpiarTrozos() {
+      try { fs.rmSync(carpetaTrozos, { recursive: true, force: true }); } catch (e) { /* ignorado */ }
+    }
 
     hijo.on('error', (e) => {
       if (cerrado) return;
       cerrado = true;
       clearTimeout(reloj);
+      limpiarTrozos();
       rechazar(new Error('no se pudo arrancar Piper: ' + e.message));
     });
 
@@ -363,33 +497,53 @@ function sintetizar(peticion) {
       if (cerrado) return;
       cerrado = true;
       clearTimeout(reloj);
-      const salida = errores.replace(/\s+/g, ' ').trim().slice(-300);
+      const aviso = errores.replace(/\s+/g, ' ').trim().slice(-300);
       if (codigo !== 0) {
-        borrar(temporal);
-        rechazar(new Error('Piper terminó con error ' + codigo + (salida ? ': ' + salida : '')));
+        limpiarTrozos();
+        rechazar(new Error('Piper terminó con error ' + codigo + (aviso ? ': ' + aviso : '')));
         return;
       }
-      let bytes = 0;
-      try { bytes = fs.statSync(temporal).size; } catch (e) { bytes = 0; }
-      if (bytes < 1000) {
-        borrar(temporal);
-        rechazar(new Error('Piper no generó audio' + (salida ? ': ' + salida : '')));
+
+      /* Los nombres que imprimió Piper, en el orden en que los fue sacando */
+      let rutas = salidaStd.split(/\r?\n/).map((l) => l.trim())
+        .filter((l) => /\.wav$/i.test(l) && existe(l));
+      /* Si por lo que sea no los imprimió, se toman de la carpeta por fecha */
+      if (rutas.length !== frases.length) {
+        try {
+          rutas = fs.readdirSync(carpetaTrozos)
+            .filter((n) => /\.wav$/i.test(n))
+            .map((n) => ({ n: n, r: path.join(carpetaTrozos, n) }))
+            .map((x) => ({ r: x.r, t: fs.statSync(x.r).mtimeMs }))
+            .sort((a, b) => a.t - b.t)
+            .map((x) => x.r);
+        } catch (e) { rutas = []; }
+      }
+
+      if (!rutas.length) {
+        limpiarTrozos();
+        rechazar(new Error('Piper no generó audio' + (aviso ? ': ' + aviso : '')));
         return;
       }
-      try {
-        fs.renameSync(temporal, destino);
-      } catch (e) {
-        borrar(temporal);
-        rechazar(new Error('no se pudo guardar el audio: ' + e.message));
+
+      const junto = juntarWav(rutas, frases, destino);
+      limpiarTrozos();
+      if (!junto) {
+        borrar(destino);
+        rechazar(new Error('no se pudieron unir los audios de las frases'));
         return;
       }
+
+      guardarMarcas(hash, junto.marcas);
       podarCache();
       olvidarEstado();
-      resolver(describir(hash, destino, { lang: lang, voz: voz.nombre, texto: texto, nuevo: true }));
+      resolver(describir(hash, destino, {
+        lang: lang, voz: voz.nombre, texto: texto, nuevo: true, marcas: junto.marcas
+      }));
     });
 
     try {
-      hijo.stdin.end(texto + '\n', 'utf8');
+      /* Un renglón por frase: cada uno sale como un archivo */
+      hijo.stdin.end(frases.join('\n') + '\n', 'utf8');
     } catch (e) {
       /* el 'close' de arriba se encarga del error */
     }
@@ -416,8 +570,23 @@ function describir(hash, ruta, extra) {
     bytes: bytes,
     segundos: duracionWav(ruta),
     caracteres: extra.texto.length,
+    marcas: extra.marcas || [],
     nuevo: !!extra.nuevo
   };
+}
+
+/* Las marcas viajan junto al audio en el caché: si el audio se reusa, los
+   tiempos del subrayado se reusan también. */
+function archivoMarcas(hash) { return path.join(CACHE, hash + '.marcas.json'); }
+
+function guardarMarcas(hash, marcas) {
+  try { fs.writeFileSync(archivoMarcas(hash), JSON.stringify(marcas), 'utf8'); }
+  catch (e) { /* sin marcas se sigue oyendo igual, solo no hay subrayado */ }
+}
+
+function marcasGuardadas(hash) {
+  try { return JSON.parse(fs.readFileSync(archivoMarcas(hash), 'utf8')) || []; }
+  catch (e) { return []; }
 }
 
 /* Muestra corta para escuchar la voz antes de ponerla al aire */
@@ -440,6 +609,10 @@ module.exports = {
   MUESTRA: MUESTRA,
   estado: estado,
   olvidarEstado: olvidarEstado,
+  frasear: frasear,
+  juntarWav: juntarWav,
+  leerWav: leerWav,
+  marcasGuardadas: marcasGuardadas,
   buscarBinario: buscarBinario,
   buscarVoces: buscarVoces,
   vocesDe: vocesDe,

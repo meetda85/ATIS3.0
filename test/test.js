@@ -376,5 +376,51 @@ test('el texto en ingles conserva las contracciones expandidas', () => {
   assert.strictEqual(n.plain, 'runway 05 right, 23 left closed due to work in progress');
 });
 
+/* ---- Las piezas del guion, que es de donde sale el subrayado ---- */
+
+function guionDePrueba(lang) {
+  const obs = {
+    time: '1745',
+    wind: { mode: 'steady', direction: '050', speed: '8' },
+    visibility: { value: '10', unit: 'SM' },
+    temperature: '22', dewpoint: '14', altimeter: '3039',
+    layers: [{ amount: 'FEW', height: '2500' }, { amount: 'SCT', height: '8000' }]
+  };
+  return ATIS.script.build(lang, obs, {
+    station: 'MMMX', letter: 'C', runwaysInUse: ['05L'],
+    notamLines: ['pista 05 derecha cerrada'], includeNotams: true
+  });
+}
+
+test('el guion viene partido en piezas, con su locucion al lado', () => {
+  ['es', 'en'].forEach((lang) => {
+    const r = guionDePrueba(lang);
+    assert.ok(r.partes.length > 4, 'muy pocas piezas en ' + lang + ': ' + r.partes.length);
+    assert.strictEqual(r.partes.length, r.sentences.length, 'no coinciden en ' + lang);
+    r.partes.forEach((p, i) => {
+      assert.ok(typeof p.texto === 'string' && p.texto.length, 'pieza vacia ' + i + ' en ' + lang);
+      assert.ok(typeof p.locucion === 'string', 'sin locucion la pieza ' + i + ' en ' + lang);
+      assert.ok(p.texto.indexOf('\n') === -1, 'la pieza ' + i + ' trae el salto de renglon adentro');
+    });
+  });
+});
+
+test('las piezas rearman exactamente la locucion y el texto', () => {
+  ['es', 'en'].forEach((lang) => {
+    const r = guionDePrueba(lang);
+    assert.strictEqual(r.partes.map((p) => p.locucion).join(' '), r.speech,
+      'la locucion no se rearma en ' + lang);
+    const texto = r.partes.map((p, i) => (i && p.renglon ? '\n' : (i ? ' ' : '')) + p.texto).join('');
+    assert.strictEqual(texto, r.text, 'el texto no se rearma en ' + lang);
+  });
+});
+
+test('las piezas que van en su renglon quedan marcadas', () => {
+  const r = guionDePrueba('es');
+  const enRenglon = r.partes.filter((p) => p.renglon);
+  assert.ok(enRenglon.length >= 1, 'el NOTAM deberia ir en su propio renglon');
+  assert.ok(/cerrada/.test(enRenglon.map((p) => p.texto).join(' ')));
+});
+
 console.log('\n' + pass + ' pruebas correctas, ' + fail + ' fallidas\n');
 process.exit(fail ? 1 : 0);

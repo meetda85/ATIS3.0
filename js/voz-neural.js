@@ -37,7 +37,9 @@
 
   var state = {
     playing: false, paused: false, cycle: 0, lang: '',
-    chunk: 0, total: 0, etiqueta: '', aviso: '', respaldo: '', motor: 'neuronal'
+    chunk: 0, total: 0, etiqueta: '', aviso: '', respaldo: '', motor: 'neuronal',
+    /* Qué pieza del guion está sonando ahora mismo: es lo que se subraya */
+    pieza: -1
   };
 
   var options = {
@@ -163,18 +165,38 @@
     return m + ':' + (s < 10 ? '0' : '') + s;
   }
 
+  /* Busca a qué marca corresponde un segundo del audio que está sonando.
+     Las marcas vienen ordenadas, así que basta recorrerlas desde la última
+     conocida: en un bucle que avanza, casi siempre es la misma o la siguiente. */
+  function piezaEn(pista, segundo) {
+    if (!pista || !pista.marcas || !pista.marcas.length) return -1;
+    var m = pista.marcas;
+    for (var i = 0; i < m.length; i++) {
+      if (segundo < m[i].fin) return segundo >= m[i].inicio ? i : i;
+    }
+    return m.length - 1;
+  }
+
   function emitir() {
     var pos = posicionSegundos();
     var total = duracionCiclo();
     state.chunk = Math.max(1, Math.min(state.total, Math.floor(pos) + 1));
     state.etiqueta = reloj(pos) + ' / ' + reloj(total);
+
+    var t = tramos[tramo];
+    /* Detenido o en una pausa no hay nada que subrayar */
+    if (state.playing && t && t.tipo === 'audio' && elemento && isFinite(elemento.currentTime)) {
+      state.pieza = piezaEn(pistas[t.pista], elemento.currentTime);
+    } else {
+      state.pieza = -1;
+    }
     stateCbs.forEach(function (cb) {
       try {
         cb({
           playing: state.playing, paused: state.paused, cycle: state.cycle,
           lang: state.lang, chunk: state.chunk, total: state.total,
           etiqueta: state.etiqueta, aviso: state.aviso, respaldo: state.respaldo,
-          motor: 'neuronal', segundos: pos, duracion: total
+          motor: 'neuronal', segundos: pos, duracion: total, pieza: state.pieza
         });
       } catch (e) { /* ignorado */ }
     });
@@ -215,7 +237,14 @@
   function preparar(secuencia, opts) {
     if (opts) setOptions(opts);
     var piezas = (secuencia || []).filter(function (s) { return s && s.text; })
-      .map(function (s) { return { lang: s.lang, texto: s.text }; });
+      .map(function (s) {
+        /* Las piezas del guion viajan al servidor para que cada marca de tiempo
+           corresponda a una pieza de las que se ven en pantalla */
+        return {
+          lang: s.lang, texto: s.text,
+          partes: (s.partes || []).map(function (p) { return p.locucion || p; })
+        };
+      });
     if (!piezas.length) return Promise.reject(new Error('no hay nada que sintetizar'));
 
     anotar('sintetizando', { detalle: piezas.map(function (p) { return p.lang; }).join(' + ') });
@@ -245,7 +274,7 @@
         return bajar(p).then(function (url) {
           return {
             lang: p.lang, url: url, hash: p.hash, segundos: p.segundos,
-            voz: p.voz, caracteres: p.caracteres
+            voz: p.voz, caracteres: p.caracteres, marcas: p.marcas || []
           };
         });
       })).then(function (listas) {
@@ -514,6 +543,7 @@
     state.paused = false;
     state.lang = '';
     state.chunk = 0;
+    state.pieza = -1;
     state.aviso = '';
     limpiarTimer();
     limpiarVigilante();
@@ -594,6 +624,10 @@
     registro: function () { return registro.slice(); },
     limpiarRegistro: function () { registro = []; },
     fragmentos: fragmentos, irA: irA, saltar: saltar,
+    marcas: function (lang) {
+      var p = pistas.filter(function (x) { return x.lang === lang; })[0];
+      return p ? (p.marcas || []).slice() : [];
+    },
     alFinDeCiclo: function (cb) {
       if (!state.playing) { cb(); return false; }
       finDeCiclo.push(cb);

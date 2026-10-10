@@ -32,6 +32,7 @@
   --accent-ink:  #ffffff;
   --accent-weak: rgba(11, 122, 75, .10);
   --accent-ring: rgba(11, 122, 75, .30);
+  --karaoke:     rgba(11, 122, 75, .19);
 
   --amber:       #9a5b00;
   --amber-weak:  rgba(154, 91, 0, .10);
@@ -73,6 +74,7 @@
     --accent-ink:  #04140d;
     --accent-weak: rgba(47, 209, 137, .12);
     --accent-ring: rgba(47, 209, 137, .35);
+    --karaoke:     rgba(47, 209, 137, .24);
 
     --amber:       #f2b435;
     --amber-weak:  rgba(242, 180, 53, .12);
@@ -106,6 +108,7 @@
   --accent-ink:  #04140d;
   --accent-weak: rgba(47, 209, 137, .12);
   --accent-ring: rgba(47, 209, 137, .35);
+  --karaoke:     rgba(47, 209, 137, .24);
 
   --amber:       #f2b435;
   --amber-weak:  rgba(242, 180, 53, .12);
@@ -854,6 +857,86 @@ body.modo-control .pstate-main::after {
   padding: 4px 8px; margin-left: 10px; white-space: nowrap;
 }
 
+/* ==========================================================================
+   Subrayado del guion mientras se locuta
+   Lo que ya se dijo se apaga, lo que suena se resalta. Sin animaciones que
+   distraigan: esto se mira de reojo mientras se trabaja.
+   ========================================================================== */
+.script .gp { border-radius: 4px; transition: background-color .18s linear, color .18s linear; }
+.script .gp.dicha { color: var(--muted); opacity: .62; }
+.script .gp.sonando {
+  background: var(--karaoke);
+  color: var(--text);
+  box-shadow: 0 0 0 3px var(--karaoke);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Aviso de METAR nuevo
+   Va encima de todo porque es lo unico que no se puede pasar por alto.
+   ========================================================================== */
+.modal {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: var(--bg-veil); backdrop-filter: blur(3px);
+}
+.modal[hidden] { display: none !important; }
+
+.modalcaja {
+  width: min(680px, 100%); max-height: calc(100vh - 48px); overflow: auto;
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 5px solid var(--amber);
+  border-radius: var(--r-card, 12px); box-shadow: var(--shadow-2);
+  padding: 20px 22px 16px;
+  animation: entra-modal .18s ease-out;
+}
+@keyframes entra-modal {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .modalcaja { animation: none; } }
+
+.modalcab { display: flex; align-items: center; gap: 10px; }
+.modalcab h2 {
+  margin: 0; font-size: 17px; letter-spacing: .06em; text-transform: uppercase;
+}
+.modalhora {
+  margin-left: auto; font: 600 13px/1 ui-monospace, Consolas, monospace; color: var(--muted);
+}
+.modalpunto {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--amber); flex: 0 0 auto;
+  animation: late-modal 1.4s ease-in-out infinite;
+}
+@keyframes late-modal { 50% { opacity: .25; transform: scale(.78); } }
+@media (prefers-reduced-motion: reduce) { .modalpunto { animation: none; } }
+
+.modalsub { margin: 10px 0 12px; color: var(--muted); font-size: 13.5px; }
+
+.modalcrudo {
+  margin: 0 0 14px; padding: 12px 14px;
+  background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 8px;
+  font: 13.5px/1.6 ui-monospace, Consolas, monospace; color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.modalcambios { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+.modalcambios:empty { display: none; }
+.cambio {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  padding: 5px 10px; border-radius: 999px; font-size: 12.5px;
+  background: var(--surface-2); border: 1px solid var(--line-soft);
+}
+.cambio b { font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.cambio .antes { color: var(--muted); text-decoration: line-through; }
+.cambio .ahora { font-weight: 600; }
+.cambio.ojo { border-color: var(--amber); background: var(--amber-weak); }
+.cambio.ojo b { color: var(--amber); }
+
+.modalpie { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.modalpie .spacer { flex: 1 1 auto; }
+.modalson { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); }
+.modalson input { width: 15px; height: 15px; }
+
 </style>
 </head>
 <body>
@@ -1411,6 +1494,33 @@ body.modo-control .pstate-main::after {
 
 
 
+<!-- ============ AVISO DE METAR NUEVO ============ -->
+<!-- Se pone encima de todo a propósito: un METAR nuevo no se puede pasar por alto. -->
+<div class="modal" id="modalMetar" hidden role="dialog" aria-modal="true" aria-labelledby="modalMetarTitulo">
+  <div class="modalcaja" role="document">
+    <div class="modalcab">
+      <span class="modalpunto"></span>
+      <h2 id="modalMetarTitulo">METAR nuevo</h2>
+      <span class="modalhora" id="modalMetarHora"></span>
+    </div>
+
+    <p class="modalsub" id="modalMetarSub">Lleg&oacute; una observaci&oacute;n nueva.</p>
+
+    <pre class="modalcrudo" id="modalMetarCrudo"></pre>
+
+    <div class="modalcambios" id="modalMetarCambios"></div>
+
+    <div class="modalpie">
+      <label class="modalson" title="Un sonido aqu&iacute; sale por la misma bocina que el ATIS">
+        <input type="checkbox" id="metarSonido"> Avisar tambi&eacute;n con un sonido
+      </label>
+      <span class="spacer"></span>
+      <button id="modalMetarNo" class="ghost">Ahora no</button>
+      <button id="modalMetarSi" class="primary">Usar este METAR</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ BARRA DE REPRODUCCIÓN ============ -->
 <footer class="player">
   <!-- datos recibidos del control remoto, en espera del corte de ciclo -->
@@ -1496,10 +1606,10 @@ body.modo-control .pstate-main::after {
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.3',
+    VERSION: '3.4',
     FECHA: '2026-10-10',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'voz neuronal local, METAR por el servidor, instalación desde Ajustes'
+    NOVEDADES: 'aviso de METAR nuevo y subrayado del guion mientras se locuta'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;
@@ -3115,10 +3225,18 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return this;
   };
   Builder.prototype.result = function () {
+    var t = this.t, s = this.s;
     return {
-      text: this.t.join(' ').replace(/ *\n/g, '\n'),
-      speech: this.s.join(' '),
-      sentences: this.t.slice()
+      text: t.join(' ').replace(/ *\n/g, '\n'),
+      speech: s.join(' '),
+      sentences: t.slice(),
+      /* Cada pieza del guion con su locución al lado. Van emparejadas desde que
+         se arman, y es lo que permite subrayar en pantalla la parte que se está
+         locutando: el motor de voz devuelve en qué pieza va, y aquí está su
+         texto tal como se ve. */
+      partes: t.map(function (texto, i) {
+        return { texto: String(texto).replace(/^\n/, ''), locucion: s[i], renglon: /^\n/.test(texto) };
+      })
     };
   };
 
@@ -3673,7 +3791,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     chunk: 0,
     total: 0,
     aviso: '',
-    respaldo: ''
+    respaldo: '',
+    /* Qué pieza del guion va sonando, para subrayarla en pantalla */
+    pieza: -1,
+    piezaFin: -1
   };
 
   var queue = [];          /* [{lang, text}] */
@@ -3797,13 +3918,47 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return out;
   }
 
+  /* Arma los fragmentos juntando piezas enteras del guion sin pasarse del
+     máximo. Así cada fragmento sabe qué piezas cubre, y se puede subrayar en
+     pantalla lo que se está locutando. */
+  function chunksDePartes(partes, max) {
+    max = max || 180;
+    var salida = [];
+    var buf = '', desde = 0, bases = [];
+    partes.forEach(function (p, i) {
+      var t = String(p.locucion === undefined ? p : p.locucion || '').replace(/\s+/g, ' ').trim();
+      if (!t) return;
+      if (buf && (buf + ' ' + t).length > max) {
+        salida.push({ text: buf, desde: desde, hasta: i - 1, bases: bases });
+        buf = t; desde = i; bases = [{ i: i, en: 0 }];
+      } else {
+        bases.push({ i: i, en: buf ? buf.length + 1 : 0 });
+        buf = buf ? buf + ' ' + t : t;
+      }
+    });
+    if (buf) salida.push({ text: buf, desde: desde, hasta: partes.length - 1, bases: bases });
+    return salida;
+  }
+
   function buildChunks() {
     chunks = [];
     queue.forEach(function (item, qi) {
-      splitChunks(item.text).forEach(function (c) {
-        chunks.push({ lang: item.lang, text: c, part: qi });
+      if (item.partes && item.partes.length) {
+        chunksDePartes(item.partes).forEach(function (c) {
+          chunks.push({
+            lang: item.lang, text: c.text, part: qi,
+            desde: c.desde, hasta: c.hasta, bases: c.bases
+          });
+        });
+      } else {
+        splitChunks(item.text).forEach(function (c) {
+          chunks.push({ lang: item.lang, text: c, part: qi, desde: -1, hasta: -1 });
+        });
+      }
+      chunks.push({
+        lang: item.lang, text: '', desde: -1, hasta: -1,
+        pause: qi === queue.length - 1 ? options.cycleGap : options.gap, part: qi
       });
-      chunks.push({ lang: item.lang, text: '', pause: qi === queue.length - 1 ? options.cycleGap : options.gap, part: qi });
     });
     state.total = chunks.length;
   }
@@ -3814,7 +3969,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         playing: state.playing, paused: state.paused, cycle: state.cycle,
         lang: state.lang, chunk: state.chunk, total: state.total,
         etiqueta: state.chunk + ' / ' + state.total,
-        aviso: state.aviso, respaldo: state.respaldo, motor: 'navegador'
+        aviso: state.aviso, respaldo: state.respaldo, motor: 'navegador',
+        pieza: state.pieza, piezaFin: state.piezaFin
       });
     });
   }
@@ -3928,6 +4084,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     intentos = 0;
     state.chunk = idx;
     state.lang = item.lang;
+    state.pieza = item.desde === undefined ? -1 : item.desde;
+    state.piezaFin = item.hasta === undefined ? -1 : item.hasta;
     emit();
     reproducir(item);
   }
@@ -3969,6 +4127,19 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       ultimaActividad = Date.now();
       anotar('hablando', { lang: item.lang, voz: voz ? voz.name : '(por omisión)', n: state.chunk });
       armarFin(item);
+    };
+    /* Hay motores que avisan por dónde van dentro de la frase. Cuando lo hacen,
+       el subrayado baja de «este fragmento» a «esta pieza», que es más fino. */
+    u.onboundary = function (e) {
+      if (!item.bases || !item.bases.length || !e || typeof e.charIndex !== 'number') return;
+      var cual = item.bases[0].i;
+      for (var i = 0; i < item.bases.length; i++) {
+        if (e.charIndex >= item.bases[i].en) cual = item.bases[i].i; else break;
+      }
+      if (cual === state.pieza && state.piezaFin === cual) return;
+      state.pieza = cual;
+      state.piezaFin = cual;
+      emit();
     };
     u.onend = function () {
       limpiarWatchdog();
@@ -4052,7 +4223,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   /* Los fragmentos con texto, para pintar la barra de avance */
   function fragmentos() {
     return chunks.map(function (c, i) {
-      return { i: i, lang: c.lang, texto: c.text, pausa: !c.text };
+      return { i: i, lang: c.lang, texto: c.text, pausa: !c.text, desde: c.desde, hasta: c.hasta };
     });
   }
 
@@ -4140,6 +4311,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     state.paused = false;
     state.lang = '';
     state.chunk = 0;
+    state.pieza = -1;
+    state.piezaFin = -1;
     state.aviso = '';
     state.respaldo = '';
     enCurso = false;
@@ -4303,7 +4476,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   var state = {
     playing: false, paused: false, cycle: 0, lang: '',
-    chunk: 0, total: 0, etiqueta: '', aviso: '', respaldo: '', motor: 'neuronal'
+    chunk: 0, total: 0, etiqueta: '', aviso: '', respaldo: '', motor: 'neuronal',
+    /* Qué pieza del guion está sonando ahora mismo: es lo que se subraya */
+    pieza: -1
   };
 
   var options = {
@@ -4429,18 +4604,38 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return m + ':' + (s < 10 ? '0' : '') + s;
   }
 
+  /* Busca a qué marca corresponde un segundo del audio que está sonando.
+     Las marcas vienen ordenadas, así que basta recorrerlas desde la última
+     conocida: en un bucle que avanza, casi siempre es la misma o la siguiente. */
+  function piezaEn(pista, segundo) {
+    if (!pista || !pista.marcas || !pista.marcas.length) return -1;
+    var m = pista.marcas;
+    for (var i = 0; i < m.length; i++) {
+      if (segundo < m[i].fin) return segundo >= m[i].inicio ? i : i;
+    }
+    return m.length - 1;
+  }
+
   function emitir() {
     var pos = posicionSegundos();
     var total = duracionCiclo();
     state.chunk = Math.max(1, Math.min(state.total, Math.floor(pos) + 1));
     state.etiqueta = reloj(pos) + ' / ' + reloj(total);
+
+    var t = tramos[tramo];
+    /* Detenido o en una pausa no hay nada que subrayar */
+    if (state.playing && t && t.tipo === 'audio' && elemento && isFinite(elemento.currentTime)) {
+      state.pieza = piezaEn(pistas[t.pista], elemento.currentTime);
+    } else {
+      state.pieza = -1;
+    }
     stateCbs.forEach(function (cb) {
       try {
         cb({
           playing: state.playing, paused: state.paused, cycle: state.cycle,
           lang: state.lang, chunk: state.chunk, total: state.total,
           etiqueta: state.etiqueta, aviso: state.aviso, respaldo: state.respaldo,
-          motor: 'neuronal', segundos: pos, duracion: total
+          motor: 'neuronal', segundos: pos, duracion: total, pieza: state.pieza
         });
       } catch (e) { /* ignorado */ }
     });
@@ -4481,7 +4676,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function preparar(secuencia, opts) {
     if (opts) setOptions(opts);
     var piezas = (secuencia || []).filter(function (s) { return s && s.text; })
-      .map(function (s) { return { lang: s.lang, texto: s.text }; });
+      .map(function (s) {
+        /* Las piezas del guion viajan al servidor para que cada marca de tiempo
+           corresponda a una pieza de las que se ven en pantalla */
+        return {
+          lang: s.lang, texto: s.text,
+          partes: (s.partes || []).map(function (p) { return p.locucion || p; })
+        };
+      });
     if (!piezas.length) return Promise.reject(new Error('no hay nada que sintetizar'));
 
     anotar('sintetizando', { detalle: piezas.map(function (p) { return p.lang; }).join(' + ') });
@@ -4511,7 +4713,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         return bajar(p).then(function (url) {
           return {
             lang: p.lang, url: url, hash: p.hash, segundos: p.segundos,
-            voz: p.voz, caracteres: p.caracteres
+            voz: p.voz, caracteres: p.caracteres, marcas: p.marcas || []
           };
         });
       })).then(function (listas) {
@@ -4780,6 +4982,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     state.paused = false;
     state.lang = '';
     state.chunk = 0;
+    state.pieza = -1;
     state.aviso = '';
     limpiarTimer();
     limpiarVigilante();
@@ -4860,6 +5063,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     registro: function () { return registro.slice(); },
     limpiarRegistro: function () { registro = []; },
     fragmentos: fragmentos, irA: irA, saltar: saltar,
+    marcas: function (lang) {
+      var p = pistas.filter(function (x) { return x.lang === lang; })[0];
+      return p ? (p.marcas || []).slice() : [];
+    },
     alFinDeCiclo: function (cb) {
       if (!state.playing) { cb(); return false; }
       finDeCiclo.push(cb);
@@ -4926,6 +5133,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       'vigBadge', 'vigActiva', 'vigUrl', 'vigEstacion', 'vigMinutos', 'btnVigAhora',
       'vigStatus', 'vigUltimo', 'avisoMetar', 'avisoMetarTexto', 'btnUsarMetar', 'btnIgnorarMetar',
       'btnProbarRed', 'redPrueba', 'verBadge',
+      'modalMetar', 'modalMetarHora', 'modalMetarSub', 'modalMetarCrudo', 'modalMetarCambios',
+      'modalMetarSi', 'modalMetarNo', 'metarSonido',
       'pendiente', 'pendienteTexto', 'btnAplicarYa',
       'motorSel', 'vozNBadge', 'vozNInfo', 'btnVozNRevisar', 'btnVozNLimpiar', 'vozNStatus',
       'btnVozNInstalar', 'vozNConsola',
@@ -4947,6 +5156,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       el.verBadge.title = 'Versión instalada: ' + VERSION +
         (ATIS.NOVEDADES ? ' — ' + ATIS.NOVEDADES : '');
     }
+    try {
+      if (el.metarSonido) el.metarSonido.checked = localStorage.getItem(SONIDO_KEY) === '1';
+    } catch (e) { /* ignorado */ }
     iniciarEnlace();
     iniciarMotor();
     comprobarInstalacion();
@@ -5519,8 +5731,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     var cfgEn = Object.create(m.cfg); cfgEn.notamLines = notamLines('en'); cfgEn.libreLines = libreLines('en');
     lastScripts.es = S.build('es', m.obs, cfgEs);
     lastScripts.en = S.build('en', m.obs, cfgEn);
-    el.scriptEs.textContent = lastScripts.es.text;
-    el.scriptEn.textContent = lastScripts.en.text;
+    pintarGuion(el.scriptEs, lastScripts.es);
+    pintarGuion(el.scriptEn, lastScripts.en);
     var words = lastScripts.es.text.split(/\s+/).length + lastScripts.en.text.split(/\s+/).length;
     status(el.scriptStatus, 'Guion listo · ' + words + ' palabras · duración aproximada ' +
       estimateDuration(words) + ' por ciclo');
@@ -5533,6 +5745,74 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     pintarVerificacion();
     el.cardLibre.classList.toggle('libre-on', el.libreActivo.checked);
     save();
+  }
+
+  /* ================================================================== *
+   * El guion en pantalla, pieza por pieza
+   * Cada pieza va en su propio <span> para poder subrayar la que se está
+   * locutando. El texto que queda dentro es el mismo de siempre, así que
+   * copiar el guion sigue dando exactamente lo que se ve.
+   * ================================================================== */
+  var subrayadoEn = { es: -1, en: -1 };
+
+  function pintarGuion(nodo, guion) {
+    if (!nodo) return;
+    if (!guion || !guion.partes || !guion.partes.length) {
+      nodo.textContent = guion ? guion.text : '';
+      return;
+    }
+    var html = '';
+    guion.partes.forEach(function (p, i) {
+      if (i > 0) html += p.renglon ? '\n' : ' ';
+      html += '<span class="gp" data-i="' + i + '">' + escapeHtml(p.texto) + '</span>';
+    });
+    nodo.innerHTML = html;
+    /* Se repintaron las piezas: el subrayado anterior ya no existe, así que
+       hay que olvidarlo o la próxima vez se creería puesto y no se pondría. */
+    if (nodo === el.scriptEs) subrayadoEn.es = -1;
+    if (nodo === el.scriptEn) subrayadoEn.en = -1;
+  }
+
+  /* Subraya la pieza que suena y apaga las que ya se dijeron */
+  function subrayar(st) {
+    var nodos = { es: el.scriptEs, en: el.scriptEn };
+    var lang = st && st.lang === 'en' ? 'en' : (st && st.lang === 'es' ? 'es' : '');
+    /* Solo un idioma está al aire: al otro se le quita el subrayado */
+    ['es', 'en'].forEach(function (l) { if (l !== lang) limpiarSubrayado(nodos[l], l); });
+    if (!lang || !nodos[lang]) return;
+
+    var desde = (st.pieza === undefined || st.pieza === null) ? -1 : st.pieza;
+    var hasta = (st.piezaFin === undefined || st.piezaFin === null || st.piezaFin < desde)
+      ? desde : st.piezaFin;
+    if (desde < 0) { limpiarSubrayado(nodos[lang], lang); return; }
+    var clave = desde + ':' + hasta;
+    if (subrayadoEn[lang] === clave) return;
+    subrayadoEn[lang] = clave;
+
+    var piezas = nodos[lang].querySelectorAll('.gp');
+    var primero = null;
+    for (var i = 0; i < piezas.length; i++) {
+      var activa = i >= desde && i <= hasta;
+      piezas[i].classList.toggle('sonando', activa);
+      piezas[i].classList.toggle('dicha', i < desde);
+      if (activa && !primero) primero = piezas[i];
+    }
+    /* Que lo que suena quede siempre a la vista, sin saltos bruscos */
+    if (primero && primero.scrollIntoView) {
+      var caja = nodos[lang].getBoundingClientRect();
+      var pos = primero.getBoundingClientRect();
+      if (pos.top < caja.top + 4 || pos.bottom > caja.bottom - 4) {
+        primero.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }
+
+  function limpiarSubrayado(nodo, lang) {
+    if (!nodo || subrayadoEn[lang] === -1) return;
+    subrayadoEn[lang] = -1;
+    Array.prototype.forEach.call(nodo.querySelectorAll('.gp'), function (p) {
+      p.classList.remove('sonando', 'dicha');
+    });
   }
 
   function estimateDuration(words) {
@@ -5676,8 +5956,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
 
     var secuencia = [];
-    if (el.langEs.checked && lastScripts.es.speech) secuencia.push({ lang: 'es', text: lastScripts.es.speech });
-    if (el.langEn.checked && lastScripts.en.speech) secuencia.push({ lang: 'en', text: lastScripts.en.speech });
+    /* Las piezas viajan con el guion: de ahí sale el subrayado */
+    if (el.langEs.checked && lastScripts.es.speech) {
+      secuencia.push({ lang: 'es', text: lastScripts.es.speech, partes: lastScripts.es.partes });
+    }
+    if (el.langEn.checked && lastScripts.en.speech) {
+      secuencia.push({ lang: 'en', text: lastScripts.en.speech, partes: lastScripts.en.partes });
+    }
     if (!secuencia.length) {
       status(el.scriptStatus, 'No hay nada que transmitir. ' +
         'Si las casillas de idioma están deshabilitadas, falta instalar la voz: vea Ajustes, Voces del sistema.', 'err');
@@ -5824,6 +6109,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function stop() {
     ATIS.speech.stop();
     if (ATIS.neural) ATIS.neural.stop();
+    limpiarSubrayado(el.scriptEs, 'es');
+    limpiarSubrayado(el.scriptEn, 'en');
     el.btnPlay.disabled = false;
     el.btnPlay.textContent = 'TRANSMITIR';
     el.btnPlay.title = '';
@@ -5862,6 +6149,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     el.playDetail.textContent = detalle;
     el.playDetail.classList.toggle('warn', !!(st.aviso || st.respaldo));
     pintarAvance(st);
+    subrayar(st);
   }
 
   function fillVoiceSelect(select, lang) {
@@ -6383,13 +6671,161 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   function proponerMetar(informe) {
     metarPropuesto = informe;
+    /* La barra de abajo se queda: si cierran el aviso con «Ahora no», el METAR
+       sigue ahí a la mano, sin volver a interrumpir. */
     el.avisoMetar.hidden = false;
     el.avisoMetarTexto.textContent = 'METAR nuevo de ' + informe.estacion + ', ' +
       informe.hhmm + 'Z: ' + informe.raw.slice(0, 90) + (informe.raw.length > 90 ? '…' : '');
+    abrirAvisoMetar(informe);
+  }
+
+  /* ================================================================== *
+   * Aviso de METAR nuevo
+   * Una observación nueva no se puede pasar por alto, así que se pone
+   * encima de todo. No cambia nada por su cuenta: el operador decide.
+   * ================================================================== */
+  var tituloOriginal = '';
+  var relojTitulo = null;
+
+  function abrirAvisoMetar(informe) {
+    if (!el.modalMetar) return;
+    el.modalMetarHora.textContent = informe.estacion + ' · ' + informe.hhmm + 'Z' +
+      (informe.tipo === 'SPECI' ? ' · SPECI' : '') + (informe.corregido ? ' · corregido' : '');
+    el.modalMetarCrudo.textContent = informe.raw;
+
+    var cambios = compararMetar(informe.raw);
+    el.modalMetarSub.textContent = informe.tipo === 'SPECI'
+      ? 'Es un SPECI: se emite fuera de hora porque algo cambió de golpe.'
+      : (cambios.length
+        ? 'Esto es lo que cambia respecto a lo que está al aire:'
+        : 'No cambia nada de lo que está al aire; solo es más reciente.');
+    el.modalMetarCambios.innerHTML = cambios.map(function (c) {
+      return '<span class="cambio' + (c.ojo ? ' ojo' : '') + '"><b>' + escapeHtml(c.que) + '</b>' +
+        (c.antes ? '<span class="antes">' + escapeHtml(c.antes) + '</span>' : '') +
+        '<span class="ahora">' + escapeHtml(c.ahora) + '</span></span>';
+    }).join('');
+
+    el.modalMetar.hidden = false;
+    /* El foco va al botón de usarlo, para poder resolverlo con el teclado */
+    try { el.modalMetarSi.focus(); } catch (e) { /* ignorado */ }
+    parpadearTitulo(informe);
+    sonarAviso();
+  }
+
+  function cerrarAvisoMetar() {
+    if (!el.modalMetar) return;
+    el.modalMetar.hidden = true;
+    pararTitulo();
+  }
+
+  /* El título de la ventana también avisa: sirve cuando el ATIS está
+     minimizado o en otra pantalla. */
+  function parpadearTitulo(informe) {
+    pararTitulo();
+    if (!tituloOriginal) tituloOriginal = document.title;
+    var encendido = false;
+    relojTitulo = setInterval(function () {
+      encendido = !encendido;
+      document.title = encendido
+        ? '>>> METAR ' + informe.hhmm + 'Z <<<'
+        : tituloOriginal;
+    }, 900);
+  }
+
+  function pararTitulo() {
+    if (relojTitulo) { clearInterval(relojTitulo); relojTitulo = null; }
+    if (tituloOriginal) document.title = tituloOriginal;
+  }
+
+  /* Sonido, solo si lo pidieron. Va apagado por omisión a propósito: en la
+     torre la bocina de esta computadora es la que sale al aire, y un pitido
+     encima del ATIS sería peor que no avisar. */
+  var SONIDO_KEY = 'atis3.avisoSonoro';
+
+  function sonarAviso() {
+    if (!el.metarSonido || !el.metarSonido.checked) return;
+    try {
+      var Ctx = global.AudioContext || global.webkitAudioContext;
+      if (!Ctx) return;
+      var ctx = new Ctx();
+      [880, 1175].forEach(function (hz, i) {
+        var osc = ctx.createOscillator(), vol = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = hz;
+        vol.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.18);
+        vol.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + i * 0.18 + 0.02);
+        vol.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.18 + 0.16);
+        osc.connect(vol); vol.connect(ctx.destination);
+        osc.start(ctx.currentTime + i * 0.18);
+        osc.stop(ctx.currentTime + i * 0.18 + 0.18);
+      });
+      setTimeout(function () { try { ctx.close(); } catch (e) { /* ignorado */ } }, 900);
+    } catch (e) { /* sin sonido, el aviso visual queda igual */ }
+  }
+
+  /* Qué cambia respecto a lo que está al aire. Es lo primero que uno quiere
+     saber al ver un METAR nuevo. */
+  function compararMetar(raw) {
+    var n;
+    try { n = ATIS.metar.parse(raw); } catch (e) { return []; }
+    if (!n) return [];
+    var cambios = [];
+
+    function cmp(que, antes, ahora, ojo) {
+      antes = (antes === null || antes === undefined) ? '' : String(antes).trim();
+      ahora = (ahora === null || ahora === undefined) ? '' : String(ahora).trim();
+      if (!ahora || antes === ahora) return;
+      cambios.push({ que: que, antes: antes, ahora: ahora, ojo: !!ojo });
+    }
+
+    var vNuevo = n.wind ? (n.wind.variable ? 'VRB' : (n.wind.direction || '---')) : '';
+    var vActual = el.windMode.value === 'calm' ? 'calma' : (el.windDir.value || '');
+    var velNueva = n.wind ? String(n.wind.speed) : '';
+    var velActual = el.windSpeed.value || '';
+    if (n.wind && n.wind.calm) cmp('viento', vActual + (velActual ? '/' + velActual : ''), 'calma');
+    else {
+      cmp('viento', vActual, vNuevo);
+      cmp('intensidad', velActual ? velActual + ' kt' : '', velNueva ? velNueva + ' kt' : '',
+        velActual && Math.abs(+velNueva - +velActual) >= 10);
+      if (n.wind && n.wind.gust) cmp('ráfaga', el.windGust.value ? el.windGust.value + ' kt' : 'sin ráfaga',
+        n.wind.gust + ' kt', true);
+    }
+
+    if (n.visibility) {
+      var unidad = function (u) { return u === 'SM' ? 'millas' : String(u || '').toLowerCase(); };
+      var visNueva = n.visibility.value + ' ' + unidad(n.visibility.unit);
+      var visActual = el.visValue.value ? el.visValue.value + ' ' + unidad(el.visUnit.value) : '';
+      /* Bajar de 3 millas cambia la operación: eso se marca */
+      var baja = n.visibility.unit === 'SM' && parseFloat(n.visibility.value) <= 3;
+      cmp('visibilidad', visActual, visNueva, baja);
+    }
+
+    cmp('temperatura', el.temperature.value ? el.temperature.value + ' °C' : '',
+      n.temperature === null ? '' : n.temperature + ' °C');
+    if (n.qnh) {
+      var altNuevo = String(Math.round(n.qnh.inHg * 100));
+      cmp('altímetro', el.altimeter.value, altNuevo);
+    }
+
+    function cielo(capas) {
+      return capas.map(function (c) {
+        return c.amount + (c.height ? ' ' + c.height + ' ft' : '');
+      }).join(', ');
+    }
+    var cieloNuevo = cielo(n.clouds || []);
+    var cieloActual = cielo(readLayers());
+    cmp('cielo', cieloActual, cieloNuevo || (n.cavok ? 'CAVOK' : ''));
+
+    var tiempoNuevo = (n.weather || []).map(function (w) { return describeWeather(w, 'es'); })
+      .filter(Boolean).join(', ');
+    if (tiempoNuevo) cambios.push({ que: 'tiempo presente', antes: '', ahora: tiempoNuevo, ojo: true });
+
+    return cambios;
   }
 
   function usarMetarPropuesto() {
     if (!metarPropuesto) return;
+    cerrarAvisoMetar();
     el.metarRaw.value = metarPropuesto.raw;
     el.avisoMetar.hidden = true;
     var transmitiendo = enAire();
@@ -7135,6 +7571,23 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       metarPropuesto = null;
     });
 
+    /* ---- Aviso de METAR nuevo ---- */
+    on(el.modalMetarSi, 'click', usarMetarPropuesto);
+    on(el.modalMetarNo, 'click', function () {
+      /* Se cierra el aviso, pero el METAR se queda ofrecido en la barra de
+         abajo: nadie pierde el dato por haber dicho «ahora no». */
+      cerrarAvisoMetar();
+    });
+    /* Un clic fuera de la caja también lo cierra */
+    on(el.modalMetar, 'click', function (e) {
+      if (e.target === el.modalMetar) cerrarAvisoMetar();
+    });
+    on(el.metarSonido, 'change', function () {
+      try { localStorage.setItem(SONIDO_KEY, el.metarSonido.checked ? '1' : '0'); }
+      catch (e) { /* ignorado */ }
+      if (el.metarSonido.checked) sonarAviso();   /* para oír cómo suena */
+    });
+
     /* ---- Voz neuronal ---- */
     on(el.motorSel, 'change', function () {
       prefMotor = el.motorSel.value;
@@ -7269,6 +7722,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     });
 
     document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && el.modalMetar && !el.modalMetar.hidden) {
+        cerrarAvisoMetar(); return;
+      }
       if (e.key === 'Escape') { stop(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();

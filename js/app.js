@@ -47,6 +47,8 @@
       'vigBadge', 'vigActiva', 'vigUrl', 'vigEstacion', 'vigMinutos', 'btnVigAhora',
       'vigStatus', 'vigUltimo', 'avisoMetar', 'avisoMetarTexto', 'btnUsarMetar', 'btnIgnorarMetar',
       'btnProbarRed', 'redPrueba', 'verBadge',
+      'modalMetar', 'modalMetarHora', 'modalMetarSub', 'modalMetarCrudo', 'modalMetarCambios',
+      'modalMetarSi', 'modalMetarNo', 'metarSonido',
       'pendiente', 'pendienteTexto', 'btnAplicarYa',
       'motorSel', 'vozNBadge', 'vozNInfo', 'btnVozNRevisar', 'btnVozNLimpiar', 'vozNStatus',
       'btnVozNInstalar', 'vozNConsola',
@@ -68,6 +70,9 @@
       el.verBadge.title = 'Versión instalada: ' + VERSION +
         (ATIS.NOVEDADES ? ' — ' + ATIS.NOVEDADES : '');
     }
+    try {
+      if (el.metarSonido) el.metarSonido.checked = localStorage.getItem(SONIDO_KEY) === '1';
+    } catch (e) { /* ignorado */ }
     iniciarEnlace();
     iniciarMotor();
     comprobarInstalacion();
@@ -640,8 +645,8 @@
     var cfgEn = Object.create(m.cfg); cfgEn.notamLines = notamLines('en'); cfgEn.libreLines = libreLines('en');
     lastScripts.es = S.build('es', m.obs, cfgEs);
     lastScripts.en = S.build('en', m.obs, cfgEn);
-    el.scriptEs.textContent = lastScripts.es.text;
-    el.scriptEn.textContent = lastScripts.en.text;
+    pintarGuion(el.scriptEs, lastScripts.es);
+    pintarGuion(el.scriptEn, lastScripts.en);
     var words = lastScripts.es.text.split(/\s+/).length + lastScripts.en.text.split(/\s+/).length;
     status(el.scriptStatus, 'Guion listo · ' + words + ' palabras · duración aproximada ' +
       estimateDuration(words) + ' por ciclo');
@@ -654,6 +659,74 @@
     pintarVerificacion();
     el.cardLibre.classList.toggle('libre-on', el.libreActivo.checked);
     save();
+  }
+
+  /* ================================================================== *
+   * El guion en pantalla, pieza por pieza
+   * Cada pieza va en su propio <span> para poder subrayar la que se está
+   * locutando. El texto que queda dentro es el mismo de siempre, así que
+   * copiar el guion sigue dando exactamente lo que se ve.
+   * ================================================================== */
+  var subrayadoEn = { es: -1, en: -1 };
+
+  function pintarGuion(nodo, guion) {
+    if (!nodo) return;
+    if (!guion || !guion.partes || !guion.partes.length) {
+      nodo.textContent = guion ? guion.text : '';
+      return;
+    }
+    var html = '';
+    guion.partes.forEach(function (p, i) {
+      if (i > 0) html += p.renglon ? '\n' : ' ';
+      html += '<span class="gp" data-i="' + i + '">' + escapeHtml(p.texto) + '</span>';
+    });
+    nodo.innerHTML = html;
+    /* Se repintaron las piezas: el subrayado anterior ya no existe, así que
+       hay que olvidarlo o la próxima vez se creería puesto y no se pondría. */
+    if (nodo === el.scriptEs) subrayadoEn.es = -1;
+    if (nodo === el.scriptEn) subrayadoEn.en = -1;
+  }
+
+  /* Subraya la pieza que suena y apaga las que ya se dijeron */
+  function subrayar(st) {
+    var nodos = { es: el.scriptEs, en: el.scriptEn };
+    var lang = st && st.lang === 'en' ? 'en' : (st && st.lang === 'es' ? 'es' : '');
+    /* Solo un idioma está al aire: al otro se le quita el subrayado */
+    ['es', 'en'].forEach(function (l) { if (l !== lang) limpiarSubrayado(nodos[l], l); });
+    if (!lang || !nodos[lang]) return;
+
+    var desde = (st.pieza === undefined || st.pieza === null) ? -1 : st.pieza;
+    var hasta = (st.piezaFin === undefined || st.piezaFin === null || st.piezaFin < desde)
+      ? desde : st.piezaFin;
+    if (desde < 0) { limpiarSubrayado(nodos[lang], lang); return; }
+    var clave = desde + ':' + hasta;
+    if (subrayadoEn[lang] === clave) return;
+    subrayadoEn[lang] = clave;
+
+    var piezas = nodos[lang].querySelectorAll('.gp');
+    var primero = null;
+    for (var i = 0; i < piezas.length; i++) {
+      var activa = i >= desde && i <= hasta;
+      piezas[i].classList.toggle('sonando', activa);
+      piezas[i].classList.toggle('dicha', i < desde);
+      if (activa && !primero) primero = piezas[i];
+    }
+    /* Que lo que suena quede siempre a la vista, sin saltos bruscos */
+    if (primero && primero.scrollIntoView) {
+      var caja = nodos[lang].getBoundingClientRect();
+      var pos = primero.getBoundingClientRect();
+      if (pos.top < caja.top + 4 || pos.bottom > caja.bottom - 4) {
+        primero.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }
+
+  function limpiarSubrayado(nodo, lang) {
+    if (!nodo || subrayadoEn[lang] === -1) return;
+    subrayadoEn[lang] = -1;
+    Array.prototype.forEach.call(nodo.querySelectorAll('.gp'), function (p) {
+      p.classList.remove('sonando', 'dicha');
+    });
   }
 
   function estimateDuration(words) {
@@ -797,8 +870,13 @@
     }
 
     var secuencia = [];
-    if (el.langEs.checked && lastScripts.es.speech) secuencia.push({ lang: 'es', text: lastScripts.es.speech });
-    if (el.langEn.checked && lastScripts.en.speech) secuencia.push({ lang: 'en', text: lastScripts.en.speech });
+    /* Las piezas viajan con el guion: de ahí sale el subrayado */
+    if (el.langEs.checked && lastScripts.es.speech) {
+      secuencia.push({ lang: 'es', text: lastScripts.es.speech, partes: lastScripts.es.partes });
+    }
+    if (el.langEn.checked && lastScripts.en.speech) {
+      secuencia.push({ lang: 'en', text: lastScripts.en.speech, partes: lastScripts.en.partes });
+    }
     if (!secuencia.length) {
       status(el.scriptStatus, 'No hay nada que transmitir. ' +
         'Si las casillas de idioma están deshabilitadas, falta instalar la voz: vea Ajustes, Voces del sistema.', 'err');
@@ -945,6 +1023,8 @@
   function stop() {
     ATIS.speech.stop();
     if (ATIS.neural) ATIS.neural.stop();
+    limpiarSubrayado(el.scriptEs, 'es');
+    limpiarSubrayado(el.scriptEn, 'en');
     el.btnPlay.disabled = false;
     el.btnPlay.textContent = 'TRANSMITIR';
     el.btnPlay.title = '';
@@ -983,6 +1063,7 @@
     el.playDetail.textContent = detalle;
     el.playDetail.classList.toggle('warn', !!(st.aviso || st.respaldo));
     pintarAvance(st);
+    subrayar(st);
   }
 
   function fillVoiceSelect(select, lang) {
@@ -1504,13 +1585,161 @@
 
   function proponerMetar(informe) {
     metarPropuesto = informe;
+    /* La barra de abajo se queda: si cierran el aviso con «Ahora no», el METAR
+       sigue ahí a la mano, sin volver a interrumpir. */
     el.avisoMetar.hidden = false;
     el.avisoMetarTexto.textContent = 'METAR nuevo de ' + informe.estacion + ', ' +
       informe.hhmm + 'Z: ' + informe.raw.slice(0, 90) + (informe.raw.length > 90 ? '…' : '');
+    abrirAvisoMetar(informe);
+  }
+
+  /* ================================================================== *
+   * Aviso de METAR nuevo
+   * Una observación nueva no se puede pasar por alto, así que se pone
+   * encima de todo. No cambia nada por su cuenta: el operador decide.
+   * ================================================================== */
+  var tituloOriginal = '';
+  var relojTitulo = null;
+
+  function abrirAvisoMetar(informe) {
+    if (!el.modalMetar) return;
+    el.modalMetarHora.textContent = informe.estacion + ' · ' + informe.hhmm + 'Z' +
+      (informe.tipo === 'SPECI' ? ' · SPECI' : '') + (informe.corregido ? ' · corregido' : '');
+    el.modalMetarCrudo.textContent = informe.raw;
+
+    var cambios = compararMetar(informe.raw);
+    el.modalMetarSub.textContent = informe.tipo === 'SPECI'
+      ? 'Es un SPECI: se emite fuera de hora porque algo cambió de golpe.'
+      : (cambios.length
+        ? 'Esto es lo que cambia respecto a lo que está al aire:'
+        : 'No cambia nada de lo que está al aire; solo es más reciente.');
+    el.modalMetarCambios.innerHTML = cambios.map(function (c) {
+      return '<span class="cambio' + (c.ojo ? ' ojo' : '') + '"><b>' + escapeHtml(c.que) + '</b>' +
+        (c.antes ? '<span class="antes">' + escapeHtml(c.antes) + '</span>' : '') +
+        '<span class="ahora">' + escapeHtml(c.ahora) + '</span></span>';
+    }).join('');
+
+    el.modalMetar.hidden = false;
+    /* El foco va al botón de usarlo, para poder resolverlo con el teclado */
+    try { el.modalMetarSi.focus(); } catch (e) { /* ignorado */ }
+    parpadearTitulo(informe);
+    sonarAviso();
+  }
+
+  function cerrarAvisoMetar() {
+    if (!el.modalMetar) return;
+    el.modalMetar.hidden = true;
+    pararTitulo();
+  }
+
+  /* El título de la ventana también avisa: sirve cuando el ATIS está
+     minimizado o en otra pantalla. */
+  function parpadearTitulo(informe) {
+    pararTitulo();
+    if (!tituloOriginal) tituloOriginal = document.title;
+    var encendido = false;
+    relojTitulo = setInterval(function () {
+      encendido = !encendido;
+      document.title = encendido
+        ? '>>> METAR ' + informe.hhmm + 'Z <<<'
+        : tituloOriginal;
+    }, 900);
+  }
+
+  function pararTitulo() {
+    if (relojTitulo) { clearInterval(relojTitulo); relojTitulo = null; }
+    if (tituloOriginal) document.title = tituloOriginal;
+  }
+
+  /* Sonido, solo si lo pidieron. Va apagado por omisión a propósito: en la
+     torre la bocina de esta computadora es la que sale al aire, y un pitido
+     encima del ATIS sería peor que no avisar. */
+  var SONIDO_KEY = 'atis3.avisoSonoro';
+
+  function sonarAviso() {
+    if (!el.metarSonido || !el.metarSonido.checked) return;
+    try {
+      var Ctx = global.AudioContext || global.webkitAudioContext;
+      if (!Ctx) return;
+      var ctx = new Ctx();
+      [880, 1175].forEach(function (hz, i) {
+        var osc = ctx.createOscillator(), vol = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = hz;
+        vol.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.18);
+        vol.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + i * 0.18 + 0.02);
+        vol.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.18 + 0.16);
+        osc.connect(vol); vol.connect(ctx.destination);
+        osc.start(ctx.currentTime + i * 0.18);
+        osc.stop(ctx.currentTime + i * 0.18 + 0.18);
+      });
+      setTimeout(function () { try { ctx.close(); } catch (e) { /* ignorado */ } }, 900);
+    } catch (e) { /* sin sonido, el aviso visual queda igual */ }
+  }
+
+  /* Qué cambia respecto a lo que está al aire. Es lo primero que uno quiere
+     saber al ver un METAR nuevo. */
+  function compararMetar(raw) {
+    var n;
+    try { n = ATIS.metar.parse(raw); } catch (e) { return []; }
+    if (!n) return [];
+    var cambios = [];
+
+    function cmp(que, antes, ahora, ojo) {
+      antes = (antes === null || antes === undefined) ? '' : String(antes).trim();
+      ahora = (ahora === null || ahora === undefined) ? '' : String(ahora).trim();
+      if (!ahora || antes === ahora) return;
+      cambios.push({ que: que, antes: antes, ahora: ahora, ojo: !!ojo });
+    }
+
+    var vNuevo = n.wind ? (n.wind.variable ? 'VRB' : (n.wind.direction || '---')) : '';
+    var vActual = el.windMode.value === 'calm' ? 'calma' : (el.windDir.value || '');
+    var velNueva = n.wind ? String(n.wind.speed) : '';
+    var velActual = el.windSpeed.value || '';
+    if (n.wind && n.wind.calm) cmp('viento', vActual + (velActual ? '/' + velActual : ''), 'calma');
+    else {
+      cmp('viento', vActual, vNuevo);
+      cmp('intensidad', velActual ? velActual + ' kt' : '', velNueva ? velNueva + ' kt' : '',
+        velActual && Math.abs(+velNueva - +velActual) >= 10);
+      if (n.wind && n.wind.gust) cmp('ráfaga', el.windGust.value ? el.windGust.value + ' kt' : 'sin ráfaga',
+        n.wind.gust + ' kt', true);
+    }
+
+    if (n.visibility) {
+      var unidad = function (u) { return u === 'SM' ? 'millas' : String(u || '').toLowerCase(); };
+      var visNueva = n.visibility.value + ' ' + unidad(n.visibility.unit);
+      var visActual = el.visValue.value ? el.visValue.value + ' ' + unidad(el.visUnit.value) : '';
+      /* Bajar de 3 millas cambia la operación: eso se marca */
+      var baja = n.visibility.unit === 'SM' && parseFloat(n.visibility.value) <= 3;
+      cmp('visibilidad', visActual, visNueva, baja);
+    }
+
+    cmp('temperatura', el.temperature.value ? el.temperature.value + ' °C' : '',
+      n.temperature === null ? '' : n.temperature + ' °C');
+    if (n.qnh) {
+      var altNuevo = String(Math.round(n.qnh.inHg * 100));
+      cmp('altímetro', el.altimeter.value, altNuevo);
+    }
+
+    function cielo(capas) {
+      return capas.map(function (c) {
+        return c.amount + (c.height ? ' ' + c.height + ' ft' : '');
+      }).join(', ');
+    }
+    var cieloNuevo = cielo(n.clouds || []);
+    var cieloActual = cielo(readLayers());
+    cmp('cielo', cieloActual, cieloNuevo || (n.cavok ? 'CAVOK' : ''));
+
+    var tiempoNuevo = (n.weather || []).map(function (w) { return describeWeather(w, 'es'); })
+      .filter(Boolean).join(', ');
+    if (tiempoNuevo) cambios.push({ que: 'tiempo presente', antes: '', ahora: tiempoNuevo, ojo: true });
+
+    return cambios;
   }
 
   function usarMetarPropuesto() {
     if (!metarPropuesto) return;
+    cerrarAvisoMetar();
     el.metarRaw.value = metarPropuesto.raw;
     el.avisoMetar.hidden = true;
     var transmitiendo = enAire();
@@ -2256,6 +2485,23 @@
       metarPropuesto = null;
     });
 
+    /* ---- Aviso de METAR nuevo ---- */
+    on(el.modalMetarSi, 'click', usarMetarPropuesto);
+    on(el.modalMetarNo, 'click', function () {
+      /* Se cierra el aviso, pero el METAR se queda ofrecido en la barra de
+         abajo: nadie pierde el dato por haber dicho «ahora no». */
+      cerrarAvisoMetar();
+    });
+    /* Un clic fuera de la caja también lo cierra */
+    on(el.modalMetar, 'click', function (e) {
+      if (e.target === el.modalMetar) cerrarAvisoMetar();
+    });
+    on(el.metarSonido, 'change', function () {
+      try { localStorage.setItem(SONIDO_KEY, el.metarSonido.checked ? '1' : '0'); }
+      catch (e) { /* ignorado */ }
+      if (el.metarSonido.checked) sonarAviso();   /* para oír cómo suena */
+    });
+
     /* ---- Voz neuronal ---- */
     on(el.motorSel, 'change', function () {
       prefMotor = el.motorSel.value;
@@ -2390,6 +2636,9 @@
     });
 
     document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && el.modalMetar && !el.modalMetar.hidden) {
+        cerrarAvisoMetar(); return;
+      }
       if (e.key === 'Escape') { stop(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();

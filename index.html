@@ -562,6 +562,33 @@
 
 
 
+<!-- ============ AVISO DE METAR NUEVO ============ -->
+<!-- Se pone encima de todo a propósito: un METAR nuevo no se puede pasar por alto. -->
+<div class="modal" id="modalMetar" hidden role="dialog" aria-modal="true" aria-labelledby="modalMetarTitulo">
+  <div class="modalcaja" role="document">
+    <div class="modalcab">
+      <span class="modalpunto"></span>
+      <h2 id="modalMetarTitulo">METAR nuevo</h2>
+      <span class="modalhora" id="modalMetarHora"></span>
+    </div>
+
+    <p class="modalsub" id="modalMetarSub">Lleg&oacute; una observaci&oacute;n nueva.</p>
+
+    <pre class="modalcrudo" id="modalMetarCrudo"></pre>
+
+    <div class="modalcambios" id="modalMetarCambios"></div>
+
+    <div class="modalpie">
+      <label class="modalson" title="Un sonido aqu&iacute; sale por la misma bocina que el ATIS">
+        <input type="checkbox" id="metarSonido"> Avisar tambi&eacute;n con un sonido
+      </label>
+      <span class="spacer"></span>
+      <button id="modalMetarNo" class="ghost">Ahora no</button>
+      <button id="modalMetarSi" class="primary">Usar este METAR</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ BARRA DE REPRODUCCIÓN ============ -->
 <footer class="player">
   <!-- datos recibidos del control remoto, en espera del corte de ciclo -->

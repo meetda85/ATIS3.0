@@ -7,10 +7,10 @@
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.3',
+    VERSION: '3.4',
     FECHA: '2026-10-10',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'voz neuronal local, METAR por el servidor, instalación desde Ajustes'
+    NOVEDADES: 'aviso de METAR nuevo y subrayado del guion mientras se locuta'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;

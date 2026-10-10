@@ -180,6 +180,49 @@ function cuenta(registro, lang, desde) {
     m.ATIS.speech.stop();
   });
 
+  await test('con el guion en piezas, cada fragmento sabe cuales cubre', async () => {
+    /* cada fragmento dura lo suficiente para alcanzar a mirar el subrayado */
+    const { ATIS, registro } = montar({ duracion: 400 });
+    const partes = [
+      { texto: 'MMMX, informacion ALFA.', locucion: 'Aeropuerto Internacional de la Ciudad de Mexico, informacion Alfa.' },
+      { texto: 'Viento 050 grados 8 nudos.', locucion: 'Viento cero cinco cero grados ocho nudos.' },
+      { texto: 'Visibilidad 10 millas.', locucion: 'Visibilidad diez millas.' },
+      { texto: 'Altimetro 3039.', locucion: 'Altimetro tres cero tres nueve.' },
+      { texto: 'Informe recibo informacion ALFA.', locucion: 'Informe recibo informacion Alfa.' }
+    ];
+    ATIS.speech.play([{ lang: 'es', text: partes.map(p => p.locucion).join(' '), partes: partes }],
+      { loop: false, gap: 0, cycleGap: 0, sentencePause: 0 });
+
+    const conTexto = ATIS.speech.fragmentos().filter(f => !f.pausa);
+    assert.ok(conTexto.length >= 1, 'no armo fragmentos');
+    /* juntos cubren todas las piezas, en orden y sin huecos */
+    assert.strictEqual(conTexto[0].desde, 0, 'no empieza en la primera pieza');
+    assert.strictEqual(conTexto[conTexto.length - 1].hasta, partes.length - 1, 'no llega a la ultima');
+    for (let i = 1; i < conTexto.length; i++) {
+      assert.strictEqual(conTexto[i].desde, conTexto[i - 1].hasta + 1,
+        'hueco o encimado entre el fragmento ' + (i - 1) + ' y el ' + i);
+    }
+    /* y ninguno se pasa del maximo, que es lo que corta a los motores */
+    conTexto.forEach(f => assert.ok(f.texto.length <= 200, 'fragmento de ' + f.texto.length));
+
+    /* mientras locuta, dice en que pieza va */
+    await dormir(60);
+    assert.ok(ATIS.speech.state.pieza >= 0, 'no dice en que pieza va');
+    assert.ok(ATIS.speech.state.piezaFin >= ATIS.speech.state.pieza);
+    ATIS.speech.stop();
+    assert.strictEqual(ATIS.speech.state.pieza, -1, 'detenido no se subraya nada');
+    assert.ok(registro.length > 0);
+  });
+
+  await test('sin piezas se locuta igual que siempre, sin subrayado', async () => {
+    const { ATIS } = montar({ duracion: 400 });
+    ATIS.speech.play(GUION, OPCIONES);
+    await dormir(80);
+    assert.ok(ATIS.speech.state.playing);
+    assert.strictEqual(ATIS.speech.state.pieza, -1, 'invento un subrayado sin piezas');
+    ATIS.speech.stop();
+  });
+
   await test('stop detiene de verdad', async () => {
     const m = montar({});
     m.ATIS.speech.play(GUION, OPCIONES);

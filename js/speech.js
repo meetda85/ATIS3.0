@@ -30,7 +30,10 @@
     chunk: 0,
     total: 0,
     aviso: '',
-    respaldo: ''
+    respaldo: '',
+    /* Qué pieza del guion va sonando, para subrayarla en pantalla */
+    pieza: -1,
+    piezaFin: -1
   };
 
   var queue = [];          /* [{lang, text}] */
@@ -154,13 +157,47 @@
     return out;
   }
 
+  /* Arma los fragmentos juntando piezas enteras del guion sin pasarse del
+     máximo. Así cada fragmento sabe qué piezas cubre, y se puede subrayar en
+     pantalla lo que se está locutando. */
+  function chunksDePartes(partes, max) {
+    max = max || 180;
+    var salida = [];
+    var buf = '', desde = 0, bases = [];
+    partes.forEach(function (p, i) {
+      var t = String(p.locucion === undefined ? p : p.locucion || '').replace(/\s+/g, ' ').trim();
+      if (!t) return;
+      if (buf && (buf + ' ' + t).length > max) {
+        salida.push({ text: buf, desde: desde, hasta: i - 1, bases: bases });
+        buf = t; desde = i; bases = [{ i: i, en: 0 }];
+      } else {
+        bases.push({ i: i, en: buf ? buf.length + 1 : 0 });
+        buf = buf ? buf + ' ' + t : t;
+      }
+    });
+    if (buf) salida.push({ text: buf, desde: desde, hasta: partes.length - 1, bases: bases });
+    return salida;
+  }
+
   function buildChunks() {
     chunks = [];
     queue.forEach(function (item, qi) {
-      splitChunks(item.text).forEach(function (c) {
-        chunks.push({ lang: item.lang, text: c, part: qi });
+      if (item.partes && item.partes.length) {
+        chunksDePartes(item.partes).forEach(function (c) {
+          chunks.push({
+            lang: item.lang, text: c.text, part: qi,
+            desde: c.desde, hasta: c.hasta, bases: c.bases
+          });
+        });
+      } else {
+        splitChunks(item.text).forEach(function (c) {
+          chunks.push({ lang: item.lang, text: c, part: qi, desde: -1, hasta: -1 });
+        });
+      }
+      chunks.push({
+        lang: item.lang, text: '', desde: -1, hasta: -1,
+        pause: qi === queue.length - 1 ? options.cycleGap : options.gap, part: qi
       });
-      chunks.push({ lang: item.lang, text: '', pause: qi === queue.length - 1 ? options.cycleGap : options.gap, part: qi });
     });
     state.total = chunks.length;
   }
@@ -171,7 +208,8 @@
         playing: state.playing, paused: state.paused, cycle: state.cycle,
         lang: state.lang, chunk: state.chunk, total: state.total,
         etiqueta: state.chunk + ' / ' + state.total,
-        aviso: state.aviso, respaldo: state.respaldo, motor: 'navegador'
+        aviso: state.aviso, respaldo: state.respaldo, motor: 'navegador',
+        pieza: state.pieza, piezaFin: state.piezaFin
       });
     });
   }
@@ -285,6 +323,8 @@
     intentos = 0;
     state.chunk = idx;
     state.lang = item.lang;
+    state.pieza = item.desde === undefined ? -1 : item.desde;
+    state.piezaFin = item.hasta === undefined ? -1 : item.hasta;
     emit();
     reproducir(item);
   }
@@ -326,6 +366,19 @@
       ultimaActividad = Date.now();
       anotar('hablando', { lang: item.lang, voz: voz ? voz.name : '(por omisión)', n: state.chunk });
       armarFin(item);
+    };
+    /* Hay motores que avisan por dónde van dentro de la frase. Cuando lo hacen,
+       el subrayado baja de «este fragmento» a «esta pieza», que es más fino. */
+    u.onboundary = function (e) {
+      if (!item.bases || !item.bases.length || !e || typeof e.charIndex !== 'number') return;
+      var cual = item.bases[0].i;
+      for (var i = 0; i < item.bases.length; i++) {
+        if (e.charIndex >= item.bases[i].en) cual = item.bases[i].i; else break;
+      }
+      if (cual === state.pieza && state.piezaFin === cual) return;
+      state.pieza = cual;
+      state.piezaFin = cual;
+      emit();
     };
     u.onend = function () {
       limpiarWatchdog();
@@ -409,7 +462,7 @@
   /* Los fragmentos con texto, para pintar la barra de avance */
   function fragmentos() {
     return chunks.map(function (c, i) {
-      return { i: i, lang: c.lang, texto: c.text, pausa: !c.text };
+      return { i: i, lang: c.lang, texto: c.text, pausa: !c.text, desde: c.desde, hasta: c.hasta };
     });
   }
 
@@ -497,6 +550,8 @@
     state.paused = false;
     state.lang = '';
     state.chunk = 0;
+    state.pieza = -1;
+    state.piezaFin = -1;
     state.aviso = '';
     state.respaldo = '';
     enCurso = false;

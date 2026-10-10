@@ -58,7 +58,13 @@ function montar(opciones) {
             hash: String(i).repeat(40).slice(0, 40), lang: p.lang,
             archivo: '/api/voz/audio/' + String(i).repeat(40).slice(0, 40) + '.wav',
             voz: p.lang === 'es' ? 'es_MX-claude-high' : 'en_US-lessac-medium',
-            segundos: cfg.segundos, bytes: 100000, caracteres: p.texto.length, nuevo: true
+            segundos: cfg.segundos, bytes: 100000, caracteres: p.texto.length, nuevo: true,
+            /* una marca por pieza, repartidas parejo en la duración */
+            marcas: (p.partes || []).map((t, k, todas) => ({
+              i: k, texto: t,
+              inicio: Math.round((cfg.segundos / todas.length) * k * 1000) / 1000,
+              fin: Math.round((cfg.segundos / todas.length) * (k + 1) * 1000) / 1000
+            }))
           }));
       return respuesta({ piezas: piezas, estado: ESTADO });
     }
@@ -128,9 +134,19 @@ function montar(opciones) {
   return { ATIS: ctx.ATIS, registro, cfg };
 }
 
+const PARTES_ES = [
+  { texto: 'MMMX, información ALFA.', locucion: 'Aeropuerto Internacional de la Ciudad de México, información Alfa.' },
+  { texto: 'Viento 050 grados 8 nudos.', locucion: 'Viento cero cinco cero grados ocho nudos.' },
+  { texto: 'Altímetro 3039.', locucion: 'Altímetro tres cero tres nueve.' },
+  { texto: 'Informe recibo información ALFA.', locucion: 'Informe recibo información Alfa.' }
+];
+const PARTES_EN = [
+  { texto: 'MMMX, information ALFA.', locucion: 'Mexico City International Airport, information Alfa.' },
+  { texto: 'Wind 050 degrees 8 knots.', locucion: 'Wind zero five zero degrees eight knots.' }
+];
 const GUION = [
-  { lang: 'es', text: 'Aeropuerto Internacional de la Ciudad de México, información Alfa.' },
-  { lang: 'en', text: 'Mexico City International Airport, information Alfa.' }
+  { lang: 'es', text: PARTES_ES.map((p) => p.locucion).join(' '), partes: PARTES_ES },
+  { lang: 'en', text: PARTES_EN.map((p) => p.locucion).join(' '), partes: PARTES_EN }
 ];
 const OPCIONES = { loop: true, gap: 0, cycleGap: 0, rate: { es: 0.95, en: 0.95 } };
 
@@ -259,6 +275,46 @@ const OPCIONES = { loop: true, gap: 0, cycleGap: 0, rate: { es: 0.95, en: 0.95 }
     assert.strictEqual(ATIS.neural.irA(-5), true);
     ATIS.neural.stop();
     assert.strictEqual(ATIS.neural.irA(10), false, 'detenido no se puede saltar');
+  });
+
+  await test('dice en que pieza del guion va, para poder subrayarla', async () => {
+    const { ATIS } = montar({ segundos: 40 });
+    const r = await ATIS.neural.play(GUION, { loop: true, gap: 2, cycleGap: 2 });
+    /* cuatro piezas en español repartidas en 40 s: 0-10, 10-20, 20-30, 30-40 */
+    assert.strictEqual(ATIS.neural.marcas('es').length, PARTES_ES.length);
+    assert.strictEqual(ATIS.neural.marcas('en').length, PARTES_EN.length);
+    assert.strictEqual(r.pistas[0].marcas[1].inicio, 10);
+
+    ATIS.neural.irA(0);
+    assert.strictEqual(ATIS.neural.state.pieza, 0, 'al principio va la primera');
+    ATIS.neural.irA(25);
+    assert.strictEqual(ATIS.neural.state.lang, 'es');
+    assert.strictEqual(ATIS.neural.state.pieza, 2, 'a los 25 s va la tercera');
+    ATIS.neural.irA(39);
+    assert.strictEqual(ATIS.neural.state.pieza, 3, 'al final va la ultima');
+
+    /* en la pausa entre idiomas no se subraya nada */
+    ATIS.neural.irA(41);
+    assert.strictEqual(ATIS.neural.state.pieza, -1, 'en la pausa no hay nada que subrayar');
+
+    /* y el ingles tiene su propia cuenta */
+    ATIS.neural.irA(45);
+    assert.strictEqual(ATIS.neural.state.lang, 'en');
+    assert.strictEqual(ATIS.neural.state.pieza, 0);
+    ATIS.neural.irA(70);
+    assert.strictEqual(ATIS.neural.state.pieza, 1);
+    ATIS.neural.stop();
+    assert.strictEqual(ATIS.neural.state.pieza, -1, 'detenido no se subraya nada');
+  });
+
+  await test('sin marcas no se inventa un subrayado', async () => {
+    const { ATIS } = montar({ segundos: 10 });
+    /* un guion sin piezas: el servidor falso no devuelve marcas */
+    await ATIS.neural.play([{ lang: 'es', text: 'Una sola frase sin piezas.' }], OPCIONES);
+    await dormir(300);
+    assert.strictEqual(ATIS.neural.state.pieza, -1);
+    assert.ok(ATIS.neural.state.playing, 'y sigue sonando igual');
+    ATIS.neural.stop();
   });
 
   await test('la etiqueta del tiempo se escribe en minutos y segundos', async () => {

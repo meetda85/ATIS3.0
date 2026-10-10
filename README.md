@@ -186,6 +186,47 @@ detiene mientras tanto.
 Solo si del 8080 al 8092 estuvieran todos ocupados pide elegir uno a mano
 (`node servidor/servidor.js --puerto 9100`).
 
+### El aviso de METAR nuevo
+
+Cuando la vigilancia encuentra una observación nueva, **se pone encima de todo**: una
+ventana al centro con el METAR crudo y, sobre todo, **qué cambia respecto a lo que está al
+aire** — viento, visibilidad, altímetro, cielo, tiempo presente—, con lo importante
+marcado en ámbar: una ráfaga que no estaba, la visibilidad que bajó de tres millas, un
+fenómeno nuevo. Si es un SPECI, lo dice.
+
+El título de la ventana del navegador también parpadea, para que se note aunque el ATIS
+esté minimizado o en la otra pantalla.
+
+Hay dos botones y ninguno hace nada por su cuenta:
+
+- **Usar este METAR** llena el formulario, avanza la letra y —si se está transmitiendo— el
+  cambio entra al terminar el ciclo.
+- **Ahora no** cierra el aviso, pero el METAR se queda ofrecido en la barra de abajo: nadie
+  pierde el dato por haber dicho que no. También cierra con `Esc` o haciendo clic afuera.
+
+Hay una casilla para **avisar también con un sonido**, y viene **apagada a propósito**: en
+la torre, la bocina de esa computadora es la que sale al aire, y un pitido encima del ATIS
+sería peor que no avisar. Quien la encienda sabrá si en su instalación eso aplica.
+
+## El guion se subraya mientras se locuta
+
+Durante la transmisión, la pieza del guion que está sonando queda **resaltada**, y las que
+ya se dijeron se apagan. Se ve de un vistazo por dónde va el mensaje, y el panel se
+desplaza solo para que lo que suena quede siempre a la vista. Solo se subraya el idioma que
+está al aire.
+
+Los tiempos no son una estimación:
+
+- **Con la voz neuronal**, el servidor sintetiza **una pieza por renglón** en una sola
+  corrida de Piper, las une en un archivo y anota en qué segundo empieza y termina cada
+  una. El subrayado cae exactamente donde cae la voz.
+- **Con la voz del navegador**, se resalta el fragmento que se está locutando; cuando el
+  motor avisa por dónde va dentro de la frase (Chrome lo hace con las voces instaladas),
+  baja a la pieza exacta.
+
+Las piezas son las mismas que arma el generador del guion, así que cada una es una frase
+completa del ATIS. Copiar el guion sigue dando exactamente el mismo texto de siempre.
+
 ## Control remoto desde otra computadora
 
 La PC de la torre transmite; cualquier otra de la misma red puede alimentarle los datos.

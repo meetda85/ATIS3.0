@@ -24,6 +24,7 @@
   --accent-ink:  #ffffff;
   --accent-weak: rgba(11, 122, 75, .10);
   --accent-ring: rgba(11, 122, 75, .30);
+  --karaoke:     rgba(11, 122, 75, .19);
 
   --amber:       #9a5b00;
   --amber-weak:  rgba(154, 91, 0, .10);
@@ -65,6 +66,7 @@
     --accent-ink:  #04140d;
     --accent-weak: rgba(47, 209, 137, .12);
     --accent-ring: rgba(47, 209, 137, .35);
+    --karaoke:     rgba(47, 209, 137, .24);
 
     --amber:       #f2b435;
     --amber-weak:  rgba(242, 180, 53, .12);
@@ -98,6 +100,7 @@
   --accent-ink:  #04140d;
   --accent-weak: rgba(47, 209, 137, .12);
   --accent-ring: rgba(47, 209, 137, .35);
+  --karaoke:     rgba(47, 209, 137, .24);
 
   --amber:       #f2b435;
   --amber-weak:  rgba(242, 180, 53, .12);
@@ -845,3 +848,83 @@ body.modo-control .pstate-main::after {
   color: var(--muted); border: 1px solid var(--line); border-radius: 999px;
   padding: 4px 8px; margin-left: 10px; white-space: nowrap;
 }
+
+/* ==========================================================================
+   Subrayado del guion mientras se locuta
+   Lo que ya se dijo se apaga, lo que suena se resalta. Sin animaciones que
+   distraigan: esto se mira de reojo mientras se trabaja.
+   ========================================================================== */
+.script .gp { border-radius: 4px; transition: background-color .18s linear, color .18s linear; }
+.script .gp.dicha { color: var(--muted); opacity: .62; }
+.script .gp.sonando {
+  background: var(--karaoke);
+  color: var(--text);
+  box-shadow: 0 0 0 3px var(--karaoke);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Aviso de METAR nuevo
+   Va encima de todo porque es lo unico que no se puede pasar por alto.
+   ========================================================================== */
+.modal {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: var(--bg-veil); backdrop-filter: blur(3px);
+}
+.modal[hidden] { display: none !important; }
+
+.modalcaja {
+  width: min(680px, 100%); max-height: calc(100vh - 48px); overflow: auto;
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 5px solid var(--amber);
+  border-radius: var(--r-card, 12px); box-shadow: var(--shadow-2);
+  padding: 20px 22px 16px;
+  animation: entra-modal .18s ease-out;
+}
+@keyframes entra-modal {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .modalcaja { animation: none; } }
+
+.modalcab { display: flex; align-items: center; gap: 10px; }
+.modalcab h2 {
+  margin: 0; font-size: 17px; letter-spacing: .06em; text-transform: uppercase;
+}
+.modalhora {
+  margin-left: auto; font: 600 13px/1 ui-monospace, Consolas, monospace; color: var(--muted);
+}
+.modalpunto {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--amber); flex: 0 0 auto;
+  animation: late-modal 1.4s ease-in-out infinite;
+}
+@keyframes late-modal { 50% { opacity: .25; transform: scale(.78); } }
+@media (prefers-reduced-motion: reduce) { .modalpunto { animation: none; } }
+
+.modalsub { margin: 10px 0 12px; color: var(--muted); font-size: 13.5px; }
+
+.modalcrudo {
+  margin: 0 0 14px; padding: 12px 14px;
+  background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 8px;
+  font: 13.5px/1.6 ui-monospace, Consolas, monospace; color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.modalcambios { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+.modalcambios:empty { display: none; }
+.cambio {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  padding: 5px 10px; border-radius: 999px; font-size: 12.5px;
+  background: var(--surface-2); border: 1px solid var(--line-soft);
+}
+.cambio b { font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.cambio .antes { color: var(--muted); text-decoration: line-through; }
+.cambio .ahora { font-weight: 600; }
+.cambio.ojo { border-color: var(--amber); background: var(--amber-weak); }
+.cambio.ojo b { color: var(--amber); }
+
+.modalpie { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.modalpie .spacer { flex: 1 1 auto; }
+.modalson { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); }
+.modalson input { width: 15px; height: 15px; }

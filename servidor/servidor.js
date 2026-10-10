@@ -312,6 +312,7 @@ async function sintetizarPiezas(cuerpo) {
     try {
       const r = await voz.sintetizar({
         texto: p && p.texto,
+        partes: p && p.partes,
         lang: lang,
         voz: voces[lang] || '',
         velocidad: cuerpo.velocidad,

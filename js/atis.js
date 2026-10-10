@@ -24,10 +24,18 @@
     return this;
   };
   Builder.prototype.result = function () {
+    var t = this.t, s = this.s;
     return {
-      text: this.t.join(' ').replace(/ *\n/g, '\n'),
-      speech: this.s.join(' '),
-      sentences: this.t.slice()
+      text: t.join(' ').replace(/ *\n/g, '\n'),
+      speech: s.join(' '),
+      sentences: t.slice(),
+      /* Cada pieza del guion con su locución al lado. Van emparejadas desde que
+         se arman, y es lo que permite subrayar en pantalla la parte que se está
+         locutando: el motor de voz devuelve en qué pieza va, y aquí está su
+         texto tal como se ve. */
+      partes: t.map(function (texto, i) {
+        return { texto: String(texto).replace(/^\n/, ''), locucion: s[i], renglon: /^\n/.test(texto) };
+      })
     };
   };
 

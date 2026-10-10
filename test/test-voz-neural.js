@@ -131,6 +131,53 @@ const GUION_EN = 'Mexico City International Airport, information Charlie. ' +
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
+  await test('el guion se parte en frases para poder subrayarlo', () => {
+    const f = voz.frasear('Primera frase. Segunda frase, con coma. Tercera.');
+    assert.strictEqual(f.length, 3);
+    assert.strictEqual(f[0], 'Primera frase.');
+    assert.strictEqual(f[2], 'Tercera.');
+    assert.strictEqual(voz.frasear('   ').length, 0);
+    assert.strictEqual(voz.frasear('Sin punto final').length, 1);
+    /* una enumeracion larguisima se parte por comas, para que el subrayado avance */
+    const larga = 'Avisos: ' + Array(20).fill('pista cero cinco cerrada por trabajos').join(', ') + '.';
+    const partida = voz.frasear(larga);
+    assert.ok(partida.length > 1, 'no partio la enumeracion larga');
+    partida.forEach((t) => assert.ok(t.length <= 240, 'quedo un pedazo de ' + t.length));
+  });
+
+  await test('juntar los audios de cada frase anota donde empieza y acaba cada una', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'atis-junta-'));
+    try {
+      const a = wavDePrueba(path.join(dir, 'a.wav'), 2, 22050, 1);
+      const b = wavDePrueba(path.join(dir, 'b.wav'), 3.5, 22050, 1);
+      const c = wavDePrueba(path.join(dir, 'c.wav'), 1, 22050, 1);
+      const destino = path.join(dir, 'junto.wav');
+      const r = voz.juntarWav([a, b, c], ['uno', 'dos', 'tres'], destino);
+      assert.ok(r, 'no junto nada');
+      assert.strictEqual(r.segundos, 6.5);
+      assert.strictEqual(voz.duracionWav(destino), 6.5, 'el archivo no dura lo que dice');
+      assert.deepStrictEqual(r.marcas.map((m) => m.inicio).join(','), '0,2,5.5');
+      assert.deepStrictEqual(r.marcas.map((m) => m.fin).join(','), '2,5.5,6.5');
+      assert.deepStrictEqual(r.marcas.map((m) => m.texto).join(','), 'uno,dos,tres');
+      /* las marcas no dejan huecos ni se enciman */
+      for (let i = 1; i < r.marcas.length; i++) {
+        assert.strictEqual(r.marcas[i].inicio, r.marcas[i - 1].fin, 'hueco en la marca ' + i);
+      }
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  await test('no junta audios de formatos distintos en lugar de hacer un engendro', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'atis-junta-'));
+    try {
+      const a = wavDePrueba(path.join(dir, 'a.wav'), 1, 22050, 1);
+      const b = wavDePrueba(path.join(dir, 'b.wav'), 1, 44100, 1);
+      assert.strictEqual(voz.juntarWav([a, b], ['uno', 'dos'], path.join(dir, 'j.wav')), null);
+      fs.writeFileSync(path.join(dir, 'malo.wav'), 'esto no es audio');
+      assert.strictEqual(voz.juntarWav([a, path.join(dir, 'malo.wav')], ['uno', 'dos'],
+        path.join(dir, 'j2.wav')), null);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
   await test('la dirección de descarga de cada voz se arma bien', () => {
     assert.strictEqual(instalador.rutaDeVoz('es_MX-claude-high'), 'es/es_MX/claude/high/es_MX-claude-high');
     assert.strictEqual(instalador.rutaDeVoz('en_US-lessac-medium'), 'en/en_US/lessac/medium/en_US-lessac-medium');
@@ -198,6 +245,40 @@ const GUION_EN = 'Mexico City International Airport, information Charlie. ' +
       await assert.rejects(() => voz.sintetizar({ texto: 'hola', lang: 'es', voz: 'no_existe' })
         .then((r) => { assert.notStrictEqual(r.voz, 'no_existe'); throw new Error('cayó en la voz por omisión'); }),
         /cayó en la voz por omisión/);
+    });
+
+    await test('cada pieza del guion trae su marca de tiempo', async () => {
+      const partes = [
+        'Aeropuerto Internacional de la Ciudad de México, información Delta.',
+        'Viento cero cinco cero grados ocho nudos.',
+        'Visibilidad diez millas.',
+        'Informe recibo información Delta.'
+      ];
+      const r = await voz.sintetizar({ texto: partes.join(' '), partes: partes, lang: 'es' });
+      assert.strictEqual(r.marcas.length, partes.length, 'no hay una marca por pieza');
+      r.marcas.forEach((m, i) => {
+        assert.strictEqual(m.texto, partes[i], 'la marca ' + i + ' no es de su pieza');
+        assert.ok(m.fin > m.inicio, 'la marca ' + i + ' no dura nada');
+        if (i) assert.strictEqual(m.inicio, r.marcas[i - 1].fin, 'hueco antes de la marca ' + i);
+      });
+      assert.strictEqual(r.marcas[0].inicio, 0);
+      assert.ok(Math.abs(r.marcas[r.marcas.length - 1].fin - r.segundos) < 0.05,
+        'la última marca no llega al final: ' + r.marcas[r.marcas.length - 1].fin + ' vs ' + r.segundos);
+
+      /* del caché salen las mismas marcas, no una lista vacía */
+      const otra = await voz.sintetizar({ texto: partes.join(' '), partes: partes, lang: 'es' });
+      assert.strictEqual(otra.nuevo, false);
+      assert.deepStrictEqual(otra.marcas.map((m) => m.inicio).join(','),
+        r.marcas.map((m) => m.inicio).join(','), 'el caché perdió las marcas');
+    });
+
+    await test('si cambian las piezas, cambia el audio aunque el texto sea el mismo', async () => {
+      const texto = 'Uno. Dos. Tres.';
+      const a = await voz.sintetizar({ texto: texto, partes: ['Uno.', 'Dos.', 'Tres.'], lang: 'es' });
+      const b = await voz.sintetizar({ texto: texto, partes: ['Uno. Dos.', 'Tres.'], lang: 'es' });
+      assert.notStrictEqual(a.hash, b.hash);
+      assert.strictEqual(a.marcas.length, 3);
+      assert.strictEqual(b.marcas.length, 2);
     });
 
     await test('un hash inventado no devuelve ningún archivo', () => {
