@@ -35,6 +35,57 @@ const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json())
   const srv = arrancarServidor();
   await dormir(1200);
 
+  /* ---- Lectura del METAR desde la fuente del CAPMA ---- */
+  const fuente = require(path.join(__dirname, '..', 'servidor', 'fuente-metar.js'));
+  console.log('\nLectura del METAR (CAPMA)');
+
+  await test('extrae los informes sin importar como este armada la pagina', async () => {
+    for (const forma of ['parrafos', 'tabla', 'texto']) {
+      const html = fs.readFileSync(path.join(__dirname, 'fixtures', 'capma_' + forma + '.html'), 'latin1');
+      const lista = fuente.extraer(html, 'MMMX');
+      assert.strictEqual(lista.length, 15, 'en formato ' + forma);
+      assert.strictEqual(lista[0].hhmm, '1144', 'el mas reciente va primero, formato ' + forma);
+    }
+  });
+
+  await test('ordena del mas reciente al mas antiguo y respeta la estacion', async () => {
+    const html = fs.readFileSync(path.join(__dirname, 'fixtures', 'capma_parrafos.html'), 'latin1');
+    const l = fuente.extraer(html, 'MMMX');
+    for (let i = 1; i < l.length; i++) {
+      assert.ok(l[i - 1].momento >= l[i].momento, 'desordenado en ' + i);
+    }
+    assert.strictEqual(fuente.extraer(html, 'MMTJ').length, 1);
+    assert.strictEqual(fuente.extraer(html, 'MMMY').length, 1);
+    assert.strictEqual(fuente.extraer(html, '').length, 17);
+  });
+
+  await test('distingue METAR, SPECI y corregidos, y deja el texto limpio', async () => {
+    const html = fs.readFileSync(path.join(__dirname, 'fixtures', 'capma_parrafos.html'), 'latin1');
+    const l = fuente.extraer(html, 'MMMX');
+    const ultimo = l[0];
+    assert.strictEqual(ultimo.tipo, 'METAR');
+    assert.strictEqual(ultimo.estacion, 'MMMX');
+    /* Sin el "= HHMM" con que termina cada renglon en la pagina */
+    assert.ok(!/=/.test(ultimo.raw), 'quedo el igual: ' + ultimo.raw);
+    assert.ok(/^MMMX 101144Z 00000KT 4SM BKN010 OVC070 15\/13 A3025 NOSIG RMK/.test(ultimo.raw), ultimo.raw);
+
+    const speci = l.filter(x => x.tipo === 'SPECI');
+    assert.ok(speci.length >= 4, 'no reconocio los SPECI');
+    assert.ok(speci.some(x => x.corregido), 'no reconocio el SPECI COR');
+  });
+
+  await test('una pagina sin METAR no revienta', async () => {
+    assert.strictEqual(fuente.extraer('<html><body>Sin datos</body></html>', 'MMMX').length, 0);
+    assert.strictEqual(fuente.extraer('', 'MMMX').length, 0);
+    assert.strictEqual(fuente.masReciente('<p>nada</p>', 'MMMX'), null);
+  });
+
+  await test('avisa cuando el sitio no responde', async () => {
+    await fuente.consultar('http://127.0.0.1:1/', 'MMMX', 2000)
+      .then(() => { throw new Error('deberia haber fallado'); })
+      .catch((e) => { assert.ok(/ECONNREFUSED|no respondió|respondió/.test(e.message), e.message); });
+  });
+
   console.log('\nServidor de control remoto (puerto ' + PUERTO + ')');
 
   /* Si el puerto estuviera ocupado por otra cosa, mejor saberlo de inmediato */

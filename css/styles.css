@@ -814,3 +814,17 @@ body.modo-control .pstate-main::after {
 .voiceitem.falla { border-color: var(--red); cursor: default; }
 .voiceitem.falla:hover { border-color: var(--red); background: var(--red-weak); }
 .voiceitem.falla .vname { color: var(--red); font-weight: 600; }
+
+/* ---------- METAR automático ---------- */
+.vigultimo {
+  margin-top: 10px; padding: 12px 14px;
+  background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: var(--r-ctl);
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: var(--text-2);
+  white-space: pre-wrap; word-break: break-word;
+}
+.vigultimo .vacio { font-family: var(--ui); color: var(--muted); }
+.vigultimo b { color: var(--accent); }
+.pendiente.metar { background: var(--accent-weak); border-bottom-color: var(--accent); }
+.pendiente.metar .pendpunto { background: var(--accent); }
+.pendiente.metar button { margin-left: 0; }
+.pendiente.metar #avisoMetarTexto { margin-right: auto; }

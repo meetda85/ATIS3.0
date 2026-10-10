@@ -14,6 +14,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const fuente = require('./fuente-metar');
 
 const RAIZ = path.join(__dirname, '..');
 const ARCHIVO_ESTADO = path.join(__dirname, 'estado.json');
@@ -40,6 +41,66 @@ function guardarEstado() {
   } catch (err) {
     console.error('No se pudo guardar el estado:', err.message);
   }
+}
+
+/* ------------------------------------------------- vigilancia del METAR -- */
+/* Revisa la fuente cada cierto tiempo y avisa cuando aparece uno nuevo. Nunca
+   cambia el ATIS por su cuenta: solo publica el hallazgo; quien transmite
+   decide, y siempre al terminar el ciclo. */
+let metar = {
+  activo: false,
+  url: fuente.URL_CAPMA,
+  estacion: 'MMMX',
+  minutos: 5,
+  ultimo: null,          /* el informe más reciente visto */
+  revisado: null,        /* cuándo se revisó por última vez */
+  error: '',
+  revisiones: 0
+};
+let relojMetar = null;
+
+async function revisarMetar(motivo) {
+  metar.revisado = new Date().toISOString();
+  metar.revisiones++;
+  try {
+    const r = await fuente.consultar(metar.url, metar.estacion, 20000);
+    metar.error = '';
+    if (!r.ultimo) {
+      metar.error = 'la página respondió, pero no traía ningún METAR de ' + metar.estacion;
+      avisar('metar', estadoMetar());
+      return null;
+    }
+    const nuevo = !metar.ultimo || r.ultimo.raw !== metar.ultimo.raw;
+    metar.ultimo = r.ultimo;
+    if (nuevo) {
+      console.log('[' + new Date().toLocaleTimeString() + '] METAR nuevo (' + motivo + '): ' + r.ultimo.raw);
+      avisar('metar', estadoMetar());
+    } else {
+      avisar('metar', estadoMetar());
+    }
+    return r.ultimo;
+  } catch (e) {
+    metar.error = e.message;
+    console.error('[' + new Date().toLocaleTimeString() + '] no se pudo revisar el METAR: ' + e.message);
+    avisar('metar', estadoMetar());
+    return null;
+  }
+}
+
+function estadoMetar() {
+  return {
+    activo: metar.activo, url: metar.url, estacion: metar.estacion, minutos: metar.minutos,
+    ultimo: metar.ultimo, revisado: metar.revisado, error: metar.error, revisiones: metar.revisiones
+  };
+}
+
+function programarMetar() {
+  clearInterval(relojMetar);
+  relojMetar = null;
+  if (!metar.activo) return;
+  const cada = Math.max(2, Math.min(60, metar.minutos)) * 60000;
+  relojMetar = setInterval(() => revisarMetar('automático'), cada);
+  revisarMetar('al activar');
 }
 
 /* Quién está conectado y qué está haciendo */
@@ -145,6 +206,30 @@ const servidor = http.createServer(async (req, res) => {
       });
       limpiarEquipos();
       return json(res, 200, { version: estado.version, equipos: [...equipos.values()] });
+    } catch (e) {
+      return json(res, 400, { error: e.message });
+    }
+  }
+
+  if (url.startsWith('/api/metar') && req.method === 'GET') {
+    if (/revisar=1/.test(url)) {
+      await revisarMetar('a petición');
+    }
+    return json(res, 200, estadoMetar());
+  }
+
+  if (url === '/api/metar' && req.method === 'POST') {
+    try {
+      const c = await leerCuerpo(req);
+      if (typeof c.activo === 'boolean') metar.activo = c.activo;
+      if (c.url) metar.url = String(c.url).slice(0, 400);
+      if (c.estacion) metar.estacion = String(c.estacion).toUpperCase().slice(0, 4);
+      if (c.minutos) metar.minutos = Math.max(2, Math.min(60, parseInt(c.minutos, 10) || 5));
+      programarMetar();
+      console.log('Vigilancia del METAR: ' + (metar.activo
+        ? metar.estacion + ' cada ' + metar.minutos + ' min desde ' + metar.url
+        : 'apagada'));
+      return json(res, 200, estadoMetar());
     } catch (e) {
       return json(res, 400, { error: e.message });
     }

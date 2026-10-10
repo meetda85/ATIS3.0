@@ -316,6 +316,40 @@
 
   <div class="page" id="pageAjustes" role="tabpanel" hidden>
 
+    <!-- ============ METAR AUTOMÁTICO ============ -->
+    <section class="card span2">
+      <h2>METAR automático <span class="enlace-badge" id="vigBadge">apagado</span></h2>
+      <p class="help">
+        Revisa cada cierto tiempo la red AFTN del CAPMA y avisa cuando hay un METAR
+        nuevo. <b>Nunca cambia el ATIS por su cuenta</b>: avisa, usted decide, y el cambio
+        entra al terminar el ciclo. Necesita el servidor
+        (<code>SERVIDOR.bat</code>) y que esta computadora alcance el sitio.
+      </p>
+      <label class="checkline grande">
+        <input type="checkbox" id="vigActiva">
+        <span><b>Revisar el METAR automáticamente</b></span>
+      </label>
+      <div class="grid3">
+        <label class="field"><span>Dirección de la fuente</span>
+          <input id="vigUrl" spellcheck="false" value="http://capma.mx/reportemetar/elegir_samx_3.php">
+        </label>
+        <label class="field"><span>Estación</span>
+          <input id="vigEstacion" maxlength="4" value="MMMX">
+        </label>
+        <label class="field"><span>Revisar cada</span>
+          <div class="ppausas">
+            <input id="vigMinutos" type="number" min="2" max="60" step="1" value="5">
+            <span class="psep">minutos</span>
+          </div>
+        </label>
+      </div>
+      <div class="row buttons">
+        <button id="btnVigAhora" class="small">Revisar ahora</button>
+        <span id="vigStatus" class="status"></span>
+      </div>
+      <div id="vigUltimo" class="vigultimo"></div>
+    </section>
+
     <!-- ============ ESTADO DEL PROGRAMA ============ -->
     <section class="card span2">
       <h2>Estado del programa <span class="enlace-badge" id="saludBadge">comprobando…</span></h2>
@@ -469,6 +503,14 @@
     <span class="pendpunto"></span>
     <span id="pendienteTexto"></span>
     <button id="btnAplicarYa" class="small">Aplicar ahora</button>
+  </aside>
+
+  <!-- METAR nuevo encontrado por la vigilancia -->
+  <aside class="pendiente metar" id="avisoMetar" hidden>
+    <span class="pendpunto"></span>
+    <span id="avisoMetarTexto"></span>
+    <button id="btnUsarMetar" class="small primary">Usar este METAR</button>
+    <button id="btnIgnorarMetar" class="small ghost">Ahora no</button>
   </aside>
 
   <!-- verificación previa: dentro de la consola, para que nunca se encimen -->

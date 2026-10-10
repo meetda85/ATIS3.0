@@ -44,6 +44,8 @@
       'preflight', 'preflightLista', 'btnIgual', 'btnCorregir', 'metarEdad',
       'enlaceEstado', 'enlaceDetalle', 'enlacePapel', 'enlaceEquipos',
       'saludBadge', 'saludLista', 'btnSaludCopy', 'saludStatus',
+      'vigBadge', 'vigActiva', 'vigUrl', 'vigEstacion', 'vigMinutos', 'btnVigAhora',
+      'vigStatus', 'vigUltimo', 'avisoMetar', 'avisoMetarTexto', 'btnUsarMetar', 'btnIgnorarMetar',
       'pendiente', 'pendienteTexto', 'btnAplicarYa'
     ].forEach(function (id) { el[id] = $(id); });
 
@@ -59,6 +61,19 @@
     iniciarPaginas();
     iniciarEnlace();
     comprobarInstalacion();
+    if (vigDisponible()) {
+      pedirVigilancia(null).then(function (st) {
+        if (st && !st.error) {
+          el.vigActiva.checked = !!st.activo;
+          if (st.url) el.vigUrl.value = st.url;
+          if (st.estacion) el.vigEstacion.value = st.estacion;
+          if (st.minutos) el.vigMinutos.value = st.minutos;
+        }
+        pintarVigilancia(st);
+      });
+    } else {
+      pintarVigilancia({});
+    }
     startClock();
     initVoices();
     renderLog();
@@ -941,6 +956,99 @@
   }
 
   /* ================================================================== *
+   * METAR automático
+   * El servidor vigila la fuente; aquí solo se avisa y se decide. El ATIS
+   * nunca cambia solo: ese es el punto.
+   * ================================================================== */
+  var metarPropuesto = null;
+  var metarVistoUltimo = null;
+
+  function vigDisponible() { return ATIS.enlace.disponible(); }
+
+  function pedirVigilancia(opciones) {
+    if (!vigDisponible()) return Promise.resolve(null);
+    var cfg = { cache: 'no-store' };
+    if (opciones) {
+      cfg.method = 'POST';
+      cfg.headers = { 'Content-Type': 'application/json' };
+      cfg.body = JSON.stringify(opciones);
+    }
+    return fetch('/api/metar' + (opciones ? '' : (arguments[1] ? '?revisar=1' : '')), cfg)
+      .then(function (r) { return r.json(); })
+      .catch(function (e) { return { error: e.message }; });
+  }
+
+  function guardarVigilancia() {
+    if (!vigDisponible()) return;
+    pedirVigilancia({
+      activo: el.vigActiva.checked,
+      url: el.vigUrl.value.trim(),
+      estacion: el.vigEstacion.value.trim().toUpperCase(),
+      minutos: +el.vigMinutos.value
+    }).then(pintarVigilancia);
+  }
+
+  function pintarVigilancia(st) {
+    if (!st) return;
+    if (!vigDisponible()) {
+      el.vigBadge.textContent = 'necesita el servidor';
+      el.vigBadge.className = 'enlace-badge';
+      el.vigUltimo.innerHTML = '<span class="vacio">Esta función necesita que el ATIS se ' +
+        'haya iniciado con SERVIDOR.bat: el navegador por sí solo no puede leer otro sitio.</span>';
+      return;
+    }
+    el.vigBadge.textContent = st.activo ? 'vigilando' : 'apagado';
+    el.vigBadge.className = 'enlace-badge ' + (st.activo ? 'ok' : '');
+    if (st.error) {
+      el.vigBadge.textContent = 'con problemas';
+      el.vigBadge.className = 'enlace-badge mal';
+    }
+
+    var partes = [];
+    if (st.ultimo) {
+      partes.push('<b>' + escapeHtml(st.ultimo.raw) + '</b>');
+      partes.push('Informe de las ' + escapeHtml(st.ultimo.hhmm) + 'Z' +
+        (st.ultimo.tipo === 'SPECI' ? ' (SPECI)' : '') + (st.ultimo.corregido ? ' corregido' : ''));
+    } else {
+      partes.push('<span class="vacio">Todavía no se ha leído ningún METAR.</span>');
+    }
+    if (st.revisado) {
+      partes.push('Última revisión: ' + new Date(st.revisado).toLocaleTimeString() +
+        ' · ' + st.revisiones + ' revisión(es)');
+    }
+    if (st.error) partes.push('<span class="status err">' + escapeHtml(st.error) + '</span>');
+    el.vigUltimo.innerHTML = partes.join('<br>');
+
+    /* ¿Es uno que no hemos visto? Se propone, no se impone. */
+    if (st.ultimo && st.ultimo.raw !== metarVistoUltimo &&
+        st.ultimo.raw.trim() !== el.metarRaw.value.trim()) {
+      metarVistoUltimo = st.ultimo.raw;
+      proponerMetar(st.ultimo);
+    }
+  }
+
+  function proponerMetar(informe) {
+    metarPropuesto = informe;
+    el.avisoMetar.hidden = false;
+    el.avisoMetarTexto.textContent = 'METAR nuevo de ' + informe.estacion + ', ' +
+      informe.hhmm + 'Z: ' + informe.raw.slice(0, 90) + (informe.raw.length > 90 ? '…' : '');
+  }
+
+  function usarMetarPropuesto() {
+    if (!metarPropuesto) return;
+    el.metarRaw.value = metarPropuesto.raw;
+    el.avisoMetar.hidden = true;
+    var transmitiendo = ATIS.speech.state.playing;
+    decodeMetar();                       /* llena el formulario y avanza la letra */
+    if (transmitiendo) {
+      ATIS.speech.alFinDeCiclo(function () { play(true); });
+      status(el.scriptStatus, 'METAR aplicado. El ciclo en curso termina y el siguiente ' +
+        'sale con la información nueva.', 'ok');
+    }
+    metarPropuesto = null;
+  }
+
+  /* ================================================================== *
    * Comprobación de la instalación
    * Responde a "¿quedó bien instalado?" sin tener que revisar carpetas.
    * ================================================================== */
@@ -1015,6 +1123,7 @@
     if (!ATIS.enlace.disponible()) { pintarEnlace(ATIS.enlace.estado()); return; }
 
     ATIS.enlace.alCambiar(pintarEnlace);
+    ATIS.enlace.alMetar(pintarVigilancia);
     ATIS.enlace.iniciar({
       nombre: nombreEquipo,
       recoger: estadoCompartido,
@@ -1602,6 +1711,27 @@
         save();
         updateVoiceReport();
       });
+    });
+
+    ['vigActiva', 'vigUrl', 'vigEstacion', 'vigMinutos'].forEach(function (id) {
+      on(el[id], 'change', guardarVigilancia);
+    });
+    on(el.btnVigAhora, 'click', function () {
+      status(el.vigStatus, 'Revisando la fuente…');
+      fetch('/api/metar?revisar=1', { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (st) {
+          pintarVigilancia(st);
+          status(el.vigStatus, st.error ? 'No se pudo: ' + st.error
+            : (st.ultimo ? 'Leído el de las ' + st.ultimo.hhmm + 'Z.' : 'Sin METAR en la página.'),
+            st.error ? 'err' : 'ok');
+        })
+        .catch(function (e) { status(el.vigStatus, 'No se pudo: ' + e.message, 'err'); });
+    });
+    on(el.btnUsarMetar, 'click', usarMetarPropuesto);
+    on(el.btnIgnorarMetar, 'click', function () {
+      el.avisoMetar.hidden = true;
+      metarPropuesto = null;
     });
 
     on(el.btnSaludCopy, 'click', function () {

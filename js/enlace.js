@@ -22,6 +22,7 @@
   var latido = null;
   var enviando = null;
   var oyentes = [];
+  var oyentesMetar = [];
   var ultimoJSON = null;   /* lo último enviado o recibido: evita el ida y vuelta */
 
   var est = {
@@ -158,6 +159,12 @@
       if (d.version && d.version > est.version) traer(false);
       else avisar();
     });
+    /* El servidor avisa en cuanto aparece un METAR nuevo */
+    fuente.addEventListener('metar', function (ev) {
+      var d = null;
+      try { d = JSON.parse(ev.data); } catch (e) { return; }
+      oyentesMetar.forEach(function (cb) { try { cb(d); } catch (e) { /* ignorado */ } });
+    });
     fuente.onopen = function () { est.conectado = true; est.error = ''; avisar(); };
     fuente.onerror = function () { est.conectado = false; avisar(); };
   }
@@ -209,6 +216,7 @@
     traer: traer,
     estado: estado,
     fijarPapel: fijarPapel,
-    alCambiar: function (cb) { oyentes.push(cb); }
+    alCambiar: function (cb) { oyentes.push(cb); },
+    alMetar: function (cb) { oyentesMetar.push(cb); }
   };
 })(this);

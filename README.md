@@ -53,6 +53,30 @@ deja en el portapapeles la lista completa, para pedir apoyo o comparar entre equ
 Ajustes recomendados: velocidad **0.85–0.95**, pausa entre frases **250 ms**, pausa entre
 idiomas **3 s**.
 
+## METAR automático desde el CAPMA
+
+Con el servidor andando, el ATIS puede vigilar la red AFTN del CAPMA y avisar cuando hay
+un METAR nuevo. Se configura en *Ajustes → METAR automático*: dirección de la fuente
+(por omisión `http://capma.mx/reportemetar/elegir_samx_3.php`), estación y cada cuántos
+minutos revisar.
+
+**Nunca cambia el ATIS por su cuenta.** Cuando aparece uno nuevo, la consola lo muestra
+con dos botones: *Usar este METAR* y *Ahora no*. Al aceptarlo se llena el formulario, se
+avanza la letra y —si se está transmitiendo— el cambio entra **al terminar el ciclo**.
+Esa decisión es deliberada: un ATIS no debe cambiar solo mientras alguien lo está
+escuchando.
+
+El lector no depende de cómo esté armada la página: quita las etiquetas HTML y busca los
+informes por su propio formato, así que sigue funcionando aunque al sitio le cambien el
+diseño. Distingue METAR, SPECI y corregidos, y se queda con el más reciente de la estación.
+
+Si el sitio no responde o deja de publicar, se avisa en pantalla y **la transmisión sigue**
+con los últimos datos buenos.
+
+Esto necesita el servidor porque el navegador, por sí solo, no puede leer otro sitio
+(se lo impide la política de origen cruzado). El servidor sí, y además la PC de la torre
+alcanza `capma.mx` sin problema aunque sea por `http`.
+
 ## Control remoto desde otra computadora
 
 La PC de la torre transmite; cualquier otra de la misma red puede alimentarle los datos.
@@ -186,6 +210,7 @@ ocho». En pantalla el texto se conserva tal como viene en el NOTAM.
 INSTALAR.bat          instalador para Windows
 SERVIDOR.bat          arranca el servidor de control remoto
 servidor/servidor.js  servidor local: sirve la app y guarda el estado compartido
+servidor/fuente-metar.js  lectura del METAR desde la página del CAPMA
 DESINSTALAR.bat       desinstalador
 install/              scripts del instalador
 index.html            interfaz
