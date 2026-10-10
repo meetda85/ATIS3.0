@@ -54,32 +54,36 @@ let metar = {
   estacion: 'MMMX',
   minutos: 5,
   ultimo: null,          /* el informe más reciente visto */
+  fuente: '',            /* de dónde salió: CAPMA o NOAA */
   revisado: null,        /* cuándo se revisó por última vez */
   error: '',
   revisiones: 0
 };
 let relojMetar = null;
 
+/* Busca en la red del CAPMA y, si de ahí no sale nada, en el servicio del NOAA.
+   La vigilancia no se cae porque una de las dos fuentes esté fuera de servicio. */
 async function revisarMetar(motivo) {
   metar.revisado = new Date().toISOString();
   metar.revisiones++;
   try {
-    const r = await fuente.consultar(metar.url, metar.estacion, 20000);
-    metar.error = '';
-    if (!r.ultimo) {
-      metar.error = 'la página respondió, pero no traía ningún METAR de ' + metar.estacion;
+    const r = await fuente.buscar(metar.estacion, { url: metar.url, tiempoLimite: 20000 });
+    if (!r.ok) {
+      metar.error = r.error;
+      console.error('[' + new Date().toLocaleTimeString() + '] no se pudo revisar el METAR: ' + r.error);
       avisar('metar', estadoMetar());
       return null;
     }
-    const nuevo = !metar.ultimo || r.ultimo.raw !== metar.ultimo.raw;
-    metar.ultimo = r.ultimo;
+    metar.error = '';
+    metar.fuente = r.fuente;
+    const nuevo = !metar.ultimo || r.raw !== metar.ultimo.raw;
+    metar.ultimo = r.informe;
     if (nuevo) {
-      console.log('[' + new Date().toLocaleTimeString() + '] METAR nuevo (' + motivo + '): ' + r.ultimo.raw);
-      avisar('metar', estadoMetar());
-    } else {
-      avisar('metar', estadoMetar());
+      console.log('[' + new Date().toLocaleTimeString() + '] METAR nuevo (' + motivo + ', ' +
+        r.fuente + '): ' + r.raw);
     }
-    return r.ultimo;
+    avisar('metar', estadoMetar());
+    return r.informe;
   } catch (e) {
     metar.error = e.message;
     console.error('[' + new Date().toLocaleTimeString() + '] no se pudo revisar el METAR: ' + e.message);
@@ -91,7 +95,8 @@ async function revisarMetar(motivo) {
 function estadoMetar() {
   return {
     activo: metar.activo, url: metar.url, estacion: metar.estacion, minutos: metar.minutos,
-    ultimo: metar.ultimo, revisado: metar.revisado, error: metar.error, revisiones: metar.revisiones
+    ultimo: metar.ultimo, fuente: metar.fuente, revisado: metar.revisado,
+    error: metar.error, revisiones: metar.revisiones
   };
 }
 
@@ -283,6 +288,18 @@ const servidor = http.createServer(async (req, res) => {
     } catch (e) {
       return json(res, 400, { error: e.message });
     }
+  }
+
+  /* Busca el METAR de una estación cualquiera. Lo hace el servidor porque el
+     navegador no puede: los sitios de meteorología no autorizan la consulta
+     desde otra página (CORS), así que desde el navegador siempre falla. */
+  if (url.startsWith('/api/metar/buscar') && req.method === 'GET') {
+    const pedido = new URL(url, 'http://local');
+    const estacion = String(pedido.searchParams.get('estacion') || metar.estacion).toUpperCase();
+    const r = await fuente.buscar(estacion, { url: metar.url, tiempoLimite: 15000 });
+    console.log('[' + new Date().toLocaleTimeString() + '] METAR de ' + estacion + ': ' +
+      (r.ok ? r.fuente + ' → ' + r.raw : 'no se pudo (' + r.error + ')'));
+    return json(res, r.ok ? 200 : 502, r);
   }
 
   if (url.startsWith('/api/metar') && req.method === 'GET') {

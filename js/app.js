@@ -310,22 +310,71 @@
     return parts.join(' ');
   }
 
+  /* Traer el METAR de la red.
+   *
+   * Lo pide el servidor, no el navegador. Los sitios de meteorología (el CAPMA
+   * y el del NOAA) no autorizan que otra página los consulte —es la regla CORS
+   * del navegador—, así que pedirlo desde aquí fallaba siempre con un escueto
+   * «Failed to fetch». El servidor no tiene esa limitación: busca primero en la
+   * red del CAPMA, que es la fuente operativa, y si de ahí no sale nada, en el
+   * servicio del NOAA. */
+  function hayServidor() {
+    return /^https?:$/.test(location.protocol);
+  }
+
   function fetchMetar() {
     var code = (el.station.value || '').toUpperCase().trim();
     if (!/^[A-Z]{4}$/.test(code)) { status(el.metarStatus, 'Indique un código OACI de 4 letras.', 'err'); return; }
-    status(el.metarStatus, 'Consultando METAR de ' + code + '…');
-    var url = 'https://aviationweather.gov/api/data/metar?ids=' + code + '&format=raw&hours=2';
-    fetch(url, { cache: 'no-store' })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-      .then(function (txt) {
-        var line = String(txt).trim().split('\n')[0];
-        if (!line) throw new Error('sin datos');
-        el.metarRaw.value = line.trim();
+
+    if (!hayServidor()) {
+      status(el.metarStatus, 'Para traer el METAR solo hace falta abrir el ATIS con SERVIDOR.bat: ' +
+        'el navegador, por sí solo, tiene prohibido consultar otro sitio. Mientras tanto, ' +
+        'pegue el METAR en el recuadro y pulse DECODIFICAR.', 'err');
+      return;
+    }
+
+    el.btnFetch.disabled = true;
+    status(el.metarStatus, 'Consultando el METAR de ' + code + '…');
+    fetch('/api/metar/buscar?estacion=' + encodeURIComponent(code), { cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (d) { d.http = r.status; return d; }); })
+      .then(function (d) {
+        el.btnFetch.disabled = false;
+        if (!d.ok || !d.raw) {
+          status(el.metarStatus, 'No se encontró el METAR de ' + code + '. ' +
+            detalleIntentos(d) + ' Péguelo manualmente.', 'err');
+          return;
+        }
+        el.metarRaw.value = d.raw;
         decodeMetar();
+        var viejo = d.informe && avisoAntiguedad(d.informe);
+        status(el.metarStatus, 'METAR de ' + code + ' traído de ' + d.fuente +
+          (d.informe ? ' · observación de las ' + d.informe.hhmm + 'Z' : '') +
+          (viejo ? ' · ' + viejo : ''), viejo ? 'err' : 'ok');
       })
       .catch(function (e) {
-        status(el.metarStatus, 'No fue posible obtener el METAR (' + e.message + '). Péguelo manualmente.', 'err');
+        el.btnFetch.disabled = false;
+        status(el.metarStatus, 'El servidor no contestó (' + e.message + '). ' +
+          'Revise que la ventana de SERVIDOR.bat siga abierta. Péguelo manualmente.', 'err');
       });
+  }
+
+  /* Qué pasó en cada fuente, para saber dónde está la falla */
+  function detalleIntentos(d) {
+    var lista = d && d.intentos && d.intentos.length ? d.intentos : null;
+    if (!lista) return d && d.error ? d.error + '.' : '';
+    return lista.map(function (i) {
+      return i.fuente + ': ' + (i.ok ? 'respondió' : (i.error || 'sin datos'));
+    }).join(' · ') + '.';
+  }
+
+  function avisoAntiguedad(informe) {
+    var ahora = new Date();
+    var obs = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), informe.dia,
+      informe.hora, informe.minuto));
+    var min = Math.round((ahora - obs) / 60000);
+    if (min < -60) min += 24 * 60;
+    if (min >= 90) return 'ojo: tiene ' + min + ' minutos';
+    return '';
   }
 
   /* ================================================================== *
@@ -1312,7 +1361,8 @@
     if (st.ultimo) {
       partes.push('<b>' + escapeHtml(st.ultimo.raw) + '</b>');
       partes.push('Informe de las ' + escapeHtml(st.ultimo.hhmm) + 'Z' +
-        (st.ultimo.tipo === 'SPECI' ? ' (SPECI)' : '') + (st.ultimo.corregido ? ' corregido' : ''));
+        (st.ultimo.tipo === 'SPECI' ? ' (SPECI)' : '') + (st.ultimo.corregido ? ' corregido' : '') +
+        (st.fuente ? ' · fuente: ' + escapeHtml(st.fuente) : ''));
     } else {
       partes.push('<span class="vacio">Todavía no se ha leído ningún METAR.</span>');
     }

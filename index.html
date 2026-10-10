@@ -88,7 +88,7 @@
     </div>
     <div class="row buttons">
       <button id="btnDecode" class="primary">Decodificar y llenar</button>
-      <button id="btnFetch">Obtener en línea</button>
+      <button id="btnFetch" title="Lo busca el servidor en el CAPMA y, si no contesta, en el NOAA">Obtener en línea</button>
       <button id="btnSample" class="ghost">Ejemplo</button>
       <span id="metarStatus" class="status"></span>
       <span id="metarEdad" class="edad"></span>
@@ -323,8 +323,13 @@
       <p class="help">
         Revisa cada cierto tiempo la red AFTN del CAPMA y avisa cuando hay un METAR
         nuevo. <b>Nunca cambia el ATIS por su cuenta</b>: avisa, usted decide, y el cambio
-        entra al terminar el ciclo. Necesita el servidor
-        (<code>SERVIDOR.bat</code>) y que esta computadora alcance el sitio.
+        entra al terminar el ciclo. Necesita el servidor (<code>SERVIDOR.bat</code>).
+      </p>
+      <p class="help">
+        Si el CAPMA no contesta, lo busca en el servicio del <b>NOAA</b>
+        (aviationweather.gov), que publica el mismo METAR oficial con unos minutos
+        m&aacute;s de retraso. Abajo se ve de cu&aacute;l de las dos sali&oacute;. As&iacute;, que una
+        fuente se caiga no deja al ATIS sin METAR.
       </p>
       <label class="checkline grande">
         <input type="checkbox" id="vigActiva">

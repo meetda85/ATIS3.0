@@ -103,9 +103,28 @@ deja en el portapapeles la lista completa, para pedir apoyo o comparar entre equ
 Ajustes recomendados: velocidad **0.85–0.95**, pausa entre frases **250 ms**, pausa entre
 idiomas **3 s**.
 
-## METAR automático desde el CAPMA
+## Traer el METAR de la red
 
-Con el servidor andando, el ATIS puede vigilar la red AFTN del CAPMA y avisar cuando hay
+Hay dos maneras, y las dos las hace **el servidor**, no el navegador:
+
+- **A mano**: el botón **Obtener en línea**, junto al recuadro del METAR. Trae el informe
+  más reciente de la estación que esté seleccionada.
+- **Automática**: *Ajustes → METAR automático*, que revisa cada cierto tiempo y avisa.
+
+Las dos buscan primero en la **red AFTN del CAPMA**, que es la fuente operativa y la que
+llega antes, y si de ahí no sale nada, en el servicio del **NOAA** (aviationweather.gov),
+que publica el mismo METAR oficial con unos minutos más de retraso. El aviso dice de cuál
+de las dos salió, y cuando fallan las dos dice qué contestó cada una, para saber dónde
+está el problema.
+
+> Esto **tiene** que pasar por el servidor. Los sitios de meteorología no autorizan que
+> otra página los consulte —es la política de origen cruzado del navegador—, así que
+> pedirlo directamente desde el navegador falla siempre, con un escueto *Failed to fetch*.
+> Abierto sin servidor, el botón lo explica en lugar de dar ese error.
+
+### El vigilante
+
+Con el servidor andando, el ATIS puede vigilar la fuente y avisar cuando hay
 un METAR nuevo. Se configura en *Ajustes → METAR automático*: dirección de la fuente
 (por omisión `http://capma.mx/reportemetar/elegir_samx_3.php`), estación y cada cuántos
 minutos revisar.
@@ -123,9 +142,8 @@ diseño. Distingue METAR, SPECI y corregidos, y se queda con el más reciente de
 Si el sitio no responde o deja de publicar, se avisa en pantalla y **la transmisión sigue**
 con los últimos datos buenos.
 
-Esto necesita el servidor porque el navegador, por sí solo, no puede leer otro sitio
-(se lo impide la política de origen cruzado). El servidor sí, y además la PC de la torre
-alcanza `capma.mx` sin problema aunque sea por `http`.
+El lector está probado contra la página real del CAPMA: de ahí salen los 65 informes de
+las estaciones del país, y de esos se toma el de la estación configurada.
 
 ## Control remoto desde otra computadora
 

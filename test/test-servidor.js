@@ -80,6 +80,44 @@ const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json())
     assert.strictEqual(fuente.masReciente('<p>nada</p>', 'MMMX'), null);
   });
 
+  await test('lee el formato del NOAA, que viene por renglones y sin "="', async () => {
+    const txt = fs.readFileSync(path.join(__dirname, 'fixtures', 'noaa_mmmx.txt'), 'utf8');
+    const lista = fuente.extraer(fuente.normalizarLineas(txt), 'MMMX');
+    assert.strictEqual(lista.length, 5);
+    assert.strictEqual(lista[0].hhmm, '1818', 'el mas reciente va primero');
+    assert.strictEqual(lista[0].tipo, 'SPECI');
+    assert.ok(/A3027/.test(lista[0].raw), 'se perdio parte del informe: ' + lista[0].raw);
+    assert.ok(!/=/.test(lista[0].raw), 'no debe quedar el signo igual');
+    /* el mismo lector sirve para las dos fuentes */
+    assert.strictEqual(fuente.extraer(fuente.normalizarLineas(txt), 'KJFK').length, 0);
+  });
+
+  await test('normalizar renglones no estropea lo que ya trae "="', async () => {
+    const conIgual = 'METAR MMMX 101745Z 34005KT 5SM 20/13 A3029=\nSPECI MMTJ 101800Z 00000KT 9SM 24/10 A2998=';
+    const l = fuente.extraer(fuente.normalizarLineas(conIgual), '');
+    assert.strictEqual(l.length, 2);
+    assert.ok(!/==/.test(l[0].raw + l[1].raw));
+  });
+
+  await test('buscar cae a la segunda fuente cuando la primera no sirve', async () => {
+    /* La primera direccion no existe: tiene que seguir con la otra sin rendirse */
+    const r = await fuente.buscar('MMMX', { url: 'http://127.0.0.1:1/nada', tiempoLimite: 2000, awc: false });
+    assert.strictEqual(r.ok, false, 'sin fuentes utiles no puede decir que si');
+    assert.strictEqual(r.intentos.length, 1);
+    assert.strictEqual(r.intentos[0].fuente, 'CAPMA');
+    assert.ok(r.intentos[0].error, 'tiene que decir que paso');
+    assert.ok(r.error.indexOf('CAPMA') === 0, 'el aviso nombra la fuente: ' + r.error);
+  });
+
+  await test('buscar rechaza un indicador que no es de cuatro letras', async () => {
+    for (const malo of ['', 'MM', 'MMMXX', '12 34']) {
+      const r = await fuente.buscar(malo, { tiempoLimite: 1000 });
+      assert.strictEqual(r.ok, false, 'acepto "' + malo + '"');
+      assert.ok(/cuatro letras/.test(r.error));
+      assert.strictEqual(r.intentos.length, 0, 'no debe salir a la red con un indicador malo');
+    }
+  });
+
   await test('avisa cuando el sitio no responde', async () => {
     await fuente.consultar('http://127.0.0.1:1/', 'MMMX', 2000)
       .then(() => { throw new Error('deberia haber fallado'); })
@@ -172,6 +210,52 @@ const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json())
     assert.ok(/event: estado/.test(texto), 'no mandó el aviso: ' + texto);
     assert.ok(/"origen":"control"/.test(texto), texto);
     ctrl.abort();
+  });
+
+  /* Un sitio de mentiras con la pagina del CAPMA, para probar sin salir a la red */
+  await test('el servidor trae el METAR de la estacion que le pidan', async () => {
+    const http = require('http');
+    const pagina = fs.readFileSync(path.join(__dirname, 'fixtures', 'capma_parrafos.html'));
+    const falso = http.createServer((pet, resp) => {
+      resp.writeHead(200, { 'Content-Type': 'text/html; charset=windows-1252' });
+      resp.end(pagina);
+    });
+    await new Promise((r) => falso.listen(0, '127.0.0.1', r));
+    const puertoFalso = falso.address().port;
+    try {
+      /* Se apunta la vigilancia a ese sitio; el NOAA queda como respaldo */
+      await api('/api/metar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: 'http://127.0.0.1:' + puertoFalso + '/capma', estacion: 'MMMX' })
+      });
+
+      const r = await api('/api/metar/buscar?estacion=MMMX');
+      assert.strictEqual(r.ok, true, 'no lo encontro: ' + r.error);
+      assert.strictEqual(r.fuente, 'CAPMA', 'debio salir de la fuente configurada');
+      assert.ok(/^(METAR |SPECI )?MMMX \d{6}Z /.test(r.raw), 'informe raro: ' + r.raw);
+      assert.strictEqual(r.informe.estacion, 'MMMX');
+      assert.ok(r.recientes.length > 1, 'tambien entrega los anteriores');
+
+      /* Otra estacion de la misma pagina */
+      const tj = await api('/api/metar/buscar?estacion=MMTJ');
+      assert.strictEqual(tj.ok, true);
+      assert.strictEqual(tj.informe.estacion, 'MMTJ');
+
+      /* Una que no esta: tiene que decir que intento en cada fuente */
+      const no = await api('/api/metar/buscar?estacion=ZZZZ');
+      assert.strictEqual(no.ok, false);
+      assert.ok(no.intentos.length >= 1, 'no dijo que intento');
+      assert.strictEqual(no.intentos[0].fuente, 'CAPMA');
+      assert.ok(/ZZZZ/.test(no.intentos[0].error), 'el motivo nombra la estacion: ' + no.intentos[0].error);
+      assert.ok(no.error, 'falta el resumen de la falla');
+
+      /* Un indicador invalido ni siquiera sale a la red */
+      const malo = await api('/api/metar/buscar?estacion=MM');
+      assert.strictEqual(malo.ok, false);
+      assert.strictEqual(malo.intentos.length, 0);
+    } finally {
+      falso.close();
+    }
   });
 
   await test('el estado sobrevive al reinicio del servidor', async () => {
