@@ -207,8 +207,12 @@
      convertir la "y" ni la "o" de una enumeración en Yanki u Oscar. */
   function foneticoDesignadores(text, lang) {
     return String(text || '').replace(RE_DESIGNADOR, function (todo, clave, lista) {
+      var primero = true;
       var convertida = lista.replace(/[A-Z]\d{1,2}|[A-Z]{1,3}/g, function (tok) {
-        if (/^(?:AND|Y)$/.test(tok)) return tok;
+        /* "Y" y "AND" separan la enumeración... salvo que sean el designador
+           mismo: la calle de rodaje Y se lee Yanki, no "y". */
+        if (!primero && /^(?:AND|Y)$/.test(tok)) return tok;
+        primero = false;
         var m = /^([A-Z])(\d{1,2})$/.exec(tok);
         if (m) return N.phonetic(m[1], lang) + ' ' + N.spell(m[2], lang);
         return tok.split('').map(function (c) { return N.phonetic(c, lang); }).join(' ');

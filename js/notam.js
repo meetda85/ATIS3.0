@@ -49,8 +49,13 @@
         var t = D.PALABRAS_ES[match];
         return t === undefined ? match : t;
       });
-      /* "franjas calle de rodaje D" -> "franjas de la calle de rodaje D" */
+      /* "franjas calle de rodaje D" -> "franjas de la calle de rodaje D",
+         y en plural "franjas pistas ..." -> "franjas de las pistas ..." */
+      out = out.replace(/\b(franjas?|márgenes|margen)\s+(pistas|calles de rodaje|plataformas)\b/g, '$1 de las $2');
       out = out.replace(/\b(franjas?|márgenes|margen)\s+(pista|calle de rodaje|plataforma)\b/g, '$1 de la $2');
+      /* Hay NOTAM escritos con la "Y" española en lugar de AND: entre pistas o
+         números es la conjunción, no la calle de rodaje Y. */
+      out = out.replace(/(\d|izquierda|derecha|central)\s+Y\s+(?=\d)/g, '$1 y ');
       /* "Boeing 747-8 aeronave" -> "Boeing 747-8" */
       out = out.replace(/\b((?:Boeing|Airbus)\s+[\w-]+|[AB]\d{3}[\w-]*)\s+aeronaves?\b/g, '$1');
       out = out.replace(/\s{2,}/g, ' ').trim();

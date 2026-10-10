@@ -274,6 +274,26 @@ test('el texto libre se suma al final del ATIS, antes del cierre', () => {
   assert.ok(es.speech.indexOf('uno uno ocho punto cuatro siete cinco') > 0, es.speech);
 });
 
+test('redaccion de los NOTAM del 10 de octubre', () => {
+  const casos = [
+    /* Este NOTAM viene escrito con la "Y" española en lugar de AND */
+    ['E) STRIPS RWYS 05R/23L Y 05L/23R WIP',
+     'franjas de las pistas 05 derecha, 23 izquierda y 05 izquierda, 23 derecha trabajos en curso'],
+    ['E) STRIPS RWY 23R BTN TWYS B AND H WIP',
+     'franjas de la pista 23 derecha entre calles de rodaje B y H trabajos en curso']
+  ];
+  casos.forEach(function (c) {
+    assert.strictEqual(ATIS.notam.parse(c[0], 'es').plain, c[1]);
+  });
+
+  /* Una calle de rodaje que se llama Y no es la conjuncion */
+  const y = ATIS.notam.parse('E) TWY Y CLSD', 'es');
+  assert.strictEqual(y.plain, 'calle de rodaje Y cerrada');
+  assert.strictEqual(ATIS.script.paraLocutar(y.plain, 'es'), 'calle de rodaje Yanki cerrada');
+  const ye = ATIS.notam.parse('E) TWYS Y AND B CLSD', 'es');
+  assert.strictEqual(ATIS.script.paraLocutar(ye.plain, 'es'), 'calles de rodaje Yanki y Bravo cerrada');
+});
+
 console.log('\nDescarga del FNS');
 test('lee el archivo .xls tal como lo entrega el FNS', () => {
   const buf = fs.readFileSync(path.join(__dirname, 'fixtures', 'fnsNotams_MMMX.xls'));
@@ -292,6 +312,24 @@ test('lee el archivo .xls tal como lo entrega el FNS', () => {
   assert.strictEqual(rwy.desde.toISOString(), '2026-09-22T17:30:00.000Z');
   assert.strictEqual(rwy.hasta.toISOString(), '2026-09-28T17:40:00.000Z');
   assert.ok(/RWY 05R\/23L CLSD/.test(rwy.raw));
+});
+
+test('lee tambien la descarga del 10 de octubre, con 59 NOTAM', () => {
+  const buf = fs.readFileSync(path.join(__dirname, 'fixtures', 'fnsNotams_MMMX_59.xls'));
+  const libro = context.XLSX.read(buf.toString('base64'), { type: 'base64' });
+  const hoja = libro.Sheets[libro.SheetNames[0]];
+  const filas = context.XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
+  const datos = ATIS.fns.fromMatrix(filas);
+
+  assert.strictEqual(datos.station, 'MMMX');
+  assert.strictEqual(datos.records.length, 59);
+  assert.strictEqual(datos.errors.length, 0);
+  /* Todos traen identificador y fechas utilizables */
+  datos.records.forEach(function (r) {
+    assert.ok(/^[A-Z]\d{4}\/\d{2}$/.test(r.id), 'identificador raro: ' + r.id);
+    /* Date del contexto de vm: se comprueba por comportamiento, no por instanceof */
+    assert.ok(r.desde && !isNaN(r.desde.getTime()), 'sin fecha de inicio: ' + r.id);
+  });
 });
 
 test('selecciona por codigo Q lo que corresponde al ATIS', () => {

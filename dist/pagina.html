@@ -803,6 +803,20 @@ body.modo-control .pstate-main::after {
 }
 .pendiente button { margin-left: auto; }
 
+/* ---------- Arrastrar el archivo del FNS ---------- */
+.soltar { position: relative; border-radius: var(--r-ctl); transition: box-shadow .15s ease; }
+.soltar.encima { box-shadow: 0 0 0 3px var(--accent-ring); }
+.soltar.encima::after {
+  content: 'Suelte aquí el archivo del FNS';
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--accent-weak); border: 2px dashed var(--accent); border-radius: var(--r-ctl);
+  color: var(--accent); font-weight: 650; font-size: 14px; pointer-events: none;
+}
+
+.voiceitem.falla { border-color: var(--red); cursor: default; }
+.voiceitem.falla:hover { border-color: var(--red); background: var(--red-weak); }
+.voiceitem.falla .vname { color: var(--red); font-weight: 600; }
+
 </style>
 
 <script>
@@ -1013,20 +1027,21 @@ body.modo-control .pstate-main::after {
   <!-- ============ NOTAM ============ -->
   <section class="card span2" id="secNotam">
     <h2><span class="num">5</span>NOTAM vigentes</h2>
-    <div class="row">
+    <div class="row soltar" id="notamSoltar">
       <textarea id="notamRaw" rows="4" spellcheck="false"
         placeholder="A1234/25 NOTAMN&#10;Q) MMFR/QMRLC/IV/NBO/A/000/999/1926N09904W005&#10;A) MMMX B) 2509210600 C) 2509211800&#10;E) RWY 05R/23L CLSD DUE WIP"></textarea>
     </div>
     <div class="row buttons">
       <button id="btnNotamAdd" class="primary">Decodificar y agregar</button>
       <button id="btnNotamFile">Cargar archivo del FNS</button>
-      <input type="file" id="notamFile" accept=".xls,.xlsx,.csv,.txt" hidden>
+      <input type="file" id="notamFile" hidden>
       <button id="btnNotamClear" class="ghost">Vaciar lista</button>
       <span id="notamStatus" class="status"></span>
     </div>
     <p class="help">
       Se puede cargar la hoja de cálculo tal como se descarga del FNS
-      (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla. Quedan marcados para transmitir
+      (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla, o arrastrarla a este recuadro.
+      No hace falta tener Excel instalado: el programa lee el archivo por su cuenta. Quedan marcados para transmitir
       solo los de pista, rodaje, iluminación y radioayudas; las posiciones de
       estacionamiento y las frecuencias se cargan pero no salen al aire.
       Al aire va únicamente la condición, un renglón por NOTAM: las fechas de vigencia
@@ -1112,6 +1127,20 @@ body.modo-control .pstate-main::after {
   </div>
 
   <div class="page" id="pageAjustes" role="tabpanel" hidden>
+
+    <!-- ============ ESTADO DEL PROGRAMA ============ -->
+    <section class="card span2">
+      <h2>Estado del programa <span class="enlace-badge" id="saludBadge">comprobando…</span></h2>
+      <p class="help">
+        Comprueba que la instalación quedó completa. Todo esto funciona <b>sin internet</b>:
+        si algo aparece en rojo, falta un archivo y conviene reinstalar.
+      </p>
+      <div id="saludLista" class="voicelist"></div>
+      <div class="row buttons" style="margin-top:10px">
+        <button id="btnSaludCopy" class="small ghost">Copiar comprobación</button>
+        <span id="saludStatus" class="status"></span>
+      </div>
+    </section>
 
     <!-- ============ CONTROL REMOTO ============ -->
     <section class="card span2">
@@ -2503,8 +2532,13 @@ body.modo-control .pstate-main::after {
         var t = D.PALABRAS_ES[match];
         return t === undefined ? match : t;
       });
-      /* "franjas calle de rodaje D" -> "franjas de la calle de rodaje D" */
+      /* "franjas calle de rodaje D" -> "franjas de la calle de rodaje D",
+         y en plural "franjas pistas ..." -> "franjas de las pistas ..." */
+      out = out.replace(/\b(franjas?|márgenes|margen)\s+(pistas|calles de rodaje|plataformas)\b/g, '$1 de las $2');
       out = out.replace(/\b(franjas?|márgenes|margen)\s+(pista|calle de rodaje|plataforma)\b/g, '$1 de la $2');
+      /* Hay NOTAM escritos con la "Y" española en lugar de AND: entre pistas o
+         números es la conjunción, no la calle de rodaje Y. */
+      out = out.replace(/(\d|izquierda|derecha|central)\s+Y\s+(?=\d)/g, '$1 y ');
       /* "Boeing 747-8 aeronave" -> "Boeing 747-8" */
       out = out.replace(/\b((?:Boeing|Airbus)\s+[\w-]+|[AB]\d{3}[\w-]*)\s+aeronaves?\b/g, '$1');
       out = out.replace(/\s{2,}/g, ' ').trim();
@@ -3053,8 +3087,12 @@ body.modo-control .pstate-main::after {
      convertir la "y" ni la "o" de una enumeración en Yanki u Oscar. */
   function foneticoDesignadores(text, lang) {
     return String(text || '').replace(RE_DESIGNADOR, function (todo, clave, lista) {
+      var primero = true;
       var convertida = lista.replace(/[A-Z]\d{1,2}|[A-Z]{1,3}/g, function (tok) {
-        if (/^(?:AND|Y)$/.test(tok)) return tok;
+        /* "Y" y "AND" separan la enumeración... salvo que sean el designador
+           mismo: la calle de rodaje Y se lee Yanki, no "y". */
+        if (!primero && /^(?:AND|Y)$/.test(tok)) return tok;
+        primero = false;
         var m = /^([A-Z])(\d{1,2})$/.exec(tok);
         if (m) return N.phonetic(m[1], lang) + ' ' + N.spell(m[2], lang);
         return tok.split('').map(function (c) { return N.phonetic(c, lang); }).join(' ');
@@ -4045,7 +4083,7 @@ body.modo-control .pstate-main::after {
       'layers', 'btnAddLayer',
       'notamRaw', 'btnNotamAdd', 'btnNotamClear', 'notamStatus', 'notamList',
       'btnNotamFile', 'notamFile', 'btnNotamAll', 'btnNotamNone', 'btnNotamAtis',
-      'btnNotamCopy', 'notamSoloVigentes',
+      'btnNotamCopy', 'notamSoloVigentes', 'notamSoltar',
       'additionalEs', 'additionalEn', 'includeNotams',
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
       'btnPlay', 'btnStop', 'playState', 'playDetail',
@@ -4059,6 +4097,7 @@ body.modo-control .pstate-main::after {
       'pavance', 'posicion', 'posTexto', 'btnPrev', 'btnNext', 'paireDatos',
       'preflight', 'preflightLista', 'btnIgual', 'btnCorregir', 'metarEdad',
       'enlaceEstado', 'enlaceDetalle', 'enlacePapel', 'enlaceEquipos',
+      'saludBadge', 'saludLista', 'btnSaludCopy', 'saludStatus',
       'pendiente', 'pendienteTexto', 'btnAplicarYa'
     ].forEach(function (id) { el[id] = $(id); });
 
@@ -4073,6 +4112,7 @@ body.modo-control .pstate-main::after {
     iniciarTema();
     iniciarPaginas();
     iniciarEnlace();
+    comprobarInstalacion();
     startClock();
     initVoices();
     renderLog();
@@ -4371,11 +4411,24 @@ body.modo-control .pstate-main::after {
   }
 
   /* Carga del archivo descargado del FNS (.xls, .xlsx, .csv o .txt) */
+  function tamanoLegible(bytes) {
+    return bytes < 1024 ? bytes + ' B'
+      : bytes < 1048576 ? Math.round(bytes / 1024) + ' KB'
+      : (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
   function importarArchivo(file) {
     if (!file) return;
     var esTexto = /\.(txt)$/i.test(file.name);
     var lector = new FileReader();
-    status(el.notamStatus, 'Leyendo ' + file.name + ' …');
+    var sello = file.name + ' (' + tamanoLegible(file.size) + ')';
+
+    if (!file.size) {
+      status(el.notamStatus, 'El archivo ' + sello + ' está vacío. ' +
+        'Vuelva a descargarlo del FNS: pudo haberse cortado la descarga.', 'err');
+      return;
+    }
+    status(el.notamStatus, 'Leyendo ' + sello + ' …');
 
     lector.onerror = function () { status(el.notamStatus, 'No se pudo leer el archivo.', 'err'); };
     lector.onload = function (e) {
@@ -4385,7 +4438,9 @@ body.modo-control .pstate-main::after {
           datos = ATIS.fns.fromText(String(e.target.result));
         } else {
           if (typeof global.XLSX === 'undefined') {
-            status(el.notamStatus, 'Falta la librería de hojas de cálculo (js/vendor/xlsx.full.min.js).', 'err');
+            status(el.notamStatus, 'No se cargó el lector de hojas de cálculo. ' +
+              'Si abrió el ATIS desde el enlace en línea y esta computadora no tiene ' +
+              'internet, use la versión instalada: ahí el lector viene incluido.', 'err');
             return;
           }
           var libro = global.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
@@ -4394,12 +4449,14 @@ body.modo-control .pstate-main::after {
           datos = ATIS.fns.fromMatrix(filas);
         }
       } catch (err) {
-        status(el.notamStatus, 'El archivo no se pudo interpretar: ' + err.message, 'err');
+        status(el.notamStatus, 'No se pudo leer ' + sello + ': ' + err.message +
+          '. Debe ser la hoja tal como la descarga el FNS; si la abrió y la volvió a ' +
+          'guardar con otro programa, descárguela de nuevo.', 'err');
         return;
       }
 
       if (datos.errors && datos.errors.length) {
-        status(el.notamStatus, datos.errors.join(' '), 'err');
+        status(el.notamStatus, datos.errors.join(' ') + ' (' + sello + ')', 'err');
         return;
       }
 
@@ -4938,6 +4995,66 @@ body.modo-control .pstate-main::after {
   }
 
   /* ================================================================== *
+   * Comprobación de la instalación
+   * Responde a "¿quedó bien instalado?" sin tener que revisar carpetas.
+   * ================================================================== */
+  var VERSION = '3.0';
+
+  function comprobarInstalacion() {
+    var piezas = [
+      ['Decodificador de METAR', !!(ATIS.metar && ATIS.metar.parse), true],
+      ['Decodificador de NOTAM', !!(ATIS.notam && ATIS.notam.parse), true],
+      ['Lectura del archivo del FNS', !!(ATIS.fns && ATIS.fns.fromMatrix), true],
+      ['Lector de hojas de cálculo (.xls)', typeof global.XLSX !== 'undefined', true],
+      ['Generador del guion', !!(ATIS.script && ATIS.script.build), true],
+      ['Motor de locución', !!(ATIS.speech && ATIS.speech.supported), true],
+      ['Aeródromos registrados', !!(ATIS.airports && ATIS.airports.MMMX), true],
+      ['Control remoto', !!(ATIS.enlace), false]
+    ];
+    var faltan = piezas.filter(function (p) { return p[2] && !p[1]; }).length;
+
+    el.saludBadge.textContent = faltan ? faltan + ' problema(s)' : 'instalación completa';
+    el.saludBadge.className = 'enlace-badge ' + (faltan ? 'mal' : 'ok');
+
+    var voces = ATIS.speech.diagnostico();
+    var filas = piezas.map(function (p) {
+      return '<div class="voiceitem' + (p[1] ? ' natural' : (p[2] ? ' falla' : '')) + '">' +
+        '<span>' + (p[1] ? '✓' : (p[2] ? '✕' : '–')) + '</span>' +
+        '<span class="vname">' + escapeHtml(p[0]) + '</span>' +
+        '<span class="vlang">' + (p[1] ? 'presente' : 'falta') + '</span></div>';
+    });
+
+    function dato(clave, valor, bien) {
+      filas.push('<div class="voiceitem' + (bien === false ? ' falla' : '') + '">' +
+        '<span>·</span><span class="vname">' + escapeHtml(clave) + '</span>' +
+        '<span class="vlang">' + escapeHtml(valor) + '</span></div>');
+    }
+    dato('Versión', VERSION);
+    dato('Se abrió como', location.protocol === 'file:' ? 'archivo local (sin servidor)' : location.origin);
+    dato('Navegador', voces.navegador);
+    dato('Internet', voces.enLinea ? 'disponible' : 'sin conexión (el ATIS funciona igual)');
+    dato('Voces en español', String(voces.es.length), voces.es.length > 0);
+    dato('Voces en inglés', String(voces.en.length), voces.en.length > 0);
+
+    el.saludLista.innerHTML = filas.join('');
+    return { faltan: faltan, piezas: piezas, voces: voces };
+  }
+
+  function textoComprobacion() {
+    var r = comprobarInstalacion();
+    return 'ATIS 3.0 — comprobación de la instalación\n' +
+      new Date().toISOString() + '\n' +
+      'Versión: ' + VERSION + '\n' +
+      'Abierto como: ' + (location.protocol === 'file:' ? 'archivo local' : location.origin) + '\n' +
+      'Navegador: ' + r.voces.navegador + '\n' +
+      'Internet: ' + (r.voces.enLinea ? 'sí' : 'no') + '\n' +
+      'Voces: ' + r.voces.es.length + ' en español, ' + r.voces.en.length + ' en inglés\n\n' +
+      r.piezas.map(function (p) {
+        return (p[1] ? '[ok]   ' : (p[2] ? '[FALTA]' : '[  -  ]')) + ' ' + p[0];
+      }).join('\n') + '\n';
+  }
+
+  /* ================================================================== *
    * Control remoto: esta PC transmite, otra manda los datos
    * ================================================================== */
   var enlaceListo = false;
@@ -5443,6 +5560,24 @@ body.modo-control .pstate-main::after {
       status(el.notamStatus, 'Lista vacía.');
     });
     on(el.btnNotamFile, 'click', function () { el.notamFile.click(); });
+
+    /* Arrastrar el archivo encima, por si el selector de Windows da problemas */
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      on(el.notamSoltar, ev, function (e) {
+        e.preventDefault(); e.stopPropagation();
+        el.notamSoltar.classList.add('encima');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      on(el.notamSoltar, ev, function (e) {
+        e.preventDefault(); e.stopPropagation();
+        el.notamSoltar.classList.remove('encima');
+      });
+    });
+    on(el.notamSoltar, 'drop', function (e) {
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) importarArchivo(f);
+    });
     on(el.notamFile, 'change', function () {
       importarArchivo(el.notamFile.files[0]);
       el.notamFile.value = '';
@@ -5521,6 +5656,12 @@ body.modo-control .pstate-main::after {
         save();
         updateVoiceReport();
       });
+    });
+
+    on(el.btnSaludCopy, 'click', function () {
+      var texto = textoComprobacion();
+      if (navigator.clipboard) navigator.clipboard.writeText(texto);
+      status(el.saludStatus, 'Comprobación copiada al portapapeles.', 'ok');
     });
 
     on(el.btnVoiceDiag, 'click', function () {

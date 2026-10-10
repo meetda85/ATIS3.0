@@ -215,20 +215,21 @@
   <!-- ============ NOTAM ============ -->
   <section class="card span2" id="secNotam">
     <h2><span class="num">5</span>NOTAM vigentes</h2>
-    <div class="row">
+    <div class="row soltar" id="notamSoltar">
       <textarea id="notamRaw" rows="4" spellcheck="false"
         placeholder="A1234/25 NOTAMN&#10;Q) MMFR/QMRLC/IV/NBO/A/000/999/1926N09904W005&#10;A) MMMX B) 2509210600 C) 2509211800&#10;E) RWY 05R/23L CLSD DUE WIP"></textarea>
     </div>
     <div class="row buttons">
       <button id="btnNotamAdd" class="primary">Decodificar y agregar</button>
       <button id="btnNotamFile">Cargar archivo del FNS</button>
-      <input type="file" id="notamFile" accept=".xls,.xlsx,.csv,.txt" hidden>
+      <input type="file" id="notamFile" hidden>
       <button id="btnNotamClear" class="ghost">Vaciar lista</button>
       <span id="notamStatus" class="status"></span>
     </div>
     <p class="help">
       Se puede cargar la hoja de cálculo tal como se descarga del FNS
-      (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla. Quedan marcados para transmitir
+      (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla, o arrastrarla a este recuadro.
+      No hace falta tener Excel instalado: el programa lee el archivo por su cuenta. Quedan marcados para transmitir
       solo los de pista, rodaje, iluminación y radioayudas; las posiciones de
       estacionamiento y las frecuencias se cargan pero no salen al aire.
       Al aire va únicamente la condición, un renglón por NOTAM: las fechas de vigencia
@@ -314,6 +315,20 @@
   </div>
 
   <div class="page" id="pageAjustes" role="tabpanel" hidden>
+
+    <!-- ============ ESTADO DEL PROGRAMA ============ -->
+    <section class="card span2">
+      <h2>Estado del programa <span class="enlace-badge" id="saludBadge">comprobando…</span></h2>
+      <p class="help">
+        Comprueba que la instalación quedó completa. Todo esto funciona <b>sin internet</b>:
+        si algo aparece en rojo, falta un archivo y conviene reinstalar.
+      </p>
+      <div id="saludLista" class="voicelist"></div>
+      <div class="row buttons" style="margin-top:10px">
+        <button id="btnSaludCopy" class="small ghost">Copiar comprobación</button>
+        <span id="saludStatus" class="status"></span>
+      </div>
+    </section>
 
     <!-- ============ CONTROL REMOTO ============ -->
     <section class="card span2">

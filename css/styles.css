@@ -800,3 +800,17 @@ body.modo-control .pstate-main::after {
   animation: latido 1.6s ease-in-out infinite;
 }
 .pendiente button { margin-left: auto; }
+
+/* ---------- Arrastrar el archivo del FNS ---------- */
+.soltar { position: relative; border-radius: var(--r-ctl); transition: box-shadow .15s ease; }
+.soltar.encima { box-shadow: 0 0 0 3px var(--accent-ring); }
+.soltar.encima::after {
+  content: 'Suelte aquí el archivo del FNS';
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--accent-weak); border: 2px dashed var(--accent); border-radius: var(--r-ctl);
+  color: var(--accent); font-weight: 650; font-size: 14px; pointer-events: none;
+}
+
+.voiceitem.falla { border-color: var(--red); cursor: default; }
+.voiceitem.falla:hover { border-color: var(--red); background: var(--red-weak); }
+.voiceitem.falla .vname { color: var(--red); font-weight: 600; }

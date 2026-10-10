@@ -29,7 +29,7 @@
       'layers', 'btnAddLayer',
       'notamRaw', 'btnNotamAdd', 'btnNotamClear', 'notamStatus', 'notamList',
       'btnNotamFile', 'notamFile', 'btnNotamAll', 'btnNotamNone', 'btnNotamAtis',
-      'btnNotamCopy', 'notamSoloVigentes',
+      'btnNotamCopy', 'notamSoloVigentes', 'notamSoltar',
       'additionalEs', 'additionalEn', 'includeNotams',
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
       'btnPlay', 'btnStop', 'playState', 'playDetail',
@@ -43,6 +43,7 @@
       'pavance', 'posicion', 'posTexto', 'btnPrev', 'btnNext', 'paireDatos',
       'preflight', 'preflightLista', 'btnIgual', 'btnCorregir', 'metarEdad',
       'enlaceEstado', 'enlaceDetalle', 'enlacePapel', 'enlaceEquipos',
+      'saludBadge', 'saludLista', 'btnSaludCopy', 'saludStatus',
       'pendiente', 'pendienteTexto', 'btnAplicarYa'
     ].forEach(function (id) { el[id] = $(id); });
 
@@ -57,6 +58,7 @@
     iniciarTema();
     iniciarPaginas();
     iniciarEnlace();
+    comprobarInstalacion();
     startClock();
     initVoices();
     renderLog();
@@ -355,11 +357,24 @@
   }
 
   /* Carga del archivo descargado del FNS (.xls, .xlsx, .csv o .txt) */
+  function tamanoLegible(bytes) {
+    return bytes < 1024 ? bytes + ' B'
+      : bytes < 1048576 ? Math.round(bytes / 1024) + ' KB'
+      : (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
   function importarArchivo(file) {
     if (!file) return;
     var esTexto = /\.(txt)$/i.test(file.name);
     var lector = new FileReader();
-    status(el.notamStatus, 'Leyendo ' + file.name + ' …');
+    var sello = file.name + ' (' + tamanoLegible(file.size) + ')';
+
+    if (!file.size) {
+      status(el.notamStatus, 'El archivo ' + sello + ' está vacío. ' +
+        'Vuelva a descargarlo del FNS: pudo haberse cortado la descarga.', 'err');
+      return;
+    }
+    status(el.notamStatus, 'Leyendo ' + sello + ' …');
 
     lector.onerror = function () { status(el.notamStatus, 'No se pudo leer el archivo.', 'err'); };
     lector.onload = function (e) {
@@ -369,7 +384,9 @@
           datos = ATIS.fns.fromText(String(e.target.result));
         } else {
           if (typeof global.XLSX === 'undefined') {
-            status(el.notamStatus, 'Falta la librería de hojas de cálculo (js/vendor/xlsx.full.min.js).', 'err');
+            status(el.notamStatus, 'No se cargó el lector de hojas de cálculo. ' +
+              'Si abrió el ATIS desde el enlace en línea y esta computadora no tiene ' +
+              'internet, use la versión instalada: ahí el lector viene incluido.', 'err');
             return;
           }
           var libro = global.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
@@ -378,12 +395,14 @@
           datos = ATIS.fns.fromMatrix(filas);
         }
       } catch (err) {
-        status(el.notamStatus, 'El archivo no se pudo interpretar: ' + err.message, 'err');
+        status(el.notamStatus, 'No se pudo leer ' + sello + ': ' + err.message +
+          '. Debe ser la hoja tal como la descarga el FNS; si la abrió y la volvió a ' +
+          'guardar con otro programa, descárguela de nuevo.', 'err');
         return;
       }
 
       if (datos.errors && datos.errors.length) {
-        status(el.notamStatus, datos.errors.join(' '), 'err');
+        status(el.notamStatus, datos.errors.join(' ') + ' (' + sello + ')', 'err');
         return;
       }
 
@@ -922,6 +941,66 @@
   }
 
   /* ================================================================== *
+   * Comprobación de la instalación
+   * Responde a "¿quedó bien instalado?" sin tener que revisar carpetas.
+   * ================================================================== */
+  var VERSION = '3.0';
+
+  function comprobarInstalacion() {
+    var piezas = [
+      ['Decodificador de METAR', !!(ATIS.metar && ATIS.metar.parse), true],
+      ['Decodificador de NOTAM', !!(ATIS.notam && ATIS.notam.parse), true],
+      ['Lectura del archivo del FNS', !!(ATIS.fns && ATIS.fns.fromMatrix), true],
+      ['Lector de hojas de cálculo (.xls)', typeof global.XLSX !== 'undefined', true],
+      ['Generador del guion', !!(ATIS.script && ATIS.script.build), true],
+      ['Motor de locución', !!(ATIS.speech && ATIS.speech.supported), true],
+      ['Aeródromos registrados', !!(ATIS.airports && ATIS.airports.MMMX), true],
+      ['Control remoto', !!(ATIS.enlace), false]
+    ];
+    var faltan = piezas.filter(function (p) { return p[2] && !p[1]; }).length;
+
+    el.saludBadge.textContent = faltan ? faltan + ' problema(s)' : 'instalación completa';
+    el.saludBadge.className = 'enlace-badge ' + (faltan ? 'mal' : 'ok');
+
+    var voces = ATIS.speech.diagnostico();
+    var filas = piezas.map(function (p) {
+      return '<div class="voiceitem' + (p[1] ? ' natural' : (p[2] ? ' falla' : '')) + '">' +
+        '<span>' + (p[1] ? '✓' : (p[2] ? '✕' : '–')) + '</span>' +
+        '<span class="vname">' + escapeHtml(p[0]) + '</span>' +
+        '<span class="vlang">' + (p[1] ? 'presente' : 'falta') + '</span></div>';
+    });
+
+    function dato(clave, valor, bien) {
+      filas.push('<div class="voiceitem' + (bien === false ? ' falla' : '') + '">' +
+        '<span>·</span><span class="vname">' + escapeHtml(clave) + '</span>' +
+        '<span class="vlang">' + escapeHtml(valor) + '</span></div>');
+    }
+    dato('Versión', VERSION);
+    dato('Se abrió como', location.protocol === 'file:' ? 'archivo local (sin servidor)' : location.origin);
+    dato('Navegador', voces.navegador);
+    dato('Internet', voces.enLinea ? 'disponible' : 'sin conexión (el ATIS funciona igual)');
+    dato('Voces en español', String(voces.es.length), voces.es.length > 0);
+    dato('Voces en inglés', String(voces.en.length), voces.en.length > 0);
+
+    el.saludLista.innerHTML = filas.join('');
+    return { faltan: faltan, piezas: piezas, voces: voces };
+  }
+
+  function textoComprobacion() {
+    var r = comprobarInstalacion();
+    return 'ATIS 3.0 — comprobación de la instalación\n' +
+      new Date().toISOString() + '\n' +
+      'Versión: ' + VERSION + '\n' +
+      'Abierto como: ' + (location.protocol === 'file:' ? 'archivo local' : location.origin) + '\n' +
+      'Navegador: ' + r.voces.navegador + '\n' +
+      'Internet: ' + (r.voces.enLinea ? 'sí' : 'no') + '\n' +
+      'Voces: ' + r.voces.es.length + ' en español, ' + r.voces.en.length + ' en inglés\n\n' +
+      r.piezas.map(function (p) {
+        return (p[1] ? '[ok]   ' : (p[2] ? '[FALTA]' : '[  -  ]')) + ' ' + p[0];
+      }).join('\n') + '\n';
+  }
+
+  /* ================================================================== *
    * Control remoto: esta PC transmite, otra manda los datos
    * ================================================================== */
   var enlaceListo = false;
@@ -1427,6 +1506,24 @@
       status(el.notamStatus, 'Lista vacía.');
     });
     on(el.btnNotamFile, 'click', function () { el.notamFile.click(); });
+
+    /* Arrastrar el archivo encima, por si el selector de Windows da problemas */
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      on(el.notamSoltar, ev, function (e) {
+        e.preventDefault(); e.stopPropagation();
+        el.notamSoltar.classList.add('encima');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      on(el.notamSoltar, ev, function (e) {
+        e.preventDefault(); e.stopPropagation();
+        el.notamSoltar.classList.remove('encima');
+      });
+    });
+    on(el.notamSoltar, 'drop', function (e) {
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) importarArchivo(f);
+    });
     on(el.notamFile, 'change', function () {
       importarArchivo(el.notamFile.files[0]);
       el.notamFile.value = '';
@@ -1505,6 +1602,12 @@
         save();
         updateVoiceReport();
       });
+    });
+
+    on(el.btnSaludCopy, 'click', function () {
+      var texto = textoComprobacion();
+      if (navigator.clipboard) navigator.clipboard.writeText(texto);
+      status(el.saludStatus, 'Comprobación copiada al portapapeles.', 'ok');
     });
 
     on(el.btnVoiceDiag, 'click', function () {
