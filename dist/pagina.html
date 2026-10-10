@@ -831,6 +831,10 @@ body.modo-control .pstate-main::after {
 .pendiente.metar button { margin-left: 0; }
 .pendiente.metar #avisoMetarTexto { margin-right: auto; }
 
+/* La voz neuronal: el desplegable del motor no necesita toda la tarjeta */
+#secVozN .pgroup { margin: 10px 0 14px; max-width: 32rem; }
+#secVozN #vozNInfo { margin-bottom: 10px; }
+
 </style>
 
 <script>
@@ -1261,6 +1265,46 @@ body.modo-control .pstate-main::after {
   </div>
   </section>
 
+<!-- ============ VOZ NEURONAL ============ -->
+  <section class="card span2" id="secVozN">
+    <h2>Voz neuronal, sin internet <span class="enlace-badge" id="vozNBadge">comprobando&hellip;</span></h2>
+    <p class="help">
+      Es un motor de voz que vive en esta computadora. No usa internet ni las voces de
+      Windows: el servidor genera el audio del ATIS una sola vez y el navegador lo
+      reproduce en bucle. Suena igual en cada ciclo, y si despu&eacute;s se cae la red o el
+      propio servidor, el audio ya est&aacute; en memoria y la transmisi&oacute;n no se corta.
+    </p>
+    <div class="pgroup">
+      <span class="plabel">Motor de voz</span>
+      <select id="motorSel">
+        <option value="auto">Autom&aacute;tico &mdash; neuronal si est&aacute; instalada</option>
+        <option value="neuronal">Siempre la voz neuronal</option>
+        <option value="navegador">Siempre la voz del navegador</option>
+      </select>
+    </div>
+    <div id="vozNInfo" class="diag"></div>
+    <div class="row buttons">
+      <button id="btnVozNRevisar" class="small ghost">Comprobar de nuevo</button>
+      <button id="btnVozNLimpiar" class="small ghost">Vaciar audios guardados</button>
+      <span id="vozNStatus" class="status"></span>
+    </div>
+    <h3>C&oacute;mo instalarla</h3>
+    <ol class="help">
+      <li>Abrir el ATIS con <b>SERVIDOR.bat</b>: la voz neuronal la genera el servidor, as&iacute; que
+        hace falta esa ventana abierta.</li>
+      <li>Ejecutar <b>VOZ.bat</b> una sola vez, con internet. Descarga el motor y las dos
+        voces (unos 170 MB) y las deja en la carpeta <b>voz</b> del programa.</li>
+      <li>Volver aqu&iacute; y pulsar <b>Comprobar de nuevo</b>. Cuando diga <i>lista</i>, la voz
+        neuronal ya es la que sale al aire; las voces de la barra de abajo cambian a las
+        neuronales.</li>
+      <li>De ah&iacute; en adelante no necesita internet nunca m&aacute;s.</li>
+    </ol>
+    <p class="help">
+      Si la carpeta <b>voz</b> no est&aacute;, no pasa nada: el programa sigue hablando con la voz
+      del navegador, igual que antes.
+    </p>
+  </section>
+
 <!-- ============ CALIDAD DE VOZ ============ -->
   <section class="card span2">
     <h2>Voces del sistema</h2>
@@ -1377,14 +1421,14 @@ body.modo-control .pstate-main::after {
       </div>
     </div>
     <div class="pgroup">
-      <span class="plabel">Voz en español</span>
+      <span class="plabel" id="rotVozEs">Voz en español</span>
       <div class="pvoz">
         <select id="voiceEs"></select>
         <button id="btnTestEs" class="mini" title="Escuchar esta voz">&#9654;</button>
       </div>
     </div>
     <div class="pgroup">
-      <span class="plabel">Voz en inglés</span>
+      <span class="plabel" id="rotVozEn">Voz en inglés</span>
       <div class="pvoz">
         <select id="voiceEn"></select>
         <button id="btnTestEn" class="mini" title="Escuchar esta voz">&#9654;</button>
@@ -3666,7 +3710,8 @@ body.modo-control .pstate-main::after {
       cb({
         playing: state.playing, paused: state.paused, cycle: state.cycle,
         lang: state.lang, chunk: state.chunk, total: state.total,
-        aviso: state.aviso, respaldo: state.respaldo
+        etiqueta: state.chunk + ' / ' + state.total,
+        aviso: state.aviso, respaldo: state.respaldo, motor: 'navegador'
       });
     });
   }
@@ -4115,6 +4160,619 @@ body.modo-control .pstate-main::after {
 
 </script>
 <script>
+/* js/voz-neural.js */
+/* ATIS 3.0 - Voz neuronal local (Piper) del lado del navegador
+ *
+ * El servidor sintetiza el guion una sola vez y entrega dos archivos de audio
+ * (español e inglés). Aquí se descargan a la memoria y se reproducen en bucle.
+ *
+ * Por qué así:
+ *   - No depende del internet ni de las voces de Windows.
+ *   - El audio queda en la memoria del navegador: si después se cae el
+ *     servidor o se va la red, el bucle sigue sonando igual.
+ *   - Suena idéntico en cada ciclo, y el deslizador avanza por segundos de
+ *     verdad, no por fragmentos.
+ *
+ * Expone la misma interfaz que ATIS.speech para que la aplicación pueda
+ * cambiar de motor sin cambiar nada más.
+ */
+(function (global) {
+  'use strict';
+  var ATIS = global.ATIS = global.ATIS || {};
+
+  /* Solo tiene sentido con el servidor detrás: desde un archivo suelto
+     (file://) no hay a quién pedirle el audio. */
+  var conServidor = !!(global.location && /^https?:$/.test(global.location.protocol));
+
+  var stateCbs = [];
+  var logCbs = [];
+  var registro = [];
+  var MAX_REGISTRO = 400;
+
+  function anotar(tipo, datos) {
+    var e = { t: Date.now(), tipo: tipo };
+    for (var k in datos) if (Object.prototype.hasOwnProperty.call(datos, k)) e[k] = datos[k];
+    registro.push(e);
+    if (registro.length > MAX_REGISTRO) registro.shift();
+    logCbs.forEach(function (cb) { try { cb(e); } catch (err) { /* ignorado */ } });
+    return e;
+  }
+
+  var state = {
+    playing: false, paused: false, cycle: 0, lang: '',
+    chunk: 0, total: 0, etiqueta: '', aviso: '', respaldo: '', motor: 'neuronal'
+  };
+
+  var options = {
+    loop: true, gap: 3, cycleGap: 5,
+    voices: { es: '', en: '' },
+    rate: { es: 1, en: 1 },
+    volume: 1,
+    sentencePause: 250
+  };
+
+  /* --------------------------------------------------- estado del servicio -- */
+  var servicio = { consultado: false, disponible: false, completa: false, voces: [], falta: [], error: '' };
+
+  function pedir(ruta, opciones) {
+    if (!conServidor || !global.fetch) return Promise.reject(new Error('sin servidor'));
+    return global.fetch(ruta, opciones).then(function (r) {
+      if (!r.ok) throw new Error('el servidor contestó ' + r.status);
+      return r.json();
+    });
+  }
+
+  function comprobar(forzar) {
+    if (!conServidor) {
+      servicio = { consultado: true, disponible: false, completa: false, voces: [], falta: [], error: 'sin servidor' };
+      return Promise.resolve(servicio);
+    }
+    return pedir('/api/voz' + (forzar ? '?revisar=1' : ''))
+      .then(function (d) {
+        servicio = {
+          consultado: true,
+          disponible: !!d.disponible, completa: !!d.completa,
+          voces: d.voces || [], falta: d.falta || [], carpeta: d.carpeta || '',
+          cache: d.cache || null, binario: d.binario || '', error: ''
+        };
+        return servicio;
+      })
+      .catch(function (e) {
+        servicio = { consultado: true, disponible: false, completa: false, voces: [], falta: [], error: e.message };
+        return servicio;
+      });
+  }
+
+  function vocesDe(lang) {
+    return (servicio.voces || []).filter(function (v) { return v.lang === lang; });
+  }
+
+  /* ------------------------------------------------------------ el audio -- */
+  var elemento = null;
+  var pistas = [];        /* [{lang, url, blob, segundos, texto}] */
+  var tramos = [];        /* la línea de tiempo del ciclo */
+  var tramo = 0;
+  var timer = null;
+  var vigilante = null;
+  var latido = null;
+  var ultimoAvance = 0;
+  var ultimaPos = -1;
+  var intentos = 0;
+  var MAX_INTENTOS = 3;
+  var finDeCiclo = [];
+  var descargas = {};     /* hash -> url del blob, para no bajar dos veces */
+  /* Sube cada vez que se ponen pistas nuevas. Sirve para saber si una tarea de
+     fin de ciclo relevó el audio: en ese caso el ciclo viejo ya no sigue. */
+  var generacion = 0;
+
+  function elAudio() {
+    if (elemento) return elemento;
+    elemento = new global.Audio();
+    elemento.preload = 'auto';
+    elemento.addEventListener('ended', function () {
+      if (!state.playing) return;
+      anotar('fin', { lang: state.lang, ms: Math.round(elemento.duration * 1000) });
+      avanzar();
+    });
+    elemento.addEventListener('error', function () {
+      if (!state.playing) return;
+      var c = elemento.error;
+      fallo('el audio no se pudo reproducir' + (c ? ' (código ' + c.code + ')' : ''));
+    });
+    elemento.addEventListener('timeupdate', function () {
+      ultimoAvance = Date.now();
+      emitir();
+    });
+    return elemento;
+  }
+
+  function limpiarTimer() { if (timer) { clearTimeout(timer); timer = null; } }
+  function limpiarVigilante() { if (vigilante) { clearTimeout(vigilante); vigilante = null; } }
+  function esperar(ms, fn) {
+    limpiarTimer();
+    timer = setTimeout(function () { timer = null; fn(); }, Math.max(0, ms));
+  }
+
+  /* ------------------------------------------------- línea de tiempo del ciclo -- */
+  function armarTramos() {
+    tramos = [];
+    pistas.forEach(function (p, i) {
+      tramos.push({ tipo: 'audio', lang: p.lang, pista: i, segundos: p.segundos });
+      tramos.push({
+        tipo: 'pausa', lang: p.lang,
+        segundos: i === pistas.length - 1 ? options.cycleGap : options.gap
+      });
+    });
+    var acumulado = 0;
+    tramos.forEach(function (t) { t.inicio = acumulado; acumulado += t.segundos; });
+    state.total = Math.max(1, Math.round(acumulado));
+    return acumulado;
+  }
+
+  function duracionCiclo() {
+    return tramos.reduce(function (s, t) { return s + t.segundos; }, 0);
+  }
+
+  function posicionSegundos() {
+    var t = tramos[tramo];
+    if (!t) return 0;
+    if (t.tipo === 'audio' && elemento && isFinite(elemento.currentTime)) return t.inicio + elemento.currentTime;
+    return t.inicio;
+  }
+
+  function reloj(seg) {
+    seg = Math.max(0, Math.round(seg));
+    var m = Math.floor(seg / 60), s = seg % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function emitir() {
+    var pos = posicionSegundos();
+    var total = duracionCiclo();
+    state.chunk = Math.max(1, Math.min(state.total, Math.floor(pos) + 1));
+    state.etiqueta = reloj(pos) + ' / ' + reloj(total);
+    stateCbs.forEach(function (cb) {
+      try {
+        cb({
+          playing: state.playing, paused: state.paused, cycle: state.cycle,
+          lang: state.lang, chunk: state.chunk, total: state.total,
+          etiqueta: state.etiqueta, aviso: state.aviso, respaldo: state.respaldo,
+          motor: 'neuronal', segundos: pos, duracion: total
+        });
+      } catch (e) { /* ignorado */ }
+    });
+  }
+
+  function avisar(texto) {
+    if (state.aviso === texto) return;
+    state.aviso = texto;
+    emitir();
+  }
+
+  /* ------------------------------------------------------------ descargas -- */
+
+  /* El audio se trae completo a la memoria. Es el punto clave de la robustez:
+     a partir de aquí el bucle ya no necesita ni servidor ni red. */
+  function bajar(pieza) {
+    if (descargas[pieza.hash]) return Promise.resolve(descargas[pieza.hash]);
+    return global.fetch(pieza.archivo).then(function (r) {
+      if (!r.ok) throw new Error('el audio contestó ' + r.status);
+      return r.blob();
+    }).then(function (b) {
+      var url = global.URL.createObjectURL(b);
+      descargas[pieza.hash] = url;
+      anotar('descargado', { lang: pieza.lang, kb: Math.round(b.size / 1024), s: pieza.segundos });
+      return url;
+    });
+  }
+
+  function olvidarDescargas(conservar) {
+    Object.keys(descargas).forEach(function (h) {
+      if (conservar && conservar[h]) return;
+      try { global.URL.revokeObjectURL(descargas[h]); } catch (e) { /* ignorado */ }
+      delete descargas[h];
+    });
+  }
+
+  /* Pide el audio al servidor y lo deja listo en la memoria */
+  function preparar(secuencia, opts) {
+    if (opts) setOptions(opts);
+    var piezas = (secuencia || []).filter(function (s) { return s && s.text; })
+      .map(function (s) { return { lang: s.lang, texto: s.text }; });
+    if (!piezas.length) return Promise.reject(new Error('no hay nada que sintetizar'));
+
+    anotar('sintetizando', { detalle: piezas.map(function (p) { return p.lang; }).join(' + ') });
+    return pedir('/api/voz/sintetizar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        piezas: piezas,
+        voces: { es: options.voices.es || '', en: options.voices.en || '' },
+        velocidad: options.rate.es || 1,
+        pausaFrase: Math.max(0, (options.sentencePause || 0) / 1000)
+      })
+    }).then(function (d) {
+      var buenas = (d.piezas || []).filter(function (p) { return p && p.archivo; });
+      var malas = (d.piezas || []).filter(function (p) { return p && p.error; });
+      malas.forEach(function (p) { anotar('error', { lang: p.lang, motivo: p.error }); });
+      if (!buenas.length) {
+        throw new Error(malas.length ? malas[0].error : 'el servidor no devolvió audio');
+      }
+      if (d.estado) {
+        servicio.disponible = !!d.estado.disponible;
+        servicio.completa = !!d.estado.completa;
+        servicio.voces = d.estado.voces || servicio.voces;
+        servicio.cache = d.estado.cache || servicio.cache;
+      }
+      return Promise.all(buenas.map(function (p) {
+        return bajar(p).then(function (url) {
+          return {
+            lang: p.lang, url: url, hash: p.hash, segundos: p.segundos,
+            voz: p.voz, caracteres: p.caracteres
+          };
+        });
+      })).then(function (listas) {
+        return { pistas: listas, faltaron: malas };
+      });
+    });
+  }
+
+  /* ------------------------------------------------------------ el bucle -- */
+
+  function arrancarTramo() {
+    limpiarVigilante();
+    if (!state.playing) return;
+
+    if (tramo >= tramos.length) {
+      state.cycle++;
+      anotar('ciclo', { detalle: 'inicia el ciclo ' + state.cycle });
+      if (finDeCiclo.length) {
+        var pendientes = finDeCiclo.slice();
+        var gen = generacion;
+        finDeCiclo = [];
+        pendientes.forEach(function (cb) { try { cb(); } catch (e) { /* ignorado */ } });
+        /* Si la tarea cambió el audio, ese relevo ya arrancó su propio ciclo */
+        if (generacion !== gen) return;
+      }
+      if (!state.playing) return;      /* la tarea de fin de ciclo pudo detener todo */
+      if (!options.loop) { stop(); return; }
+      tramo = 0;
+    }
+
+    var t = tramos[tramo];
+    if (!t) { stop(); return; }
+    state.lang = t.lang;
+    intentos = 0;
+
+    if (t.tipo === 'pausa') {
+      try { elAudio().pause(); } catch (e) { /* ignorado */ }
+      emitir();
+      esperar(t.segundos * 1000, function () { tramo++; arrancarTramo(); });
+      return;
+    }
+
+    sonar(0);
+  }
+
+  function sonar(desde) {
+    var t = tramos[tramo];
+    var p = pistas[t.pista];
+    if (!p) { avanzar(); return; }
+    var a = elAudio();
+    a.volume = Math.max(0, Math.min(1, options.volume));
+    if (a.src !== p.url) a.src = p.url;
+    try { a.currentTime = Math.max(0, Math.min(p.segundos - 0.05, desde || 0)); }
+    catch (e) { /* aún no hay metadatos; empieza desde el principio */ }
+
+    anotar('inicio', {
+      lang: p.lang, voz: p.voz, s: p.segundos, desde: Math.round(desde || 0),
+      largo: p.caracteres
+    });
+    ultimoAvance = Date.now();
+    ultimaPos = -1;
+
+    var promesa = a.play();
+    if (promesa && promesa.catch) {
+      promesa.catch(function (e) {
+        /* El navegador puede bloquear el audio si no hubo un clic antes */
+        fallo('el navegador no dejó sonar el audio (' + (e && e.name ? e.name : 'bloqueado') + ')');
+      });
+    }
+    armarVigilante(p, desde || 0);
+    emitir();
+  }
+
+  /* Si el audio debió terminar y nadie avisó, se sigue adelante solo */
+  function armarVigilante(p, desde) {
+    limpiarVigilante();
+    var queda = Math.max(1, p.segundos - (desde || 0));
+    vigilante = setTimeout(function () {
+      vigilante = null;
+      if (!state.playing) return;
+      anotar('vigilancia', { lang: p.lang, detalle: 'el audio no avisó que terminó' });
+      avanzar();
+    }, (queda + 4) * 1000);
+  }
+
+  function avanzar() {
+    limpiarVigilante();
+    tramo++;
+    arrancarTramo();
+  }
+
+  function fallo(motivo) {
+    limpiarVigilante();
+    if (!state.playing) return;
+    var t = tramos[tramo] || {};
+    intentos++;
+    anotar(intentos < MAX_INTENTOS ? 'reintento' : 'omitido', { lang: t.lang, motivo: motivo, intento: intentos });
+    if (intentos < MAX_INTENTOS) {
+      avisar('Reintentando (' + motivo + ')');
+      var desde = elemento && isFinite(elemento.currentTime) ? elemento.currentTime : 0;
+      esperar(500, function () { sonar(desde); });
+      return;
+    }
+    avisar('Audio omitido en ' + (t.lang === 'es' ? 'español' : 'inglés') + ' (' + motivo + ')');
+    intentos = 0;
+    avanzar();
+  }
+
+  /* Latido: si el audio se queda clavado, lo empuja; si no reacciona, lo salta */
+  function iniciarLatido() {
+    detenerLatido();
+    ultimoAvance = Date.now();
+    latido = setInterval(function () {
+      if (!state.playing || state.paused) return;
+      var t = tramos[tramo];
+      if (!t || t.tipo !== 'audio') return;
+      var a = elemento;
+      if (!a) return;
+      var pos = isFinite(a.currentTime) ? a.currentTime : 0;
+      if (Math.abs(pos - ultimaPos) > 0.2) { ultimaPos = pos; ultimoAvance = Date.now(); return; }
+      var quieto = Date.now() - ultimoAvance;
+      if (quieto < 6000) return;
+      anotar('reanudada', { lang: t.lang, detalle: 'el audio llevaba ' + Math.round(quieto / 1000) + ' s sin avanzar' });
+      avisar('Transmisión reanudada');
+      ultimoAvance = Date.now();
+      if (a.paused) { try { a.play(); } catch (e) { fallo('no se pudo reanudar'); } }
+      else sonar(pos);
+    }, 2000);
+  }
+  function detenerLatido() { if (latido) { clearInterval(latido); latido = null; } }
+
+  /* ------------------------------------------------- la pantalla no se apaga -- */
+  var wakeLock = null;
+  function pedirWakeLock() {
+    if (!global.navigator || !global.navigator.wakeLock) return;
+    global.navigator.wakeLock.request('screen').then(function (w) {
+      wakeLock = w;
+      w.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () { /* el navegador no lo permitió */ });
+  }
+  function soltarWakeLock() {
+    if (wakeLock) { try { wakeLock.release(); } catch (e) { /* ignorado */ } wakeLock = null; }
+  }
+
+  if (global.document && global.document.addEventListener) {
+    global.document.addEventListener('visibilitychange', function () {
+      if (global.document.visibilityState !== 'visible') return;
+      if (!state.playing || state.paused) return;
+      if (wakeLock === null) pedirWakeLock();
+      var t = tramos[tramo];
+      if (t && t.tipo === 'audio' && elemento && elemento.paused) {
+        anotar('reanudada', { detalle: 'la ventana volvió al frente' });
+        try { elemento.play(); } catch (e) { /* el latido lo recoge */ }
+      }
+    });
+  }
+
+  /* ------------------------------------------------------- navegación -- */
+
+  /* Los tramos del ciclo, para que la aplicación pueda pintarlos */
+  function fragmentos() {
+    return tramos.map(function (t, i) {
+      return { i: i, lang: t.lang, texto: '', pausa: t.tipo === 'pausa', segundos: t.segundos, inicio: t.inicio };
+    });
+  }
+
+  /* Ir a un segundo del ciclo: adelantar o retroceder de verdad */
+  function irA(segundo) {
+    if (!state.playing || !tramos.length) return false;
+    var total = duracionCiclo();
+    var s = Math.max(0, Math.min(total - 0.1, Number(segundo) || 0));
+    var destino = 0;
+    for (var i = 0; i < tramos.length; i++) {
+      if (s >= tramos[i].inicio && s < tramos[i].inicio + tramos[i].segundos) { destino = i; break; }
+      destino = i;
+    }
+    limpiarTimer();
+    limpiarVigilante();
+    intentos = 0;
+    tramo = destino;
+    var dentro = s - tramos[destino].inicio;
+    anotar('salto', { detalle: 'a ' + reloj(s) + ' del ciclo' });
+    if (tramos[destino].tipo === 'pausa') {
+      try { elAudio().pause(); } catch (e) { /* ignorado */ }
+      emitir();
+      esperar(Math.max(0, tramos[destino].segundos - dentro) * 1000, function () { tramo++; arrancarTramo(); });
+    } else {
+      state.lang = tramos[destino].lang;
+      sonar(dentro);
+    }
+    return true;
+  }
+
+  /* El deslizador se mueve por segundos, así que adelantar son 10 s */
+  function saltar(delta) {
+    var paso = 10;
+    return irA(posicionSegundos() + (delta > 0 ? paso : -paso));
+  }
+
+  /* --------------------------------------------------------- control -- */
+
+  /* Arranca con pistas ya descargadas (las que devolvió preparar) */
+  function reproducir(listas) {
+    pistas = listas || [];
+    if (!pistas.length) return false;
+    generacion++;
+    limpiarTimer();
+    limpiarVigilante();
+    if (elemento) { try { elemento.pause(); } catch (e) { /* ignorado */ } }
+    var conservar = {};
+    pistas.forEach(function (p) { conservar[p.hash] = true; });
+    olvidarDescargas(conservar);
+    armarTramos();
+    tramo = 0;
+    intentos = 0;
+    state.playing = true;
+    state.paused = false;
+    state.cycle = 1;
+    state.aviso = '';
+    state.respaldo = '';
+    registro = [];
+    anotar('inicio de transmisión', {
+      detalle: pistas.map(function (p) { return p.lang + ' ' + p.segundos + ' s'; }).join(' + ') +
+        ', ciclo de ' + reloj(duracionCiclo()),
+      voz: pistas.map(function (p) { return p.voz; }).join(' / ')
+    });
+    emitir();
+    iniciarLatido();
+    pedirWakeLock();
+    arrancarTramo();
+    return true;
+  }
+
+  /* Cambiar el ATIS sin dejar silencio: el audio nuevo se genera mientras el
+     ciclo en curso sigue sonando, y entra justo en el corte. Si generarlo falla,
+     el bucle viejo se queda al aire, que es mejor que callarse. */
+  function relevar(secuencia, opts) {
+    if (!state.playing) return play(secuencia, opts);
+    return preparar(secuencia, opts).then(function (r) {
+      return new Promise(function (resolver) {
+        anotar('relevo', {
+          detalle: 'audio nuevo listo (' + r.pistas.map(function (p) { return p.lang; }).join(' + ') +
+            '), entra al terminar el ciclo'
+        });
+        finDeCiclo.push(function () {
+          var ok = reproducir(r.pistas);
+          resolver({ ok: ok, pistas: r.pistas, faltaron: r.faltaron, relevo: true });
+        });
+      });
+    });
+  }
+
+  /* play() hace las dos cosas: pide el audio y arranca. Devuelve una promesa
+     porque sintetizar lleva unos segundos la primera vez. */
+  function play(secuencia, opts) {
+    stop();
+    return preparar(secuencia, opts).then(function (r) {
+      var ok = reproducir(r.pistas);
+      return { ok: ok, pistas: r.pistas, faltaron: r.faltaron };
+    });
+  }
+
+  function stop() {
+    if (state.playing) anotar('detenida', { detalle: 'se pulsó STOP' });
+    state.playing = false;
+    state.paused = false;
+    state.lang = '';
+    state.chunk = 0;
+    state.aviso = '';
+    limpiarTimer();
+    limpiarVigilante();
+    detenerLatido();
+    soltarWakeLock();
+    if (elemento) { try { elemento.pause(); } catch (e) { /* ignorado */ } }
+    emitir();
+  }
+
+  function pause() {
+    if (!state.playing) return;
+    state.paused = true;
+    limpiarTimer();
+    limpiarVigilante();
+    if (elemento) { try { elemento.pause(); } catch (e) { /* ignorado */ } }
+    emitir();
+  }
+
+  function resume() {
+    if (!state.playing) return;
+    state.paused = false;
+    ultimoAvance = Date.now();
+    var t = tramos[tramo];
+    if (t && t.tipo === 'audio' && elemento) { try { elemento.play(); } catch (e) { /* ignorado */ } }
+    else arrancarTramo();
+    emitir();
+  }
+
+  function setOptions(o) {
+    o = o || {};
+    if (typeof o.loop === 'boolean') options.loop = o.loop;
+    if (typeof o.gap === 'number') options.gap = o.gap;
+    if (typeof o.cycleGap === 'number') options.cycleGap = o.cycleGap;
+    if (typeof o.volume === 'number') options.volume = o.volume;
+    if (typeof o.sentencePause === 'number') options.sentencePause = o.sentencePause;
+    if (o.voices) {
+      if (o.voices.es !== undefined) options.voices.es = o.voices.es;
+      if (o.voices.en !== undefined) options.voices.en = o.voices.en;
+    }
+    if (o.rate) {
+      if (o.rate.es !== undefined) options.rate.es = o.rate.es;
+      if (o.rate.en !== undefined) options.rate.en = o.rate.en;
+    }
+  }
+
+  /* Muestra para escuchar la voz antes de ponerla al aire */
+  function muestra(lang, nombre, velocidad) {
+    return pedir('/api/voz/muestra', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lang: lang, voz: nombre, velocidad: velocidad || options.rate[lang] || 1 })
+    }).then(function (d) {
+      if (d.error) throw new Error(d.error);
+      var a = new global.Audio(d.archivo);
+      a.volume = Math.max(0, Math.min(1, options.volume));
+      var p = a.play();
+      if (p && p.catch) p.catch(function () { /* el navegador lo bloqueó */ });
+      return d;
+    });
+  }
+
+  function limpiarCacheServidor() {
+    return pedir('/api/voz/limpiar', { method: 'POST' });
+  }
+
+  ATIS.neural = {
+    conServidor: conServidor,
+    get supported() { return conServidor && servicio.disponible; },
+    servicio: function () { return servicio; },
+    comprobar: comprobar,
+    vocesDe: vocesDe,
+    preparar: preparar,
+    reproducir: reproducir,
+    play: play, relevar: relevar, stop: stop, pause: pause, resume: resume,
+    setOptions: setOptions,
+    onState: function (cb) { stateCbs.push(cb); },
+    onLog: function (cb) { logCbs.push(cb); },
+    registro: function () { return registro.slice(); },
+    limpiarRegistro: function () { registro = []; },
+    fragmentos: fragmentos, irA: irA, saltar: saltar,
+    alFinDeCiclo: function (cb) {
+      if (!state.playing) { cb(); return false; }
+      finDeCiclo.push(cb);
+      return true;
+    },
+    ciclosPendientes: function () { return finDeCiclo.length; },
+    muestra: muestra,
+    limpiarCacheServidor: limpiarCacheServidor,
+    reloj: reloj,
+    duracionCiclo: duracionCiclo,
+    get state() { return state; }
+  };
+})(this);
+
+</script>
+<script>
 /* js/app.js */
 /* ATIS 3.0 - Interfaz y control */
 (function (global) {
@@ -4164,7 +4822,9 @@ body.modo-control .pstate-main::after {
       'saludBadge', 'saludLista', 'btnSaludCopy', 'saludStatus',
       'vigBadge', 'vigActiva', 'vigUrl', 'vigEstacion', 'vigMinutos', 'btnVigAhora',
       'vigStatus', 'vigUltimo', 'avisoMetar', 'avisoMetarTexto', 'btnUsarMetar', 'btnIgnorarMetar',
-      'pendiente', 'pendienteTexto', 'btnAplicarYa'
+      'pendiente', 'pendienteTexto', 'btnAplicarYa',
+      'motorSel', 'vozNBadge', 'vozNInfo', 'btnVozNRevisar', 'btnVozNLimpiar', 'vozNStatus',
+      'rotVozEs', 'rotVozEn'
     ].forEach(function (id) { el[id] = $(id); });
 
     fillStations();
@@ -4178,6 +4838,7 @@ body.modo-control .pstate-main::after {
     iniciarTema();
     iniciarPaginas();
     iniciarEnlace();
+    iniciarMotor();
     comprobarInstalacion();
     if (vigDisponible()) {
       pedirVigilancia(null).then(function (st) {
@@ -4704,8 +5365,9 @@ body.modo-control .pstate-main::after {
     var words = lastScripts.es.text.split(/\s+/).length + lastScripts.en.text.split(/\s+/).length;
     status(el.scriptStatus, 'Guion listo · ' + words + ' palabras · duración aproximada ' +
       estimateDuration(words) + ' por ciclo');
-    if (ATIS.speech.state.playing) {
-      el.playDetail.textContent = 'El guion cambió: pulse TRANSMITIR para reiniciar el bucle con la información nueva.';
+    if (enAire()) {
+      el.playDetail.textContent = 'El guion cambió: pulse ACTUALIZAR para ponerlo al aire ' +
+        'al terminar el ciclo.';
     }
     pintarEdadMetar();
     pintarResumen();
@@ -4746,8 +5408,12 @@ body.modo-control .pstate-main::after {
     function adv(t) { avisos.push({ nivel: 'aviso', texto: t }); }
 
     if (!el.langEs.checked && !el.langEn.checked) err('No hay ningún idioma marcado para transmitir.');
-    if (el.langEs.checked && !ATIS.speech.rankedVoices('es').length) err('El español está marcado pero el equipo no tiene voz en español.');
-    if (el.langEn.checked && !ATIS.speech.rankedVoices('en').length) err('El inglés está marcado pero el equipo no tiene voz en inglés.');
+    var neural = motorElegido() === 'neuronal';
+    var hayVoz = ajustarIdiomasPorMotor();
+    var dondeFalta = neural ? 'la voz neuronal de ese idioma no está instalada'
+      : 'el equipo no tiene esa voz';
+    if (el.langEs.checked && !hayVoz.es) err('El español está marcado pero ' + dondeFalta + '.');
+    if (el.langEn.checked && !hayVoz.en) err('El inglés está marcado pero ' + dondeFalta + '.');
 
     if (el.libreActivo.checked) {
       var hayEs = el.langEs.checked && el.libreEs.value.trim();
@@ -4827,9 +5493,13 @@ body.modo-control .pstate-main::after {
   /* ================================================================== *
    * Reproduccion
    * ================================================================== */
-  function play(forzar) {
+  /* forzar: salta la verificación previa (ya se avisó).
+     relevo: el ATIS cambió mientras se transmitía. Con la voz neuronal el audio
+     nuevo se genera mientras el viejo sigue sonando y entra en el corte del
+     ciclo, así que no hay ni un segundo de silencio. */
+  function play(forzar, relevo) {
     forzar = forzar === true;
-    if (!ATIS.speech.supported) {
+    if (!ATIS.speech.supported && motorElegido() !== 'neuronal') {
       status(el.scriptStatus, 'Este navegador no soporta síntesis de voz. Use Chrome o Edge.', 'err');
       return;
     }
@@ -4854,34 +5524,134 @@ body.modo-control .pstate-main::after {
         'Si las casillas de idioma están deshabilitadas, falta instalar la voz: vea Ajustes, Voces del sistema.', 'err');
       return;
     }
-    var ok = ATIS.speech.play(
-      secuencia,
-      {
-        loop: true,
-        gap: +el.gap.value || 0,
-        cycleGap: (+el.gap.value || 0) + 2,
-        voices: { es: el.voiceEs.value, en: el.voiceEn.value },
-        rate: { es: +el.rate.value, en: +el.rate.value },
-        sentencePause: +el.sentencePause.value || 0
+    var opciones = {
+      loop: true,
+      gap: +el.gap.value || 0,
+      cycleGap: (+el.gap.value || 0) + 2,
+      voices: { es: el.voiceEs.value, en: el.voiceEn.value },
+      rate: { es: +el.rate.value, en: +el.rate.value },
+      sentencePause: +el.sentencePause.value || 0
+    };
+
+    if (motorElegido() === 'neuronal') {
+      transmitirNeural(secuencia, opciones, relevo === true);
+      return;
+    }
+    if (!ATIS.speech.play(secuencia, opciones)) {
+      status(el.scriptStatus, 'No hay nada que transmitir.', 'err');
+      return;
+    }
+    alAire('navegador');
+  }
+
+  /* Con la voz neuronal hay que generar el audio antes de arrancar: tarda unos
+     segundos la primera vez y nada las siguientes, porque queda guardado.
+     Si el servidor falla justo ahora, se sale al aire con la voz del navegador
+     en lugar de quedarse callado. */
+  function transmitirNeural(secuencia, opciones, relevo) {
+    var alAireYa = relevo && ATIS.neural.state.playing;
+    el.btnPlay.disabled = true;      /* mientras se genera, para no pedirlo dos veces */
+    status(el.scriptStatus, alAireYa
+      ? 'Generando el audio nuevo. El ciclo en curso sigue al aire y el relevo entra al terminar…'
+      : 'Generando el audio con la voz neuronal…');
+    if (!alAireYa) el.playState.textContent = 'Generando el audio…';
+    var arranque = alAireYa ? ATIS.neural.relevar(secuencia, opciones)
+      : ATIS.neural.play(secuencia, opciones);
+    arranque.then(function (r) {
+      if (!r.ok) throw new Error('el audio llegó vacío');
+      alAire('neuronal');
+      el.btnPlay.disabled = false;
+      var dur = ATIS.neural.reloj(ATIS.neural.duracionCiclo());
+      var aviso = r.faltaron.length
+        ? ' No se pudo generar ' + r.faltaron.map(function (f) { return f.lang; }).join(' ni ') + '.'
+        : '';
+      status(el.scriptStatus, (r.relevo ? 'Relevo hecho en el corte del ciclo, sin silencio · ciclo de '
+        : 'Al aire con la voz neuronal · ciclo de ') + dur + '.' + aviso,
+        r.faltaron.length ? 'err' : 'ok');
+      pintarNeural();
+    }).catch(function (e) {
+      el.btnPlay.disabled = false;
+      /* Si ya había algo al aire, ahí se queda: mejor el ATIS anterior que el silencio */
+      if (alAireYa && ATIS.neural.state.playing) {
+        status(el.scriptStatus, 'No se pudo generar el audio nuevo (' + e.message +
+          '). Sigue al aire el ATIS anterior; vuelva a pulsar TRANSMITIR.', 'err');
+        el.btnPlay.disabled = false;
+        revisarNeural(true);
+        return;
       }
-    );
-    if (!ok) { status(el.scriptStatus, 'No hay nada que transmitir.', 'err'); return; }
-    el.btnPlay.disabled = true;
+      status(el.scriptStatus, 'La voz neuronal falló (' + e.message +
+        '). Se transmite con la voz del navegador.', 'err');
+      /* El respaldo necesita las voces del navegador en los desplegables */
+      var guardado = prefMotor;
+      prefMotor = 'navegador';
+      llenarVoces();
+      if (ATIS.speech.play(secuencia, {
+        loop: opciones.loop, gap: opciones.gap, cycleGap: opciones.cycleGap,
+        voices: { es: el.voiceEs.value, en: el.voiceEn.value },
+        rate: opciones.rate, sentencePause: opciones.sentencePause
+      })) {
+        alAire('navegador');
+      } else {
+        el.playState.textContent = 'Detenido';
+      }
+      prefMotor = guardado;
+      revisarNeural(true);
+    });
+  }
+
+  /* El ATIS cambió mientras se transmitía: el ciclo nuevo entra en el corte.
+     Con la voz neuronal el audio se genera por delante y no hay silencio; con
+     la del navegador se reinicia el bucle al terminar el ciclo, como siempre. */
+  function relevar(forzar) {
+    if (!enAire()) { play(forzar); return; }
+    if (motor() === ATIS.neural) { play(forzar, true); return; }
+    /* Con la voz del navegador no se puede adelantar nada: se corta el ciclo
+       actual al terminar y el siguiente ya sale con lo nuevo. */
+    var chequeo = pintarVerificacion();
+    if (chequeo.avisos.length && forzar !== true) {
+      el.btnIgual.hidden = chequeo.graves.length > 0;
+      status(el.scriptStatus, chequeo.graves.length
+        ? 'Hay que corregir lo marcado en rojo antes de poner esto al aire.'
+        : 'Revise lo que falta, o pulse «Transmitir de todos modos».', 'err');
+      return;
+    }
+    ATIS.speech.alFinDeCiclo(function () { play(true); });
+    status(el.scriptStatus, 'El ciclo en curso termina y el siguiente sale con ' +
+      'la información nueva.', 'ok');
+  }
+
+  function alAire(cual) {
+    /* El botón no se apaga: al aire sirve para poner el ATIS nuevo, que entra
+       en el corte del ciclo. Con la voz neuronal el relevo no deja silencio. */
+    el.btnPlay.disabled = false;
+    el.btnPlay.textContent = 'ACTUALIZAR';
+    el.btnPlay.title = 'Pone al aire la información de ahora: entra al terminar el ciclo';
     el.btnStop.disabled = false;
     el.pavance.hidden = false;
     el.preflight.hidden = true;
     document.querySelector('.brand .dot').classList.add('live');
-    prepararAvance();
+    prepararAvance(cual);
   }
 
   /* ---- Barra de posición dentro del ciclo ---- */
   var arrastrando = false;
 
-  function prepararAvance() {
-    var fr = ATIS.speech.fragmentos().filter(function (f) { return !f.pausa; });
-    el.posicion.max = String(Math.max(0, ATIS.speech.fragmentos().length - 1));
+  function prepararAvance(cual) {
+    var m = motor();
+    var fr = m.fragmentos();
+    el.posicion.max = String(Math.max(0, m.state.total - 1));
     el.posicion.value = '0';
-    el.posTexto.textContent = fr.length + ' fragmentos';
+    if (cual === 'neuronal') {
+      el.posicion.title = 'Posición dentro del ciclo, en segundos';
+      el.btnPrev.title = 'Diez segundos atrás';
+      el.btnNext.title = 'Diez segundos adelante';
+      el.posTexto.textContent = ATIS.neural.reloj(ATIS.neural.duracionCiclo()) + ' por ciclo';
+    } else {
+      el.posicion.title = 'Posición dentro del ciclo';
+      el.btnPrev.title = 'Fragmento anterior';
+      el.btnNext.title = 'Fragmento siguiente';
+      el.posTexto.textContent = fr.filter(function (f) { return !f.pausa; }).length + ' fragmentos';
+    }
   }
 
   function pintarAvance(st) {
@@ -4889,12 +5659,15 @@ body.modo-control .pstate-main::after {
     var total = st.total || 1;
     el.posicion.max = String(Math.max(0, total - 1));
     el.posicion.value = String(Math.max(0, st.chunk - 1));
-    el.posTexto.textContent = st.chunk + ' / ' + total;
+    el.posTexto.textContent = st.etiqueta || (st.chunk + ' / ' + total);
   }
 
   function stop() {
     ATIS.speech.stop();
+    if (ATIS.neural) ATIS.neural.stop();
     el.btnPlay.disabled = false;
+    el.btnPlay.textContent = 'TRANSMITIR';
+    el.btnPlay.title = '';
     el.btnStop.disabled = true;
     el.pavance.hidden = true;
     document.querySelector('.brand .dot').classList.remove('live');
@@ -4905,24 +5678,31 @@ body.modo-control .pstate-main::after {
 
   function initVoices() {
     ATIS.speech.onVoicesReady(function () {
-      fillVoiceSelect(el.voiceEs, 'es');
-      fillVoiceSelect(el.voiceEn, 'en');
-      restoreVoices();
+      llenarVoces();
       updateVoiceReport();
     });
     ATIS.speech.onLog(pintarEvento);
-    ATIS.speech.onState(function (st) {
-      if (!st.playing) return;
-      el.playState.textContent = 'TRANSMITIENDO · ' + (st.lang === 'es' ? 'ESPAÑOL' : 'INGLÉS');
-      el.playState.classList.add('live');
-      var detalle = 'Ciclo ' + st.cycle + ' · fragmento ' + st.chunk + ' de ' + st.total +
-        ' · información ' + N.letterInfo(el.letterBig.textContent).word;
-      if (st.respaldo) detalle += ' · voz de respaldo: ' + st.respaldo;
-      if (st.aviso) detalle += ' · ' + st.aviso;
-      el.playDetail.textContent = detalle;
-      el.playDetail.classList.toggle('warn', !!(st.aviso || st.respaldo));
-      pintarAvance(st);
-    });
+    ATIS.speech.onState(pintarEstado);
+    if (ATIS.neural) {
+      ATIS.neural.onLog(pintarEvento);
+      ATIS.neural.onState(pintarEstado);
+    }
+  }
+
+  function pintarEstado(st) {
+    if (!st.playing) return;
+    el.playState.textContent = 'TRANSMITIENDO · ' + (st.lang === 'es' ? 'ESPAÑOL' : 'INGLÉS');
+    el.playState.classList.add('live');
+    var detalle = 'Ciclo ' + st.cycle + ' · ' +
+      (st.motor === 'neuronal'
+        ? 'voz neuronal · ' + (st.etiqueta || '')
+        : 'fragmento ' + st.chunk + ' de ' + st.total) +
+      ' · información ' + N.letterInfo(el.letterBig.textContent).word;
+    if (st.respaldo) detalle += ' · voz de respaldo: ' + st.respaldo;
+    if (st.aviso) detalle += ' · ' + st.aviso;
+    el.playDetail.textContent = detalle;
+    el.playDetail.classList.toggle('warn', !!(st.aviso || st.respaldo));
+    pintarAvance(st);
   }
 
   function fillVoiceSelect(select, lang) {
@@ -4997,7 +5777,7 @@ body.modo-control .pstate-main::after {
   function renderVoiceDiag() {
     var d = ATIS.speech.diagnostico();
     renderVoiceAlert(d);
-    ajustarIdiomas(d);
+    if (motorElegido() === 'neuronal') ajustarIdiomasPorMotor(); else ajustarIdiomas(d);
     var naturalesEs = d.es.filter(function (v) { return v.natural; }).length;
     var naturalesEn = d.en.filter(function (v) { return v.natural; }).length;
     var tags = [];
@@ -5022,7 +5802,7 @@ body.modo-control .pstate-main::after {
     [['es', el.langEs, d.es.length], ['en', el.langEn, d.en.length]].forEach(function (par) {
       var chk = par[1], hay = par[2] > 0;
       chk.disabled = !hay;
-      if (!hay) chk.checked = false;
+      chk.checked = hay && quiereIdioma[par[0]] !== false;
       var etiqueta = chk.parentNode;
       if (etiqueta && etiqueta.classList) etiqueta.classList.toggle('sinvoz', !hay);
       chk.title = hay ? 'Incluir este idioma en la transmisión'
@@ -5048,11 +5828,23 @@ body.modo-control .pstate-main::after {
 
   function updateVoiceReport() {
     renderVoiceDiag();
+    pintarNeural();
+    if (motorElegido() === 'neuronal') {
+      if (!enAire()) {
+        var ls = [];
+        if (el.langEs.checked) ls.push('español');
+        if (el.langEn.checked) ls.push('inglés');
+        el.playDetail.textContent = 'Voz neuronal lista' +
+          (ls.length ? ' · bucle: ' + ls.join(' → ') : ' · sin idiomas marcados');
+        el.playDetail.classList.remove('warn');
+      }
+      return;
+    }
     renderVoiceList(el.voiceListEs, 'es', el.voiceEs.value);
     renderVoiceList(el.voiceListEn, 'en', el.voiceEn.value);
     var esNat = /^★/.test(el.voiceEs.options[el.voiceEs.selectedIndex] ? el.voiceEs.options[el.voiceEs.selectedIndex].text : '');
     var enNat = /^★/.test(el.voiceEn.options[el.voiceEn.selectedIndex] ? el.voiceEn.options[el.voiceEn.selectedIndex].text : '');
-    if (!ATIS.speech.state.playing) {
+    if (!enAire()) {
       var activos = [];
       if (el.langEs.checked) activos.push('español');
       if (el.langEn.checked) activos.push('inglés');
@@ -5070,6 +5862,176 @@ body.modo-control .pstate-main::after {
           '. Vea Ajustes, Voces del sistema.';
         el.playDetail.classList.add('warn');
       }
+    }
+  }
+
+  /* ================================================================== *
+   * Qué motor de voz sale al aire
+   *
+   * Hay dos: la voz neuronal (Piper, local, la genera el servidor) y la voz
+   * del navegador. La neuronal es la buena, pero necesita el servidor y la
+   * carpeta «voz» instalada; si falta cualquiera de las dos cosas, se usa la
+   * del navegador sin preguntar nada. Nunca se queda sin voz.
+   * ================================================================== */
+  var prefMotor = 'auto';            /* auto | neuronal | navegador */
+  /* Qué idiomas quiere el operador. Se guarda aparte de las casillas porque un
+     motor sin voz las desmarca, y al cambiar de motor hay que devolverlas como
+     las dejó: si no, el inglés se quedaría apagado para siempre. */
+  var quiereIdioma = { es: true, en: true };
+  var MOTOR_KEY = 'atis3.motor';
+  var savedVocesN = null;
+
+  function neuralLista() {
+    return !!(ATIS.neural && ATIS.neural.conServidor && ATIS.neural.servicio().disponible);
+  }
+
+  /* El motor que se usaría si se pulsara TRANSMITIR ahora */
+  function motorElegido() {
+    if (prefMotor === 'navegador') return 'navegador';
+    return neuralLista() ? 'neuronal' : 'navegador';
+  }
+
+  /* El motor con el que hay que hablar. Mientras algo esté al aire manda el
+     que está sonando: así un cambio de ajustes no deja un bucle huérfano. */
+  function motor() {
+    if (ATIS.neural && ATIS.neural.state.playing) return ATIS.neural;
+    if (ATIS.speech.state.playing) return ATIS.speech;
+    return motorElegido() === 'neuronal' ? ATIS.neural : ATIS.speech;
+  }
+
+  function enAire() {
+    return !!(ATIS.speech.state.playing || (ATIS.neural && ATIS.neural.state.playing));
+  }
+
+  function guardarMotor() {
+    try { localStorage.setItem(MOTOR_KEY, prefMotor); } catch (e) { /* ignorado */ }
+  }
+
+  function iniciarMotor() {
+    var v = null;
+    try { v = localStorage.getItem(MOTOR_KEY); } catch (e) { v = null; }
+    if (v === 'auto' || v === 'neuronal' || v === 'navegador') prefMotor = v;
+    if (el.motorSel) el.motorSel.value = prefMotor;
+    revisarNeural(false);
+  }
+
+  /* Pregunta al servidor si la voz neuronal está instalada y repinta todo */
+  function revisarNeural(forzar) {
+    if (!ATIS.neural || !ATIS.neural.conServidor) { pintarNeural(); return Promise.resolve(null); }
+    return ATIS.neural.comprobar(forzar).then(function (sv) {
+      pintarNeural();
+      llenarVoces();
+      updateVoiceReport();
+      pintarVerificacion();
+      return sv;
+    });
+  }
+
+  function pintarNeural() {
+    if (!el.vozNBadge) return;
+    var hay = !!(ATIS.neural && ATIS.neural.conServidor);
+    var sv = hay ? ATIS.neural.servicio() : { consultado: true, disponible: false, error: 'sin servidor' };
+    var usando = motorElegido() === 'neuronal';
+
+    var texto, clase;
+    if (!hay) { texto = 'hace falta el servidor'; clase = 'mal'; }
+    else if (!sv.consultado) { texto = 'comprobando…'; clase = ''; }
+    else if (sv.completa) { texto = usando ? 'lista, al aire' : 'lista, sin usar'; clase = usando ? 'ok' : ''; }
+    else if (sv.disponible) { texto = 'incompleta'; clase = 'mal'; }
+    else { texto = 'no instalada'; clase = 'mal'; }
+    el.vozNBadge.textContent = texto;
+    el.vozNBadge.className = 'enlace-badge ' + clase;
+
+    var tags = [];
+    function tag(label, valor, cls) {
+      tags.push('<span class="tag' + (cls ? ' ' + cls : '') + '"><b>' + label + '</b>' +
+        escapeHtml(String(valor)) + '</span>');
+    }
+    tag('motor al aire', usando ? 'voz neuronal (Piper)' : 'voz del navegador', usando ? '' : 'warn');
+    if (!hay) {
+      tag('servidor', 'no hay: el programa se abrió como archivo local', 'warn');
+    } else if (sv.error) {
+      tag('servidor', sv.error, 'warn');
+    } else {
+      tag('voces instaladas', (sv.voces || []).length
+        ? sv.voces.map(function (v) { return v.nombre; }).join(', ') : 'ninguna',
+        (sv.voces || []).length ? '' : 'warn');
+      if (sv.carpeta) tag('carpeta', sv.carpeta);
+      if (sv.cache) tag('audios guardados', sv.cache.archivos + ' (' + sv.cache.mb + ' MB)');
+      (sv.falta || []).forEach(function (f) { tag('falta', f, 'warn'); });
+    }
+    el.vozNInfo.innerHTML = tags.join('');
+  }
+
+  /* ---- Las voces del pie son siempre las del motor que va a salir ---- */
+  function llenarVoces() {
+    var neural = motorElegido() === 'neuronal';
+    var rot = neural ? 'Voz neuronal' : 'Voz';
+    if (el.rotVozEs) el.rotVozEs.textContent = rot + ' en español';
+    if (el.rotVozEn) el.rotVozEn.textContent = rot + ' en inglés';
+    if (neural) {
+      llenarVocesNeurales(el.voiceEs, 'es');
+      llenarVocesNeurales(el.voiceEn, 'en');
+      if (savedVocesN) {
+        if (savedVocesN.es) selectIfPresent(el.voiceEs, savedVocesN.es);
+        if (savedVocesN.en) selectIfPresent(el.voiceEn, savedVocesN.en);
+      }
+    } else {
+      fillVoiceSelect(el.voiceEs, 'es');
+      fillVoiceSelect(el.voiceEn, 'en');
+      restoreVoices();
+    }
+    ajustarIdiomasPorMotor();
+  }
+
+  function llenarVocesNeurales(select, lang) {
+    var list = ATIS.neural.vocesDe(lang);
+    if (!list.length) {
+      select.innerHTML = '<option value="">(falta la voz neuronal en ' + lang + ')</option>';
+      return;
+    }
+    select.innerHTML = list.map(function (v) {
+      return '<option value="' + escapeHtml(v.nombre) + '">&#9733; ' + escapeHtml(v.nombre) +
+        (v.calidad ? ' (' + v.calidad + ')' : '') + '</option>';
+    }).join('');
+    select.selectedIndex = 0;
+  }
+
+  /* Un idioma sin voz en el motor activo no se puede transmitir */
+  function ajustarIdiomasPorMotor() {
+    var neural = motorElegido() === 'neuronal';
+    var cuenta = {
+      es: neural ? ATIS.neural.vocesDe('es').length : ATIS.speech.rankedVoices('es').length,
+      en: neural ? ATIS.neural.vocesDe('en').length : ATIS.speech.rankedVoices('en').length
+    };
+    [['es', el.langEs], ['en', el.langEn]].forEach(function (par) {
+      var chk = par[1], hay = cuenta[par[0]] > 0;
+      if (!chk) return;
+      chk.disabled = !hay;
+      chk.checked = hay && quiereIdioma[par[0]] !== false;
+      var etiqueta = chk.parentNode;
+      if (etiqueta && etiqueta.classList) etiqueta.classList.toggle('sinvoz', !hay);
+      chk.title = hay ? 'Incluir este idioma en la transmisión'
+        : (neural ? 'La voz neuronal de este idioma no está instalada'
+          : 'No hay ninguna voz de este idioma instalada en el equipo');
+    });
+    return cuenta;
+  }
+
+  /* Escuchar la voz seleccionada, con el motor que vaya a salir al aire */
+  function probarVoz(lang, nombre) {
+    if (motorElegido() === 'neuronal') {
+      status(el.vozNStatus, 'Generando la muestra…');
+      ATIS.neural.muestra(lang, nombre || (lang === 'es' ? el.voiceEs.value : el.voiceEn.value), +el.rate.value)
+        .then(function (d) { status(el.vozNStatus, 'Muestra con ' + d.voz + ' (' + d.segundos + ' s).', 'ok'); })
+        .catch(function (e) { status(el.vozNStatus, 'No se pudo generar la muestra: ' + e.message, 'err'); });
+      return;
+    }
+    ATIS.speech.setOptions({ rate: { es: +el.rate.value, en: +el.rate.value } });
+    if (nombre) ATIS.speech.testWithVoice(nombre, lang);
+    else {
+      ATIS.speech.setOptions({ voices: lang === 'es' ? { es: el.voiceEs.value } : { en: el.voiceEn.value } });
+      ATIS.speech.test(lang);
     }
   }
 
@@ -5156,10 +6118,10 @@ body.modo-control .pstate-main::after {
     if (!metarPropuesto) return;
     el.metarRaw.value = metarPropuesto.raw;
     el.avisoMetar.hidden = true;
-    var transmitiendo = ATIS.speech.state.playing;
+    var transmitiendo = enAire();
     decodeMetar();                       /* llena el formulario y avanza la letra */
     if (transmitiendo) {
-      ATIS.speech.alFinDeCiclo(function () { play(true); });
+      relevar();
       status(el.scriptStatus, 'METAR aplicado. El ciclo en curso termina y el siguiente ' +
         'sale con la información nueva.', 'ok');
     }
@@ -5179,7 +6141,8 @@ body.modo-control .pstate-main::after {
       ['Lectura del archivo del FNS', !!(ATIS.fns && ATIS.fns.fromMatrix), true],
       ['Lector de hojas de cálculo (.xls)', typeof global.XLSX !== 'undefined', true],
       ['Generador del guion', !!(ATIS.script && ATIS.script.build), true],
-      ['Motor de locución', !!(ATIS.speech && ATIS.speech.supported), true],
+      ['Motor de locución del navegador', !!(ATIS.speech && ATIS.speech.supported), true],
+      ['Voz neuronal local (Piper)', neuralLista(), false],
       ['Aeródromos registrados', !!(ATIS.airports && ATIS.airports.MMMX), true],
       ['Control remoto', !!(ATIS.enlace), false]
     ];
@@ -5207,6 +6170,13 @@ body.modo-control .pstate-main::after {
     dato('Internet', voces.enLinea ? 'disponible' : 'sin conexión (el ATIS funciona igual)');
     dato('Voces en español', String(voces.es.length), voces.es.length > 0);
     dato('Voces en inglés', String(voces.en.length), voces.en.length > 0);
+    dato('Motor de voz al aire', motorElegido() === 'neuronal' ? 'neuronal local (Piper)' : 'voz del navegador');
+    if (ATIS.neural && ATIS.neural.conServidor) {
+      var sv = ATIS.neural.servicio();
+      dato('Voz neuronal', sv.completa ? 'instalada y completa'
+        : (sv.disponible ? 'incompleta: falta ' + (sv.falta || []).join(' y ')
+          : (sv.error ? 'no disponible (' + sv.error + ')' : 'no instalada')), sv.completa);
+    }
 
     el.saludLista.innerHTML = filas.join('');
     return { faltan: faltan, piezas: piezas, voces: voces };
@@ -5248,10 +6218,10 @@ body.modo-control .pstate-main::after {
       aplicar: function (datos, origen) {
         pendienteRemoto = { datos: datos, origen: origen || 'control remoto' };
         /* Nunca a media frase: si se está transmitiendo, espera al corte de ciclo */
-        if (ATIS.speech.alFinDeCiclo(aplicarRemotoAhora)) pintarPendiente();
+        if (motor().alFinDeCiclo(aplicarRemotoAhora)) pintarPendiente();
       },
       aire: function () {
-        var st = ATIS.speech.state;
+        var st = motor().state;
         return {
           transmitiendo: st.playing,
           ciclo: st.cycle,
@@ -5271,7 +6241,7 @@ body.modo-control .pstate-main::after {
     if (!pendienteRemoto) return;
     var p = pendienteRemoto;
     pendienteRemoto = null;
-    var transmitiendo = ATIS.speech.state.playing;
+    var transmitiendo = enAire();
 
     aplicandoRemoto = true;
     try { aplicarCompartido(p.datos, false); } finally { aplicandoRemoto = false; }
@@ -5279,7 +6249,7 @@ body.modo-control .pstate-main::after {
     el.pendiente.hidden = true;
     status(el.scriptStatus, 'Datos de ' + p.origen + ' aplicados a las ' +
       new Date().toLocaleTimeString() + '.', 'ok');
-    if (transmitiendo) play(true);     /* el bucle arranca con el guion nuevo */
+    if (transmitiendo) relevar();      /* el bucle sigue y el guion nuevo entra en el corte */
   }
 
   function pintarPendiente() {
@@ -5332,8 +6302,8 @@ body.modo-control .pstate-main::after {
 
     /* En modo control esta PC no saca audio: manda datos */
     var control = st.papel === 'control';
-    el.btnPlay.disabled = control || ATIS.speech.state.playing;
-    el.btnPlay.title = control ? 'Esta computadora es control remoto: el audio sale en la PC de la torre' : '';
+    el.btnPlay.disabled = control;
+    if (control) el.btnPlay.title = 'Esta computadora es control remoto: el audio sale en la PC de la torre';
     document.body.classList.toggle('modo-control', control);
   }
 
@@ -5461,7 +6431,7 @@ body.modo-control .pstate-main::after {
   }
 
   function renderLog() {
-    var eventos = ATIS.speech.registro();
+    var eventos = motor().registro();
     el.logList.innerHTML = '';
     if (!eventos.length) {
       el.logList.innerHTML = '<span class="logvacio">Sin eventos todavía. Pulse TRANSMITIR.</span>';
@@ -5471,7 +6441,7 @@ body.modo-control .pstate-main::after {
   }
 
   function textoRegistro() {
-    var eventos = ATIS.speech.registro();
+    var eventos = motor().registro();
     var cab = 'ATIS 3.0 - registro de la transmisión\n' +
       new Date().toISOString() + '\n' +
       ATIS.speech.diagnostico().navegador + '\n\n';
@@ -5513,9 +6483,12 @@ body.modo-control .pstate-main::after {
      No se comparte, porque cada computadora tiene lo suyo. */
   function estadoLocal() {
     return {
-      voices: { es: el.voiceEs.value, en: el.voiceEn.value },
+      voices: motorElegido() === 'neuronal' ? (savedVoices || { es: '', en: '' })
+        : { es: el.voiceEs.value, en: el.voiceEn.value },
+      vocesN: motorElegido() === 'neuronal' ? { es: el.voiceEs.value, en: el.voiceEn.value }
+        : (savedVocesN || { es: '', en: '' }),
       rate: el.rate.value, gap: el.gap.value, sentencePause: el.sentencePause.value,
-      langEs: el.langEs.checked, langEn: el.langEn.checked
+      langEs: quiereIdioma.es, langEn: quiereIdioma.en
     };
   }
 
@@ -5610,9 +6583,10 @@ body.modo-control .pstate-main::after {
     el.rateVal.textContent = (+el.rate.value).toFixed(2);
     if (data.gap) el.gap.value = data.gap;
     if (data.sentencePause !== undefined) el.sentencePause.value = data.sentencePause;
-    if (data.langEs !== undefined) el.langEs.checked = data.langEs;
-    if (data.langEn !== undefined) el.langEn.checked = data.langEn;
+    if (data.langEs !== undefined) { quiereIdioma.es = !!data.langEs; el.langEs.checked = !!data.langEs; }
+    if (data.langEn !== undefined) { quiereIdioma.en = !!data.langEn; el.langEn.checked = !!data.langEn; }
     savedVoices = data.voices || null;
+    savedVocesN = data.vocesN || null;
   }
 
   var savedVoices = null, savedApproachRwy = '';
@@ -5786,19 +6760,23 @@ body.modo-control .pstate-main::after {
       }
     });
 
-    on(el.btnPlay, 'click', function () { play(false); });
-    on(el.btnIgual, 'click', function () { play(true); });
+    on(el.btnPlay, 'click', function () {
+      if (enAire()) relevar(false); else play(false);
+    });
+    on(el.btnIgual, 'click', function () {
+      if (enAire()) relevar(true); else play(true);
+    });
     on(el.btnCorregir, 'click', function () {
       el.preflight.hidden = true;
       mostrarPagina('pageAtis');
     });
 
-    on(el.btnPrev, 'click', function () { ATIS.speech.saltar(-1); });
-    on(el.btnNext, 'click', function () { ATIS.speech.saltar(1); });
+    on(el.btnPrev, 'click', function () { motor().saltar(-1); });
+    on(el.btnNext, 'click', function () { motor().saltar(1); });
     on(el.posicion, 'input', function () { arrastrando = true; el.posTexto.textContent = (+el.posicion.value + 1) + ' / ' + (+el.posicion.max + 1); });
     on(el.posicion, 'change', function () {
       arrastrando = false;
-      ATIS.speech.irA(+el.posicion.value);
+      motor().irA(+el.posicion.value);
     });
 
     ['libreActivo', 'libreEs', 'libreEn'].forEach(function (id) {
@@ -5810,12 +6788,10 @@ body.modo-control .pstate-main::after {
     setInterval(function () { pintarEdadMetar(); pintarVerificacion(); }, 30000);
     on(el.btnStop, 'click', stop);
     on(el.btnTestEs, 'click', function () {
-      ATIS.speech.setOptions({ voices: { es: el.voiceEs.value }, rate: { es: +el.rate.value } });
-      ATIS.speech.test('es');
+      probarVoz('es');
     });
     on(el.btnTestEn, 'click', function () {
-      ATIS.speech.setOptions({ voices: { en: el.voiceEn.value }, rate: { en: +el.rate.value } });
-      ATIS.speech.test('en');
+      probarVoz('en');
     });
     /* Clic en una voz de la lista: se escucha y queda seleccionada */
     [el.voiceListEs, el.voiceListEn].forEach(function (lista) {
@@ -5824,8 +6800,7 @@ body.modo-control .pstate-main::after {
         if (!item) return;
         var nombre = item.dataset.voz, lang = item.dataset.lang;
         selectIfPresent(lang === 'es' ? el.voiceEs : el.voiceEn, nombre);
-        ATIS.speech.setOptions({ rate: { es: +el.rate.value, en: +el.rate.value } });
-        ATIS.speech.testWithVoice(nombre, lang);
+        probarVoz(lang, nombre);
         save();
         updateVoiceReport();
       });
@@ -5852,6 +6827,57 @@ body.modo-control .pstate-main::after {
       metarPropuesto = null;
     });
 
+    /* ---- Voz neuronal ---- */
+    on(el.motorSel, 'change', function () {
+      prefMotor = el.motorSel.value;
+      guardarMotor();
+      if (prefMotor !== 'navegador' && !neuralLista()) {
+        revisarNeural(true).then(function () {
+          if (!neuralLista()) {
+            status(el.vozNStatus, 'La voz neuronal todavía no está disponible: ' +
+              (ATIS.neural.conServidor ? (ATIS.neural.servicio().falta || []).join(' y ') ||
+                ATIS.neural.servicio().error : 'hace falta abrir el ATIS con SERVIDOR.bat') +
+              '. Mientras tanto sale la voz del navegador.', 'err');
+          } else {
+            status(el.vozNStatus, 'Voz neuronal lista.', 'ok');
+          }
+        });
+        return;
+      }
+      pintarNeural();
+      llenarVoces();
+      updateVoiceReport();
+      pintarVerificacion();
+      status(el.vozNStatus, enAire()
+        ? 'Guardado. El cambio de motor entra en el próximo TRANSMITIR.'
+        : 'Guardado.', 'ok');
+      save();
+    });
+
+    on(el.btnVozNRevisar, 'click', function () {
+      status(el.vozNStatus, 'Comprobando…');
+      revisarNeural(true).then(function (sv) {
+        if (!sv) { status(el.vozNStatus, 'Hace falta abrir el ATIS con SERVIDOR.bat.', 'err'); return; }
+        if (sv.completa) status(el.vozNStatus, 'Instalada y completa: ' +
+          sv.voces.map(function (v) { return v.nombre; }).join(', '), 'ok');
+        else if (sv.disponible) status(el.vozNStatus, 'Incompleta: falta ' + sv.falta.join(' y '), 'err');
+        else status(el.vozNStatus, sv.error
+          ? 'No se pudo preguntar al servidor: ' + sv.error
+          : 'No está instalada. Ejecute VOZ.bat una vez, con internet.', 'err');
+      });
+    });
+
+    on(el.btnVozNLimpiar, 'click', function () {
+      if (!ATIS.neural || !ATIS.neural.conServidor) {
+        status(el.vozNStatus, 'Hace falta el servidor.', 'err'); return;
+      }
+      ATIS.neural.limpiarCacheServidor().then(function (d) {
+        status(el.vozNStatus, 'Se borraron ' + d.borrados + ' audios guardados. ' +
+          'El próximo TRANSMITIR los vuelve a generar.', 'ok');
+        pintarNeural();
+      }).catch(function (e) { status(el.vozNStatus, 'No se pudo vaciar: ' + e.message, 'err'); });
+    });
+
     on(el.btnSaludCopy, 'click', function () {
       var texto = textoComprobacion();
       if (navigator.clipboard) navigator.clipboard.writeText(texto);
@@ -5868,8 +6894,14 @@ body.modo-control .pstate-main::after {
     on(el.rate, 'input', save);
     on(el.gap, 'input', save);
     on(el.sentencePause, 'input', save);
-    on(el.langEs, 'change', function () { save(); updateVoiceReport(); });
-    on(el.langEn, 'change', function () { save(); updateVoiceReport(); });
+    on(el.langEs, 'change', function () {
+      quiereIdioma.es = el.langEs.checked;
+      save(); updateVoiceReport();
+    });
+    on(el.langEn, 'change', function () {
+      quiereIdioma.en = el.langEn.checked;
+      save(); updateVoiceReport();
+    });
     on(el.voiceEs, 'change', function () { save(); updateVoiceReport(); });
     on(el.voiceEn, 'change', function () { save(); updateVoiceReport(); });
 
@@ -5907,10 +6939,11 @@ body.modo-control .pstate-main::after {
     on(el.btnLogCopy, 'click', function () {
       var texto = textoRegistro();
       if (navigator.clipboard) navigator.clipboard.writeText(texto);
-      status(el.logStatus, 'Registro copiado (' + ATIS.speech.registro().length + ' eventos).', 'ok');
+      status(el.logStatus, 'Registro copiado (' + motor().registro().length + ' eventos).', 'ok');
     });
     on(el.btnLogClear, 'click', function () {
       ATIS.speech.limpiarRegistro();
+      if (ATIS.neural) ATIS.neural.limpiarRegistro();
       renderLog();
       status(el.logStatus, '');
     });
@@ -5929,11 +6962,14 @@ body.modo-control .pstate-main::after {
       if (e.key === 'Escape') { stop(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
-        if (ATIS.speech.state.playing) stop(); else play();
+        if (enAire()) stop(); else play();
       }
     });
 
-    global.addEventListener('beforeunload', function () { ATIS.speech.stop(); });
+    global.addEventListener('beforeunload', function () {
+      ATIS.speech.stop();
+      if (ATIS.neural) ATIS.neural.stop();
+    });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

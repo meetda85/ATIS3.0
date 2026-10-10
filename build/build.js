@@ -12,6 +12,12 @@ const CDN_XLSX = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.m
 const base = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 function inline(html, vendorDesdeCdn) {
+  /* El icono viaja incrustado: un archivo suelto no tiene carpeta assets al lado */
+  html = html.replace(/<link rel="icon" href="([^"]+)">/g, (m, href) => {
+    const datos = fs.readFileSync(path.join(root, href)).toString('base64');
+    return '<link rel="icon" href="data:image/x-icon;base64,' + datos + '">';
+  });
+
   html = html.replace(/<link rel="stylesheet" href="([^"]+)">/g, (m, href) =>
     '<style>\n' + fs.readFileSync(path.join(root, href), 'utf8') + '\n</style>');
 

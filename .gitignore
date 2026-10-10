@@ -2,3 +2,10 @@ node_modules/
 *.log
 .DS_Store
 servidor/estado.json
+
+# La voz neuronal se instala con VOZ.bat; no viaja en el repositorio (170 MB)
+voz/piper/
+voz/voces/
+voz/cache/
+voz/*.zip
+voz/*.tar.gz

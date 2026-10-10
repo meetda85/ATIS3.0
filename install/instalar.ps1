@@ -28,14 +28,38 @@ Write-Host "  Destino   : $dest"
 Write-Host ''
 
 # --- 2. Copiar los archivos ------------------------------------------------
+# Si esto se ejecuta desde la copia ya instalada, no hay nada que copiar: se
+# borraria a si mismo a medio camino.
+$mismo = ($src.TrimEnd('\') -ieq $dest.TrimEnd('\'))
+if ($mismo) { Write-Host '  Ya estaba instalado aqui: solo se rehacen los accesos directos.' }
+
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
-Copy-Item (Join-Path $src 'index.html') $dest -Force
-foreach ($carpeta in @('css', 'js', 'assets')) {
-  $ruta = Join-Path $dest $carpeta
-  if (Test-Path $ruta) { Remove-Item $ruta -Recurse -Force }
-  Copy-Item (Join-Path $src $carpeta) $dest -Recurse -Force
+
+# El estado compartido del control remoto no se pierde al reinstalar
+$estado = Join-Path $dest 'servidor\estado.json'
+$guardado = $null
+if (Test-Path $estado) { $guardado = Get-Content $estado -Raw }
+
+if (-not $mismo) {
+  foreach ($archivo in @('index.html', 'SERVIDOR.bat', 'VOZ.bat', 'package.json', 'README.md')) {
+    $origen = Join-Path $src $archivo
+    if (Test-Path $origen) { Copy-Item $origen $dest -Force }
+  }
+  foreach ($carpeta in @('css', 'js', 'assets', 'servidor', 'install')) {
+    $origen = Join-Path $src $carpeta
+    if (-not (Test-Path $origen)) { continue }
+    $ruta = Join-Path $dest $carpeta
+    if (Test-Path $ruta) { Remove-Item $ruta -Recurse -Force }
+    Copy-Item $origen $dest -Recurse -Force
+  }
+  if ($guardado) { Set-Content -Path $estado -Value $guardado -Encoding UTF8 }
 }
+
+# La carpeta 'voz' (el motor neuronal, 170 MB) NO se toca: si ya estaba, sigue ahi
 Write-Host '  Archivos copiados.' -ForegroundColor Green
+if (Test-Path (Join-Path $dest 'voz')) {
+  Write-Host '  La voz neuronal que ya estaba instalada se conservo.' -ForegroundColor Green
+}
 
 # --- 3. Accesos directos ---------------------------------------------------
 $url  = 'file:///' + ($dest -replace '\\', '/') + '/index.html'
@@ -53,18 +77,32 @@ foreach ($carpeta in $destinos) {
   $lnk.WorkingDirectory = $dest
   $lnk.Description      = 'ATIS 3.0 - Laboratorio de Torre'
   $lnk.Save()
+
+  # Con servidor: hace falta para la voz neuronal y para el control remoto
+  $lnk2 = $ws.CreateShortcut((Join-Path $carpeta 'ATIS 3.0 (con servidor).lnk'))
+  $lnk2.TargetPath       = Join-Path $dest 'SERVIDOR.bat'
+  $lnk2.IconLocation     = $icono
+  $lnk2.WorkingDirectory = $dest
+  $lnk2.Description      = 'ATIS 3.0 con servidor: voz neuronal y control remoto'
+  $lnk2.Save()
 }
-Write-Host '  Acceso directo creado en el Escritorio y en el Menu Inicio.' -ForegroundColor Green
+Write-Host '  Accesos directos creados en el Escritorio y en el Menu Inicio.' -ForegroundColor Green
 
 # --- 4. Desinstalador ------------------------------------------------------
-Copy-Item (Join-Path $PSScriptRoot 'desinstalar.ps1') $dest -Force
-Copy-Item (Join-Path $src 'DESINSTALAR.bat') $dest -Force
+if (-not $mismo) {
+  Copy-Item (Join-Path $PSScriptRoot 'desinstalar.ps1') $dest -Force
+  Copy-Item (Join-Path $src 'DESINSTALAR.bat') $dest -Force
+}
 
 Write-Host ''
 Write-Host '  LISTO. Abra "ATIS 3.0" desde el Escritorio.' -ForegroundColor Green
 Write-Host ''
-Write-Host '  Si la voz no suena, instale las voces del sistema en:'
-Write-Host '  Configuracion > Hora e idioma > Voz > Agregar voces'
+Write-Host '  Para la mejor voz, que ademas no necesita internet:' -ForegroundColor Yellow
+Write-Host "     ejecute una sola vez  $dest\VOZ.bat" -ForegroundColor Yellow
+Write-Host '     y despues abra "ATIS 3.0 (con servidor)".' -ForegroundColor Yellow
+Write-Host ''
+Write-Host '  Mientras tanto, el ATIS habla con las voces del sistema. Si no suena,'
+Write-Host '  se agregan en Configuracion > Hora e idioma > Voz > Agregar voces'
 Write-Host '  (se necesita una voz en espanol y una en ingles).'
 Write-Host ''
 Read-Host '  Enter para terminar'

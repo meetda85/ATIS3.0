@@ -170,7 +170,8 @@
       cb({
         playing: state.playing, paused: state.paused, cycle: state.cycle,
         lang: state.lang, chunk: state.chunk, total: state.total,
-        aviso: state.aviso, respaldo: state.respaldo
+        etiqueta: state.chunk + ' / ' + state.total,
+        aviso: state.aviso, respaldo: state.respaldo, motor: 'navegador'
       });
     });
   }

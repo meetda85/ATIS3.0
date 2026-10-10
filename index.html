@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ATIS 3.0 - Laboratorio de Torre</title>
+<link rel="icon" href="assets/atis.ico">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -435,6 +436,46 @@
   </div>
   </section>
 
+<!-- ============ VOZ NEURONAL ============ -->
+  <section class="card span2" id="secVozN">
+    <h2>Voz neuronal, sin internet <span class="enlace-badge" id="vozNBadge">comprobando&hellip;</span></h2>
+    <p class="help">
+      Es un motor de voz que vive en esta computadora. No usa internet ni las voces de
+      Windows: el servidor genera el audio del ATIS una sola vez y el navegador lo
+      reproduce en bucle. Suena igual en cada ciclo, y si despu&eacute;s se cae la red o el
+      propio servidor, el audio ya est&aacute; en memoria y la transmisi&oacute;n no se corta.
+    </p>
+    <div class="pgroup">
+      <span class="plabel">Motor de voz</span>
+      <select id="motorSel">
+        <option value="auto">Autom&aacute;tico &mdash; neuronal si est&aacute; instalada</option>
+        <option value="neuronal">Siempre la voz neuronal</option>
+        <option value="navegador">Siempre la voz del navegador</option>
+      </select>
+    </div>
+    <div id="vozNInfo" class="diag"></div>
+    <div class="row buttons">
+      <button id="btnVozNRevisar" class="small ghost">Comprobar de nuevo</button>
+      <button id="btnVozNLimpiar" class="small ghost">Vaciar audios guardados</button>
+      <span id="vozNStatus" class="status"></span>
+    </div>
+    <h3>C&oacute;mo instalarla</h3>
+    <ol class="help">
+      <li>Abrir el ATIS con <b>SERVIDOR.bat</b>: la voz neuronal la genera el servidor, as&iacute; que
+        hace falta esa ventana abierta.</li>
+      <li>Ejecutar <b>VOZ.bat</b> una sola vez, con internet. Descarga el motor y las dos
+        voces (unos 170 MB) y las deja en la carpeta <b>voz</b> del programa.</li>
+      <li>Volver aqu&iacute; y pulsar <b>Comprobar de nuevo</b>. Cuando diga <i>lista</i>, la voz
+        neuronal ya es la que sale al aire; las voces de la barra de abajo cambian a las
+        neuronales.</li>
+      <li>De ah&iacute; en adelante no necesita internet nunca m&aacute;s.</li>
+    </ol>
+    <p class="help">
+      Si la carpeta <b>voz</b> no est&aacute;, no pasa nada: el programa sigue hablando con la voz
+      del navegador, igual que antes.
+    </p>
+  </section>
+
 <!-- ============ CALIDAD DE VOZ ============ -->
   <section class="card span2">
     <h2>Voces del sistema</h2>
@@ -551,14 +592,14 @@
       </div>
     </div>
     <div class="pgroup">
-      <span class="plabel">Voz en español</span>
+      <span class="plabel" id="rotVozEs">Voz en español</span>
       <div class="pvoz">
         <select id="voiceEs"></select>
         <button id="btnTestEs" class="mini" title="Escuchar esta voz">&#9654;</button>
       </div>
     </div>
     <div class="pgroup">
-      <span class="plabel">Voz en inglés</span>
+      <span class="plabel" id="rotVozEn">Voz en inglés</span>
       <div class="pvoz">
         <select id="voiceEn"></select>
         <button id="btnTestEn" class="mini" title="Escuchar esta voz">&#9654;</button>
@@ -580,6 +621,7 @@
 <script src="js/fns.js"></script>
 <script src="js/atis.js"></script>
 <script src="js/speech.js"></script>
+<script src="js/voz-neural.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

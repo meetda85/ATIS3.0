@@ -16,9 +16,14 @@ navegador (Chrome o Edge, que son los que traen las voces).
 3. Doble clic en **`INSTALAR.bat`**.
    Si Windows muestra el aviso azul de SmartScreen: *Más información → Ejecutar de todas formas*.
 
-El instalador copia el programa a `%LOCALAPPDATA%\Programs\ATIS3.0` y crea el acceso
-directo **ATIS 3.0** en el Escritorio y en el Menú Inicio. Abre en ventana propia, sin
-barra de direcciones, como cualquier programa.
+El instalador copia el programa a `%LOCALAPPDATA%\Programs\ATIS3.0` y crea dos accesos
+directos en el Escritorio y en el Menú Inicio:
+
+- **ATIS 3.0** — abre el programa en ventana propia, sin barra de direcciones.
+- **ATIS 3.0 (con servidor)** — lo mismo, pero levantando el servidor local. Hace falta
+  para la **voz neuronal** y para el **control remoto** desde otra computadora.
+
+Al reinstalar no se pierde la voz neuronal ya descargada ni el último ATIS guardado.
 
 Para quitarlo: **`DESINSTALAR.bat`**.
 
@@ -28,7 +33,52 @@ Para quitarlo: **`DESINSTALAR.bat`**.
 - **Llevarlo en USB o copiarlo a otra PC**: el archivo `dist/ATIS-3.0.html` lleva todo
   adentro (un solo archivo). Se copia donde sea y se abre con doble clic.
 
-### Voces
+### Voz neuronal, sin internet (recomendado)
+
+Es un motor de voz que vive en la propia computadora: **no usa internet ni las voces de
+Windows**. El servidor genera el audio del ATIS una sola vez y el navegador lo reproduce
+en bucle. Es la opción que mejor suena y la más estable para trabajar 24/7.
+
+Instalación, una sola vez y con internet:
+
+1. Abrir el ATIS con **SERVIDOR.bat** (la voz neuronal la genera el servidor).
+2. Ejecutar **VOZ.bat**. Descarga el motor y dos voces (unos 170 MB) y las deja en la
+   carpeta `voz` del programa.
+3. En *Ajustes → Voz neuronal* pulsar **Comprobar de nuevo**. Cuando diga *lista*, ya es
+   la que sale al aire: las voces de la barra inferior cambian a las neuronales.
+4. De ahí en adelante no hace falta internet nunca más.
+
+Qué resuelve:
+
+- **No depende de la red.** El audio se descarga a la memoria del navegador al pulsar
+  TRANSMITIR; si después se cae la red, o el propio servidor, el bucle sigue sonando.
+- **No depende de las voces de Windows.** Una PC sin voz en inglés transmite igual.
+- **Suena idéntico todos los ciclos**, sin variaciones del motor del navegador.
+- **El deslizador avanza por segundos de verdad**: &#9664;&#9664; y &#9654;&#9654; saltan
+  diez segundos y la barra va a cualquier punto del ciclo.
+
+Generar el audio tarda unos segundos la primera vez (unos 2 s por cada 30 s de locución) y
+nada las siguientes: el resultado queda guardado en `voz/cache` con el nombre del resumen
+del texto, así que mientras el ATIS no cambie no se vuelve a generar. *Vaciar audios
+guardados* los borra si hiciera falta.
+
+En *Ajustes → Voz neuronal*, **Motor de voz** decide cuál se usa:
+
+| Opción | Qué hace |
+|---|---|
+| Automático | la neuronal si está instalada; si no, la del navegador. Es lo normal. |
+| Siempre la voz neuronal | no cae a la del navegador salvo que la neuronal falle al generar |
+| Siempre la voz del navegador | ignora la neuronal aunque esté instalada |
+
+Si la voz neuronal falla justo al pulsar TRANSMITIR, el programa **sale al aire con la voz
+del navegador** y lo dice; nunca se queda callado. Y si la carpeta `voz` no está instalada,
+todo funciona como antes, con las voces del sistema.
+
+Otras voces: `node servidor/instalar-voz.js --voz-es es_MX-ald-medium --voz-en en_US-ryan-high`
+(el catálogo está en <https://huggingface.co/rhasspy/piper-voices>; los nombres tienen la
+forma `es_MX-voz-calidad`).
+
+### Voces del sistema (si no se instala la neuronal)
 
 Las voces las pone el sistema, no el programa, y de ahí depende que la locución suene
 humana o metálica. *Ajustes → Voces del sistema* muestra el navegador, la conexión y
@@ -134,6 +184,10 @@ interrumpir el bucle. La pestaña en la que se quedó se conserva al cerrar el p
    (una idea por línea, en español y en inglés).
 6. Pulsar **TRANSMITIR**. El bucle repite español → inglés indefinidamente hasta
    pulsar **STOP**.
+7. Mientras está al aire, ese mismo botón pasa a **ACTUALIZAR**: pone la información de
+   ahora en el aire **al terminar el ciclo en curso**, nunca a media frase. Con la voz
+   neuronal el audio nuevo se genera mientras el viejo sigue sonando, así que el relevo
+   no deja ni un segundo de silencio.
 
 ### Modo claro y oscuro
 
@@ -211,6 +265,10 @@ INSTALAR.bat          instalador para Windows
 SERVIDOR.bat          arranca el servidor de control remoto
 servidor/servidor.js  servidor local: sirve la app y guarda el estado compartido
 servidor/fuente-metar.js  lectura del METAR desde la página del CAPMA
+servidor/voz-piper.js     voz neuronal local: genera el audio y lo guarda
+servidor/instalar-voz.js  descarga el motor y las voces neuronales
+VOZ.bat               instala la voz neuronal (una sola vez, con internet)
+voz/                  motor y voces neuronales (no viaja en el repositorio)
 DESINSTALAR.bat       desinstalador
 install/              scripts del instalador
 index.html            interfaz
@@ -224,9 +282,12 @@ js/fns.js             lectura de la descarga del FNS
 js/enlace.js          sincronización con el servidor (control remoto)
 js/vendor/            librería para leer hojas de cálculo (SheetJS, licencia Apache 2.0)
 js/atis.js            modelo de observación y generación del guion ES/EN
-js/speech.js          motor de voz y bucle
+js/speech.js          motor de voz del navegador y su bucle
+js/voz-neural.js      bucle con la voz neuronal: descarga el audio y lo reproduce
 js/app.js             interfaz y control
 test/test.js          pruebas (node test/test.js)
+test/test-voz-neural.js   pruebas de la voz neuronal y sus rutas del servidor
+test/test-bucle-neural.js pruebas del bucle con voz neuronal frente a fallas
 test/fixtures/        descarga real del FNS usada en las pruebas
 build/build.js        genera dist/ATIS-3.0.html (un solo archivo)
 dist/ATIS-3.0.html    version portable, todo en un archivo
@@ -239,10 +300,16 @@ español e inglés, sus pistas y su nivel de transición.
 ## Pruebas
 
 ```bash
-node test/test.js      # decodificadores y generación del guion
-node test/test-voz.js  # el bucle frente a fallas de voz y de red
-npm test               # las dos
+node test/test.js               # decodificadores y generación del guion
+node test/test-voz.js           # el bucle del navegador frente a fallas de voz y de red
+node test/test-bucle-neural.js  # el bucle con voz neuronal frente a fallas
+node test/test-servidor.js      # el servidor de control remoto
+node test/test-voz-neural.js    # la voz neuronal y sus rutas del servidor
+npm test                        # todas
 ```
+
+Las pruebas de síntesis se omiten solas si la carpeta `voz` no está instalada, así que
+`npm test` corre igual en una computadora sin la voz neuronal.
 
 ## Antes de transmitir
 
@@ -275,10 +342,13 @@ el designador sin lado se quitan sus pistas individuales, y al revés.
 
 ## Adelantar y retroceder
 
-Durante la transmisión, la consola muestra la posición dentro del ciclo. Los botones
-&#9664;&#9664; y &#9654;&#9654; saltan un fragmento, y la barra permite ir a cualquier
-punto del ciclo. La Web Speech API no permite buscar dentro de una frase, así que el salto
-es **por fragmento**, no por segundos: se corta la frase actual y arranca la elegida.
+Durante la transmisión, la consola muestra la posición dentro del ciclo.
+
+- **Con la voz neuronal**, la barra avanza **por segundos**: &#9664;&#9664; y
+  &#9654;&#9654; saltan diez segundos y la barra va a cualquier punto del ciclo, con el
+  tiempo a la vista (`0:18 / 1:06`).
+- **Con la voz del navegador**, la Web Speech API no permite buscar dentro de una frase,
+  así que el salto es **por fragmento**: se corta la frase actual y arranca la elegida.
 
 ## La transmisión no se detiene
 
@@ -303,8 +373,26 @@ Una vez pulsado **TRANSMITIR**, el bucle se mantiene pase lo que pase:
   la vigilancia le da prórrogas en lugar de cancelarlo. Solo lo da por muerto cuando el
   motor no tiene nada pendiente ni está hablando.
 
-Todo esto está cubierto por `test/test-voz.js`, que monta un motor de voz simulado y
-provoca las fallas: caída de red, voz que no responde, motor muerto, voz lenta y
+### Con la voz neuronal
+
+El bucle es aún más difícil de tumbar, porque el audio ya no se genera mientras suena:
+
+- **El audio vive en la memoria del navegador.** Se descarga entero al pulsar TRANSMITIR.
+  A partir de ahí se puede caer la red, apagarse el servidor o desconectarse el cable: el
+  bucle sigue dando vueltas con el mismo audio.
+- **Si un idioma no se puede generar**, el otro sale igual y la pantalla dice cuál faltó.
+- **Si el audio se cuelga**, un latido cada dos segundos lo detecta —la posición dejó de
+  avanzar— y lo empuja; si no reacciona, lo reintenta y después lo omite, sin parar el ciclo.
+- **Si el navegador bloquea el audio** (política de reproducción automática), queda
+  anotado en el registro y el ciclo avanza en lugar de quedarse trabado.
+- **Si la generación falla al pulsar TRANSMITIR**, se sale al aire con la voz del
+  navegador y se avisa. Nunca se queda callado.
+- **Los datos nuevos siguen esperando el corte entre ciclos**, igual que antes: nada entra
+  a media frase.
+
+Todo esto está cubierto por `test/test-voz.js` y `test/test-bucle-neural.js`, que montan
+un motor de voz y un navegador simulados y provocan las fallas: caída de red, servidor
+caído a media transmisión, voz que no responde, motor muerto, audio bloqueado, voz lenta y
 recuperación.
 
 ### Registro de la transmisión
@@ -319,7 +407,7 @@ hora, para revisarlo o mandarlo.
 
 - El guion y los NOTAM se guardan en el navegador; al volver a abrir la página queda todo como estaba.
 - Si se edita algo durante la transmisión, el bucle sigue con el texto anterior hasta
-  que se pulsa **TRANSMITIR** otra vez.
+  que se pulsa **ACTUALIZAR**; el cambio entra en el corte del ciclo, nunca a media frase.
 - La velocidad, la pausa entre idiomas y la voz de cada idioma se ajustan en la barra inferior.
 - Las voces dependen del sistema operativo. En Windows se agregan en
   *Configuración → Hora e idioma → Voz*.

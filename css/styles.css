@@ -828,3 +828,7 @@ body.modo-control .pstate-main::after {
 .pendiente.metar .pendpunto { background: var(--accent); }
 .pendiente.metar button { margin-left: 0; }
 .pendiente.metar #avisoMetarTexto { margin-right: auto; }
+
+/* La voz neuronal: el desplegable del motor no necesita toda la tarjeta */
+#secVozN .pgroup { margin: 10px 0 14px; max-width: 32rem; }
+#secVozN #vozNInfo { margin-bottom: 10px; }

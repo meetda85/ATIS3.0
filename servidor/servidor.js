@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const fuente = require('./fuente-metar');
+const voz = require('./voz-piper');
 
 const RAIZ = path.join(__dirname, '..');
 const ARCHIVO_ESTADO = path.join(__dirname, 'estado.json');
@@ -127,7 +128,8 @@ const TIPOS = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
   '.ico': 'image/x-icon', '.png': 'image/png', '.svg': 'image/svg+xml',
-  '.txt': 'text/plain; charset=utf-8', '.xls': 'application/vnd.ms-excel'
+  '.txt': 'text/plain; charset=utf-8', '.xls': 'application/vnd.ms-excel',
+  '.wav': 'audio/wav', '.onnx': 'application/octet-stream'
 };
 
 function servirArchivo(req, res, ruta) {
@@ -164,6 +166,78 @@ function leerCuerpo(req) {
 function json(res, codigo, cuerpo) {
   res.writeHead(codigo, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(cuerpo));
+}
+
+/* --------------------------------------------------------- audio neuronal -- */
+/* El navegador pide trozos del WAV cuando se mueve el deslizador, así que hay
+   que atender «Range»: sin eso, adelantar el audio no funciona. */
+function servirAudio(req, res, archivo) {
+  const hash = (/([0-9a-f]{40})\.wav$/.exec(archivo) || [])[1];
+  const ruta = hash ? voz.rutaDe(hash) : null;
+  if (!ruta) { return json(res, 404, { error: 'ese audio ya no está en el caché' }); }
+
+  let total = 0;
+  try { total = fs.statSync(ruta).size; } catch (e) { return json(res, 404, { error: 'no se pudo leer el audio' }); }
+
+  const cabeceras = {
+    'Content-Type': 'audio/wav',
+    'Accept-Ranges': 'bytes',
+    /* El nombre es el resumen del contenido: si el texto cambia, cambia la
+       dirección, así que este archivo se puede guardar para siempre. */
+    'Cache-Control': 'public, max-age=31536000, immutable'
+  };
+
+  const rango = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''));
+  if (rango && (rango[1] !== '' || rango[2] !== '')) {
+    let desde = rango[1] === '' ? total - parseInt(rango[2], 10) : parseInt(rango[1], 10);
+    let hasta = rango[1] === '' || rango[2] === '' ? total - 1 : parseInt(rango[2], 10);
+    desde = Math.max(0, Math.min(total - 1, isNaN(desde) ? 0 : desde));
+    hasta = Math.max(desde, Math.min(total - 1, isNaN(hasta) ? total - 1 : hasta));
+    cabeceras['Content-Range'] = 'bytes ' + desde + '-' + hasta + '/' + total;
+    cabeceras['Content-Length'] = hasta - desde + 1;
+    res.writeHead(206, cabeceras);
+    if (req.method === 'HEAD') { res.end(); return; }
+    const flujo = fs.createReadStream(ruta, { start: desde, end: hasta });
+    flujo.on('error', () => { try { res.destroy(); } catch (e) { /* ignorado */ } });
+    flujo.pipe(res);
+    return;
+  }
+
+  cabeceras['Content-Length'] = total;
+  res.writeHead(200, cabeceras);
+  if (req.method === 'HEAD') { res.end(); return; }
+  const flujo = fs.createReadStream(ruta);
+  flujo.on('error', () => { try { res.destroy(); } catch (e) { /* ignorado */ } });
+  flujo.pipe(res);
+}
+
+/* Sintetiza las piezas que le pidan. Si un idioma falla, el otro sale igual:
+   más vale un ATIS en español que ningún ATIS. */
+async function sintetizarPiezas(cuerpo) {
+  const piezas = Array.isArray(cuerpo.piezas) ? cuerpo.piezas.slice(0, 4) : [];
+  const voces = cuerpo.voces || {};
+  const salida = [];
+  for (const p of piezas) {
+    const lang = p && p.lang === 'en' ? 'en' : 'es';
+    try {
+      const r = await voz.sintetizar({
+        texto: p && p.texto,
+        lang: lang,
+        voz: voces[lang] || '',
+        velocidad: cuerpo.velocidad,
+        pausaFrase: cuerpo.pausaFrase
+      });
+      salida.push(r);
+      if (r.nuevo) {
+        console.log('[' + new Date().toLocaleTimeString() + '] voz ' + lang + ': ' +
+          r.segundos + ' s con ' + r.voz);
+      }
+    } catch (e) {
+      salida.push({ lang: lang, error: e.message });
+      console.error('[' + new Date().toLocaleTimeString() + '] no se pudo sintetizar ' + lang + ': ' + e.message);
+    }
+  }
+  return salida;
 }
 
 /* ------------------------------------------------------------- servidor -- */
@@ -235,6 +309,40 @@ const servidor = http.createServer(async (req, res) => {
     }
   }
 
+  if (url.startsWith('/api/voz/audio/') && (req.method === 'GET' || req.method === 'HEAD')) {
+    return servirAudio(req, res, url.split('?')[0]);
+  }
+
+  if (url.startsWith('/api/voz') && req.method === 'GET') {
+    return json(res, 200, voz.estado(/revisar=1/.test(url)));
+  }
+
+  if (url === '/api/voz/sintetizar' && req.method === 'POST') {
+    try {
+      const cuerpo = await leerCuerpo(req);
+      const piezas = await sintetizarPiezas(cuerpo);
+      return json(res, 200, { piezas: piezas, estado: voz.estado(true) });
+    } catch (e) {
+      return json(res, 400, { error: e.message });
+    }
+  }
+
+  if (url === '/api/voz/muestra' && req.method === 'POST') {
+    try {
+      const c = await leerCuerpo(req);
+      const r = await voz.muestra(c.lang, c.voz, c.velocidad);
+      return json(res, 200, r);
+    } catch (e) {
+      return json(res, 400, { error: e.message });
+    }
+  }
+
+  if (url === '/api/voz/limpiar' && req.method === 'POST') {
+    const borrados = voz.limpiarCache();
+    console.log('Caché de voz vaciado: ' + borrados + ' archivos');
+    return json(res, 200, { borrados: borrados, estado: voz.estado(true) });
+  }
+
   if (url === '/api/salud') {
     limpiarEquipos();
     return json(res, 200, {
@@ -242,6 +350,7 @@ const servidor = http.createServer(async (req, res) => {
       version: estado.version,
       actualizado: estado.actualizado,
       equipos: [...equipos.values()],
+      voz: { disponible: voz.estado().disponible, completa: voz.estado().completa },
       desde: arranque.toISOString()
     });
   }
@@ -260,7 +369,7 @@ const servidor = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method !== 'GET') { return json(res, 405, { error: 'método no permitido' }); }
+  if (req.method !== 'GET' && req.method !== 'HEAD') { return json(res, 405, { error: 'método no permitido' }); }
   servirArchivo(req, res, url);
 });
 
@@ -290,6 +399,12 @@ servidor.listen(PUERTO, '0.0.0.0', () => {
   console.log('  Desde otra computadora de la misma red:');
   if (ips.length) ips.forEach((ip) => console.log('     http://' + ip + ':' + PUERTO + '/'));
   else console.log('     (no se detectó ninguna red; revise la conexión)');
+  console.log('');
+  const ev = voz.estado(true);
+  console.log('  Voz neuronal (Piper): ' + (ev.completa
+    ? 'lista, ' + ev.voces.filter((v) => v.lang).map((v) => v.nombre).join(' / ')
+    : (ev.disponible ? 'incompleta, falta ' + ev.falta.join(' y ')
+      : 'no instalada (se usará la voz del navegador)')));
   console.log('');
   console.log('  Esta ventana debe quedarse abierta. Ctrl+C para detener.');
   console.log('');
