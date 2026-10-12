@@ -359,6 +359,73 @@
       <div id="redPrueba" class="vigultimo" hidden></div>
     </section>
 
+    <!-- ============ NOTAM AUTOMÁTICOS ============ -->
+    <section class="card span2">
+      <h2>NOTAM autom&aacute;ticos <span class="enlace-badge" id="ntBadge">apagado</span></h2>
+      <p class="help">
+        Trae los NOTAM vigentes solo, sin bajar el Excel a mano. <b>Nunca los mete al ATIS
+        por su cuenta</b>: avisa, usted decide cu&aacute;les marcar, igual que ahora. Necesita el
+        servidor (<code>SERVIDOR.bat</code>).
+      </p>
+
+      <label class="checkline grande">
+        <input type="checkbox" id="ntActiva">
+        <span><b>Revisar los NOTAM autom&aacute;ticamente</b></span>
+      </label>
+
+      <div class="grid3">
+        <label class="field"><span>Estaci&oacute;n</span>
+          <input id="ntEstacion" maxlength="4" value="MMMX">
+        </label>
+        <label class="field"><span>Revisar cada</span>
+          <div class="ppausas">
+            <input id="ntMinutos" type="number" min="5" max="240" step="5" value="30">
+            <span class="psep">minutos</span>
+          </div>
+        </label>
+      </div>
+
+      <h3>1. La carpeta de descargas <span class="suave">&mdash; sin registrarse en nada</span></h3>
+      <p class="help">
+        Siga bajando el Excel de la p&aacute;gina de la FAA como siempre; el programa levanta solo
+        el m&aacute;s reciente de esta carpeta. Es la ruta que funciona hoy mismo.
+      </p>
+      <div class="grid3">
+        <label class="field ancho2"><span>Carpeta que se vigila</span>
+          <input id="ntCarpeta" spellcheck="false" placeholder="C:\Users\jacke\Downloads">
+        </label>
+        <div class="field">
+          <span>&nbsp;</span>
+          <button id="btnNtCarpeta" class="small ghost">Ver qu&eacute; hay ah&iacute;</button>
+        </div>
+      </div>
+      <div id="ntArchivos" class="vigultimo" hidden></div>
+
+      <h3>2. La API oficial de la FAA <span class="suave">&mdash; la buena, pide un registro gratuito</span></h3>
+      <p class="help">
+        Con esto ya no se baja ning&uacute;n archivo: el servidor le pregunta directo a la FAA y
+        contesta en un segundo. Las llaves se sacan una sola vez en
+        <b>api.faa.gov</b>: crear cuenta, crear una aplicaci&oacute;n y pedir acceso a
+        <i>NOTAM API</i>. Son gratuitas y no caducan. Se guardan solo en esta computadora;
+        el secreto nunca sale de aqu&iacute;.
+      </p>
+      <div class="grid2">
+        <label class="field"><span>client_id</span>
+          <input id="ntClientId" spellcheck="false" autocomplete="off" placeholder="sin poner">
+        </label>
+        <label class="field"><span>client_secret</span>
+          <input id="ntClientSecret" type="password" spellcheck="false" autocomplete="off" placeholder="sin poner">
+        </label>
+      </div>
+
+      <div class="row buttons">
+        <button id="btnNtAhora" class="small">Revisar ahora</button>
+        <button id="btnNtGuardar" class="small ghost">Guardar los cambios</button>
+        <span id="ntStatus" class="status"></span>
+      </div>
+      <div id="ntUltimo" class="vigultimo"></div>
+    </section>
+
     <!-- ============ ESTADO DEL PROGRAMA ============ -->
     <section class="card span2">
       <h2>Estado del programa <span class="enlace-badge" id="saludBadge">comprobando…</span></h2>
@@ -585,6 +652,24 @@
       <span class="spacer"></span>
       <button id="modalMetarNo" class="ghost">Ahora no</button>
       <button id="modalMetarSi" class="primary">Usar este METAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ AVISO DE NOTAM NUEVOS ============ -->
+<div class="modal" id="modalNotam" hidden role="dialog" aria-modal="true" aria-labelledby="modalNotamTitulo">
+  <div class="modalcaja" role="document">
+    <div class="modalcab">
+      <span class="modalpunto"></span>
+      <h2 id="modalNotamTitulo">NOTAM nuevos</h2>
+      <span class="modalhora" id="modalNotamHora"></span>
+    </div>
+    <p class="modalsub" id="modalNotamSub"></p>
+    <div class="modallista" id="modalNotamLista"></div>
+    <div class="modalpie">
+      <span class="spacer"></span>
+      <button id="modalNotamNo" class="ghost">Ahora no</button>
+      <button id="modalNotamSi" class="primary">Cargar los NOTAM</button>
     </div>
   </div>
 </div>

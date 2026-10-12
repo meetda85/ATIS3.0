@@ -24,6 +24,7 @@
   var oyentes = [];
   var oyentesMetar = [];
   var oyentesVoz = [];
+  var oyentesNotam = [];
   var ultimoJSON = null;   /* lo último enviado o recibido: evita el ida y vuelta */
 
   var est = {
@@ -166,6 +167,12 @@
       try { d = JSON.parse(ev.data); } catch (e) { return; }
       oyentesMetar.forEach(function (cb) { try { cb(d); } catch (e) { /* ignorado */ } });
     });
+    /* El servidor avisa cuando hay NOTAM nuevos */
+    fuente.addEventListener('notam', function (ev) {
+      var d = null;
+      try { d = JSON.parse(ev.data); } catch (e) { return; }
+      oyentesNotam.forEach(function (cb) { try { cb(d); } catch (e) { /* ignorado */ } });
+    });
     /* Cómo va la instalación de la voz neuronal */
     fuente.addEventListener('voz', function (ev) {
       var d = null;
@@ -225,6 +232,7 @@
     fijarPapel: fijarPapel,
     alCambiar: function (cb) { oyentes.push(cb); },
     alMetar: function (cb) { oyentesMetar.push(cb); },
-    alVoz: function (cb) { oyentesVoz.push(cb); }
+    alVoz: function (cb) { oyentesVoz.push(cb); },
+    alNotam: function (cb) { oyentesNotam.push(cb); }
   };
 })(this);

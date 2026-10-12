@@ -49,6 +49,10 @@
       'btnProbarRed', 'redPrueba', 'verBadge',
       'modalMetar', 'modalMetarHora', 'modalMetarSub', 'modalMetarCrudo', 'modalMetarCambios',
       'modalMetarSi', 'modalMetarNo', 'metarSonido',
+      'ntBadge', 'ntActiva', 'ntEstacion', 'ntMinutos', 'ntCarpeta', 'btnNtCarpeta', 'ntArchivos',
+      'ntClientId', 'ntClientSecret', 'btnNtAhora', 'btnNtGuardar', 'ntStatus', 'ntUltimo',
+      'modalNotam', 'modalNotamHora', 'modalNotamSub', 'modalNotamLista',
+      'modalNotamSi', 'modalNotamNo',
       'pendiente', 'pendienteTexto', 'btnAplicarYa',
       'motorSel', 'vozNBadge', 'vozNInfo', 'btnVozNRevisar', 'btnVozNLimpiar', 'vozNStatus',
       'btnVozNInstalar', 'vozNConsola',
@@ -75,6 +79,7 @@
     } catch (e) { /* ignorado */ }
     iniciarEnlace();
     iniciarMotor();
+    iniciarNotam();
     comprobarInstalacion();
     if (vigDisponible()) {
       pedirVigilancia(null).then(function (st) {
@@ -1785,6 +1790,185 @@
   }
 
   /* ================================================================== *
+   * NOTAM automáticos
+   * El servidor los busca —en la API de la FAA o en la carpeta vigilada— y
+   * aquí solo se avisa. Igual que con el METAR: avisa, usted decide.
+   * ================================================================== */
+  var notamPropuestos = null;
+  var notamVistos = '';
+
+  function ntDisponible() {
+    return /^https?:$/.test(location.protocol);
+  }
+
+  function pedirNotam(ruta, opciones) {
+    return fetch(ruta, opciones).then(function (r) {
+      return r.json().then(function (d) { d.http = r.status; return d; });
+    });
+  }
+
+  function iniciarNotam() {
+    if (!ntDisponible()) { pintarNotamEstado(null); return; }
+    pedirNotam('/api/notam').then(function (d) {
+      aplicarAjustesNotam(d);
+      pintarNotamEstado(d);
+    }).catch(function () { pintarNotamEstado(null); });
+
+    if (ATIS.enlace && ATIS.enlace.alNotam) {
+      ATIS.enlace.alNotam(function (d) {
+        pintarNotamEstado(d);
+        revisarPropuestaNotam(d);
+      });
+    }
+  }
+
+  function aplicarAjustesNotam(d) {
+    if (!d) return;
+    el.ntActiva.checked = !!d.activo;
+    el.ntEstacion.value = d.estacion || 'MMMX';
+    el.ntMinutos.value = d.minutos || 30;
+    el.ntCarpeta.value = d.carpeta || '';
+    /* El secreto no viaja; si ya está puesto se indica sin enseñarlo */
+    if (d.llaves && d.llaves.puestas) {
+      el.ntClientId.placeholder = d.llaves.clientId || 'ya está puesto';
+      el.ntClientSecret.placeholder = 'ya está puesto — déjelo en blanco para no cambiarlo';
+    }
+  }
+
+  function guardarNotam(extra) {
+    if (!ntDisponible()) {
+      status(el.ntStatus, 'Esto necesita el servidor: abra el ATIS con SERVIDOR.bat.', 'err');
+      return Promise.resolve(null);
+    }
+    var cuerpo = {
+      activo: el.ntActiva.checked,
+      estacion: el.ntEstacion.value.toUpperCase().trim(),
+      minutos: +el.ntMinutos.value || 30,
+      carpeta: el.ntCarpeta.value.trim()
+    };
+    /* Las llaves solo se mandan si se escribieron: en blanco se dejan como estaban */
+    if (el.ntClientId.value.trim()) cuerpo.clientId = el.ntClientId.value.trim();
+    if (el.ntClientSecret.value.trim()) cuerpo.clientSecret = el.ntClientSecret.value.trim();
+    for (var k in (extra || {})) cuerpo[k] = extra[k];
+
+    return pedirNotam('/api/notam', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo)
+    }).then(function (d) {
+      /* Una vez guardadas, se borran de la pantalla: no tienen por qué quedarse a la vista */
+      el.ntClientId.value = '';
+      el.ntClientSecret.value = '';
+      aplicarAjustesNotam(d);
+      pintarNotamEstado(d);
+      return d;
+    });
+  }
+
+  function pintarNotamEstado(d) {
+    if (!el.ntBadge) return;
+    if (!ntDisponible()) {
+      el.ntBadge.textContent = 'necesita el servidor';
+      el.ntBadge.className = 'enlace-badge';
+      el.ntUltimo.innerHTML = '<span class="vacio">Esta función necesita que el ATIS se ' +
+        'haya iniciado con SERVIDOR.bat.</span>';
+      return;
+    }
+    if (!d) { el.ntBadge.textContent = 'sin respuesta'; el.ntBadge.className = 'enlace-badge mal'; return; }
+
+    el.ntBadge.textContent = d.activo ? 'vigilando' : 'apagado';
+    el.ntBadge.className = 'enlace-badge ' + (d.activo ? 'ok' : '');
+    if (d.error) { el.ntBadge.textContent = 'con problemas'; el.ntBadge.className = 'enlace-badge mal'; }
+
+    var partes = [];
+    if (d.ultimo) {
+      partes.push('<b>' + d.ultimo.records.length + ' NOTAM</b> de ' + escapeHtml(d.ultimo.fuente) +
+        (d.ultimo.archivo ? ' (' + escapeHtml(d.ultimo.archivo.nombre) + ')' : ''));
+      if (d.ultimo.nuevos && d.ultimo.nuevos.length) {
+        partes.push('Nuevos desde la revisión anterior: ' + escapeHtml(d.ultimo.nuevos.join(', ')));
+      }
+      if (d.ultimo.idos && d.ultimo.idos.length) {
+        partes.push('Ya no están: ' + escapeHtml(d.ultimo.idos.join(', ')));
+      }
+    } else {
+      partes.push('<span class="vacio">Todavía no se ha traído ningún NOTAM.</span>');
+    }
+    if (d.revisado) {
+      partes.push('Última revisión: ' + new Date(d.revisado).toLocaleTimeString() +
+        ' · ' + d.revisiones + ' revisión(es)');
+    }
+    if (d.error) partes.push('<span class="status err">' + escapeHtml(d.error) + '</span>');
+    el.ntUltimo.innerHTML = partes.join('<br>');
+  }
+
+  /* ¿Hay algo que valga la pena interrumpir? */
+  function revisarPropuestaNotam(d) {
+    if (!d || !d.ultimo || !d.ultimo.records || !d.ultimo.records.length) return;
+    var firma = d.ultimo.cuando + '|' + d.ultimo.records.length + '|' + (d.ultimo.nuevos || []).join(',');
+    if (firma === notamVistos) return;
+    /* La primera vez, o cuando hay novedades, se ofrece */
+    var hayNovedad = (d.ultimo.nuevos && d.ultimo.nuevos.length) ||
+      (d.ultimo.idos && d.ultimo.idos.length) || !notams.length;
+    notamVistos = firma;
+    if (!hayNovedad) return;
+    proponerNotam(d.ultimo);
+  }
+
+  function proponerNotam(ultimo) {
+    notamPropuestos = ultimo;
+    var cargados = {};
+    notams.forEach(function (n) { if (n.meta && n.meta.id) cargados[n.meta.id] = 1; });
+    var nuevos = ultimo.records.filter(function (r) { return !r.id || !cargados[r.id]; });
+
+    el.modalNotamHora.textContent = ultimo.records.length + ' vigentes · ' +
+      new Date(ultimo.cuando).toLocaleTimeString();
+    el.modalNotamSub.textContent = nuevos.length
+      ? (nuevos.length === ultimo.records.length
+        ? 'Se trajeron ' + ultimo.records.length + ' NOTAM de ' + ultimo.fuente + '.'
+        : 'Hay ' + nuevos.length + ' NOTAM que no están cargados, de ' + ultimo.fuente + '.')
+      : 'No hay ninguno nuevo; la lista está al día.';
+
+    var filas = nuevos.slice(0, 25).map(function (r) {
+      var es = ATIS.notam.parse(r.raw, 'es');
+      return '<div class="ntfila"><span class="ntid">' + escapeHtml(r.id || '(sin número)') + '</span>' +
+        (es.q && es.q.code ? '<span class="ntq">' + escapeHtml(es.q.code) + '</span>' : '') +
+        '<span class="nttxt">' + escapeHtml(es.plain || r.raw.slice(0, 160)) + '</span></div>';
+    });
+    (ultimo.idos || []).slice(0, 8).forEach(function (id) {
+      filas.push('<div class="ntfila ido"><span class="ntid">' + escapeHtml(id) +
+        '</span><span class="nttxt">ya no viene en la lista; conviene quitarlo.</span></div>');
+    });
+    if (nuevos.length > 25) {
+      filas.push('<div class="ntfila"><span class="nttxt">y ' + (nuevos.length - 25) + ' más…</span></div>');
+    }
+    el.modalNotamLista.innerHTML = filas.join('');
+    el.modalNotam.hidden = false;
+    try { el.modalNotamSi.focus(); } catch (e) { /* ignorado */ }
+  }
+
+  function cerrarAvisoNotam() { if (el.modalNotam) el.modalNotam.hidden = true; }
+
+  function cargarNotamPropuestos() {
+    if (!notamPropuestos) { cerrarAvisoNotam(); return; }
+    /* Las fechas viajaron como texto: hay que volverlas fechas */
+    var registros = notamPropuestos.records.map(function (r) {
+      return {
+        location: r.location, id: r.id, clase: r.clase, raw: r.raw,
+        desde: r.desde ? new Date(r.desde) : null,
+        hasta: r.hasta ? new Date(r.hasta) : null
+      };
+    });
+    var n = agregarRegistros(registros);
+    renderNotams();
+    render();
+    save();
+    cerrarAvisoNotam();
+    status(el.notamStatus, n.total + ' NOTAM agregado(s) de ' + notamPropuestos.fuente + ', ' +
+      n.marcados + ' marcado(s) para transmitir' +
+      (n.repetidos ? ' · ' + n.repetidos + ' ya estaban' : '') + '.', 'ok');
+    mostrarPagina('pageAtis');
+    notamPropuestos = null;
+  }
+
+  /* ================================================================== *
    * Comprobación de la instalación
    * Responde a "¿quedó bien instalado?" sin tener que revisar carpetas.
    * ================================================================== */
@@ -2502,6 +2686,83 @@
       if (el.metarSonido.checked) sonarAviso();   /* para oír cómo suena */
     });
 
+    /* ---- NOTAM automáticos ---- */
+    on(el.btnNtGuardar, 'click', function () {
+      status(el.ntStatus, 'Guardando…');
+      guardarNotam().then(function (d) {
+        if (!d) return;
+        status(el.ntStatus, d.activo
+          ? 'Guardado. Se revisará ' + d.estacion + ' cada ' + d.minutos + ' minutos.'
+          : 'Guardado. La revisión automática está apagada.', 'ok');
+      }).catch(function (e) { status(el.ntStatus, 'No se pudo guardar: ' + e.message, 'err'); });
+    });
+
+    on(el.ntActiva, 'change', function () {
+      guardarNotam().then(function (d) {
+        if (!d) return;
+        status(el.ntStatus, d.activo ? 'Vigilancia encendida.' : 'Vigilancia apagada.', 'ok');
+      }).catch(function () { /* el estado lo dirá */ });
+    });
+
+    on(el.btnNtAhora, 'click', function () {
+      if (!ntDisponible()) {
+        status(el.ntStatus, 'Esto necesita el servidor: abra el ATIS con SERVIDOR.bat.', 'err');
+        return;
+      }
+      el.btnNtAhora.disabled = true;
+      status(el.ntStatus, 'Buscando los NOTAM…');
+      guardarNotam().then(function () {
+        return pedirNotam('/api/notam/buscar?estacion=' +
+          encodeURIComponent(el.ntEstacion.value.toUpperCase().trim()));
+      }).then(function (d) {
+        el.btnNtAhora.disabled = false;
+        if (!d.ok) {
+          status(el.ntStatus, 'No se pudieron traer: ' +
+            (d.intentos || []).map(function (i) { return i.fuente + ': ' + (i.error || 'sin datos'); })
+              .join(' · ') || d.error, 'err');
+          return;
+        }
+        status(el.ntStatus, d.records.length + ' NOTAM de ' + d.fuente +
+          (d.archivo ? ' (' + d.archivo.nombre + ')' : '') + '.', 'ok');
+        proponerNotam({
+          records: d.records, fuente: d.fuente, archivo: d.archivo || null,
+          cuando: new Date().toISOString(), nuevos: [], idos: []
+        });
+      }).catch(function (e) {
+        el.btnNtAhora.disabled = false;
+        status(el.ntStatus, 'No se pudo: ' + e.message, 'err');
+      });
+    });
+
+    on(el.btnNtCarpeta, 'click', function () {
+      if (!ntDisponible()) {
+        status(el.ntStatus, 'Esto necesita el servidor.', 'err'); return;
+      }
+      var ruta = el.ntCarpeta.value.trim();
+      pedirNotam('/api/notam/carpeta?ruta=' + encodeURIComponent(ruta)).then(function (d) {
+        el.ntArchivos.hidden = false;
+        if (!d.archivos.length) {
+          el.ntArchivos.innerHTML = '<span class="status err">No hay ninguna hoja de cálculo en ' +
+            escapeHtml(d.ruta || '(carpeta sin indicar)') + '.</span>';
+          return;
+        }
+        el.ntArchivos.innerHTML = '<b>El más reciente se usa primero:</b><br>' +
+          d.archivos.map(function (a, i) {
+            return '<div class="voiceitem' + (i === 0 ? ' natural' : '') + '">' +
+              '<span>' + (a.fns ? '★' : '·') + '</span>' +
+              '<span class="vname">' + escapeHtml(a.nombre) + '</span>' +
+              '<span class="vlang">' + new Date(a.visto).toLocaleString() + '</span></div>';
+          }).join('');
+      }).catch(function (e) {
+        el.ntArchivos.hidden = false;
+        el.ntArchivos.innerHTML = '<span class="status err">' + escapeHtml(e.message) + '</span>';
+      });
+    });
+
+    on(el.modalNotamSi, 'click', cargarNotamPropuestos);
+    on(el.modalNotamNo, 'click', cerrarAvisoNotam);
+    on(el.modalNotam, 'click', function (e) { if (e.target === el.modalNotam) cerrarAvisoNotam(); });
+
     /* ---- Voz neuronal ---- */
     on(el.motorSel, 'change', function () {
       prefMotor = el.motorSel.value;
@@ -2636,6 +2897,9 @@
     });
 
     document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && el.modalNotam && !el.modalNotam.hidden) {
+        cerrarAvisoNotam(); return;
+      }
       if (e.key === 'Escape' && el.modalMetar && !el.modalMetar.hidden) {
         cerrarAvisoMetar(); return;
       }

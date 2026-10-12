@@ -18,9 +18,11 @@ const { spawn } = require('child_process');
 const fuente = require('./fuente-metar');
 const version = require('../js/version.js');
 const voz = require('./voz-piper');
+const notamFuente = require('./fuente-notam');
 
 const RAIZ = path.join(__dirname, '..');
 const ARCHIVO_ESTADO = path.join(__dirname, 'estado.json');
+const ARCHIVO_NOTAM = path.join(__dirname, 'notam.json');
 
 function arg(nombre, pordefecto) {
   const i = process.argv.indexOf('--' + nombre);
@@ -109,6 +111,101 @@ function programarMetar() {
   const cada = Math.max(2, Math.min(60, metar.minutos)) * 60000;
   relojMetar = setInterval(() => revisarMetar('automático'), cada);
   revisarMetar('al activar');
+}
+
+/* ------------------------------------------------- vigilancia del NOTAM -- */
+/* Igual que la del METAR: busca cada cierto tiempo y avisa cuando hay algo
+   nuevo. Nunca mete nada al ATIS por su cuenta. */
+let notam = {
+  activo: false,
+  estacion: 'MMMX',
+  minutos: 30,
+  carpeta: '',
+  llaves: { clientId: '', clientSecret: '' },
+  ultimo: null,          /* { records, fuente, cuando, archivo } */
+  revisado: null,
+  error: '',
+  revisiones: 0
+};
+let relojNotam = null;
+
+try {
+  const guardado = JSON.parse(fs.readFileSync(ARCHIVO_NOTAM, 'utf8'));
+  if (guardado && typeof guardado === 'object') {
+    notam = Object.assign(notam, guardado, { ultimo: null, revisiones: 0, error: '' });
+  }
+} catch (e) { /* primera vez */ }
+
+function guardarNotam() {
+  try {
+    fs.writeFileSync(ARCHIVO_NOTAM, JSON.stringify({
+      activo: notam.activo, estacion: notam.estacion, minutos: notam.minutos,
+      carpeta: notam.carpeta, llaves: notam.llaves
+    }), 'utf8');
+  } catch (err) {
+    console.error('No se pudo guardar la configuración de NOTAM:', err.message);
+  }
+}
+
+/* El secreto de la FAA no sale de esta computadora: a la pantalla solo le
+   interesa si está puesto o no. */
+function estadoNotam() {
+  const l = notam.llaves || {};
+  return {
+    activo: notam.activo, estacion: notam.estacion, minutos: notam.minutos,
+    carpeta: notam.carpeta,
+    llaves: {
+      puestas: !!(l.clientId && l.clientSecret),
+      clientId: l.clientId ? l.clientId.slice(0, 4) + '…' + l.clientId.slice(-4) : ''
+    },
+    ultimo: notam.ultimo, revisado: notam.revisado,
+    error: notam.error, revisiones: notam.revisiones
+  };
+}
+
+async function revisarNotam(motivo) {
+  notam.revisado = new Date().toISOString();
+  notam.revisiones++;
+  try {
+    const r = await notamFuente.buscar(notam.estacion, {
+      llaves: notam.llaves, carpeta: notam.carpeta
+    });
+    if (!r.ok) {
+      notam.error = r.error;
+      console.error('[' + new Date().toLocaleTimeString() + '] no se pudieron traer los NOTAM: ' + r.error);
+      avisar('notam', estadoNotam());
+      return null;
+    }
+    notam.error = '';
+    const antes = (notam.ultimo && notam.ultimo.records) || [];
+    const cambio = notamFuente.comparar(r.records, antes);
+    notam.ultimo = {
+      records: r.records, fuente: r.fuente, archivo: r.archivo || null,
+      cuando: new Date().toISOString(),
+      nuevos: cambio.nuevos.map((x) => x.id).filter(Boolean),
+      idos: cambio.idos.map((x) => x.id).filter(Boolean)
+    };
+    if (cambio.nuevos.length || cambio.idos.length) {
+      console.log('[' + new Date().toLocaleTimeString() + '] NOTAM (' + motivo + ', ' + r.fuente + '): ' +
+        r.records.length + ' vigentes, ' + cambio.nuevos.length + ' nuevos, ' + cambio.idos.length + ' que ya no están');
+    }
+    avisar('notam', estadoNotam());
+    return notam.ultimo;
+  } catch (e) {
+    notam.error = e.message;
+    console.error('[' + new Date().toLocaleTimeString() + '] no se pudieron traer los NOTAM: ' + e.message);
+    avisar('notam', estadoNotam());
+    return null;
+  }
+}
+
+function programarNotam() {
+  clearInterval(relojNotam);
+  relojNotam = null;
+  if (!notam.activo) return;
+  const cada = Math.max(5, Math.min(240, notam.minutos)) * 60000;
+  relojNotam = setInterval(() => revisarNotam('automático'), cada);
+  revisarNotam('al activar');
 }
 
 /* Quién está conectado y qué está haciendo */
@@ -463,6 +560,51 @@ const servidor = http.createServer(async (req, res) => {
   }
 
   /* Qué alcanza de verdad esta computadora. Tarda, porque prueba de a de veras. */
+  if (url.startsWith('/api/notam/buscar') && req.method === 'GET') {
+    const pedido = new URL(url, 'http://local');
+    const estacion = String(pedido.searchParams.get('estacion') || notam.estacion).toUpperCase();
+    const r = await notamFuente.buscar(estacion, { llaves: notam.llaves, carpeta: notam.carpeta });
+    console.log('[' + new Date().toLocaleTimeString() + '] NOTAM de ' + estacion + ': ' +
+      (r.ok ? r.records.length + ' desde ' + r.fuente : 'no se pudo (' + r.error + ')'));
+    return json(res, r.ok ? 200 : 502, r);
+  }
+
+  /* Qué hojas de cálculo hay en una carpeta, para poder elegirla sin adivinar */
+  if (url.startsWith('/api/notam/carpeta') && req.method === 'GET') {
+    const pedido = new URL(url, 'http://local');
+    const ruta = String(pedido.searchParams.get('ruta') || notam.carpeta || '');
+    const archivos = notamFuente.buscarArchivos(ruta, 10).map((a) => ({
+      nombre: a.nombre, bytes: a.bytes, visto: new Date(a.visto).toISOString(), fns: a.fns
+    }));
+    return json(res, 200, { ruta: ruta, archivos: archivos });
+  }
+
+  if (url.startsWith('/api/notam') && req.method === 'GET') {
+    if (/revisar=1/.test(url)) await revisarNotam('a petición');
+    return json(res, 200, estadoNotam());
+  }
+
+  if (url === '/api/notam' && req.method === 'POST') {
+    try {
+      const c = await leerCuerpo(req);
+      if (typeof c.activo === 'boolean') notam.activo = c.activo;
+      if (c.estacion) notam.estacion = String(c.estacion).toUpperCase().slice(0, 4);
+      if (c.minutos) notam.minutos = Math.max(5, Math.min(240, parseInt(c.minutos, 10) || 30));
+      if (c.carpeta !== undefined) notam.carpeta = String(c.carpeta).slice(0, 400);
+      /* Las llaves solo se cambian si llegan; una cadena vacía las borra */
+      if (c.clientId !== undefined) notam.llaves.clientId = String(c.clientId).trim().slice(0, 120);
+      if (c.clientSecret !== undefined) notam.llaves.clientSecret = String(c.clientSecret).trim().slice(0, 120);
+      guardarNotam();
+      programarNotam();
+      console.log('Vigilancia de NOTAM: ' + (notam.activo
+        ? notam.estacion + ' cada ' + notam.minutos + ' min'
+        : 'apagada'));
+      return json(res, 200, estadoNotam());
+    } catch (e) {
+      return json(res, 400, { error: e.message });
+    }
+  }
+
   if (url === '/api/red' && req.method === 'GET') {
     const r = await fuente.probarRed();
     console.log('[' + new Date().toLocaleTimeString() + '] prueba de conexión: ' + r.resumen);
@@ -605,6 +747,9 @@ servidor.on('listening', () => {
   const dir = servidor.address();
   puertoEnUso = (dir && dir.port) || PUERTO;
   anunciar(puertoEnUso);
+  /* Las vigilancias que quedaron encendidas arrancan solas al levantar */
+  programarMetar();
+  programarNotam();
 });
 
 arrancar(PUERTO, 0);

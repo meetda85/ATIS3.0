@@ -1,0 +1,74 @@
+{
+  "pageSize": 1000,
+  "pageNum": 1,
+  "totalCount": 3,
+  "items": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "GeometryCollection", "geometries": [] },
+      "properties": {
+        "coreNOTAMData": {
+          "notamEvent": { "scenario": "6000" },
+          "notam": {
+            "id": "NOTAM_1_75264821",
+            "series": "A",
+            "number": "A9186/26",
+            "type": "N",
+            "issued": "2026-10-08T14:22:00.000Z",
+            "affectedFIR": "MMFR",
+            "selectionCode": "QPAXX",
+            "location": "MMMX",
+            "effectiveStart": "2026-10-08T14:22:00.000Z",
+            "effectiveEnd": "2026-11-30T23:59:00.000Z",
+            "text": "RWY 05R/23L CLSD DUE WIP",
+            "classification": "INTL",
+            "accountId": "MMMX",
+            "lastUpdated": "2026-10-08T14:22:00.000Z",
+            "icaoLocation": "MMMX"
+          },
+          "notamTranslation": [
+            {
+              "type": "ICAO",
+              "formattedText": "A9186/26 NOTAMN\nQ) MMFR/QPAXX///A/000/999/1926N09904W005\nA) MMMX\nB) 2610081422\nC) 2611302359\nE) RWY 05R/23L CLSD DUE WIP"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "coreNOTAMData": {
+          "notam": {
+            "number": "A9201/26",
+            "location": "MMMX",
+            "icaoLocation": "MMMX",
+            "effectiveStart": "2026-10-09T06:00:00.000Z",
+            "effectiveEnd": "PERM",
+            "text": "TWY B BTN TWY A AND TWY C CLSD",
+            "classification": "INTL"
+          },
+          "notamTranslation": [
+            { "type": "LOCAL_FORMAT", "simpleText": "TAXIWAY B CLOSED" }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "coreNOTAMData": {
+          "notam": {
+            "number": "A0012/26",
+            "location": "MMTJ",
+            "icaoLocation": "MMTJ",
+            "effectiveStart": "2026-10-01T00:00:00.000Z",
+            "effectiveEnd": "2026-10-31T23:59:00.000Z",
+            "text": "APRON LIGHTING U/S",
+            "classification": "INTL"
+          }
+        }
+      }
+    }
+  ]
+}

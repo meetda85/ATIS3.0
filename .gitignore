@@ -9,3 +9,4 @@ voz/voces/
 voz/cache/
 voz/*.zip
 voz/*.tar.gz
+servidor/notam.json

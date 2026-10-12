@@ -7,10 +7,10 @@
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.4',
-    FECHA: '2026-10-10',
+    VERSION: '3.5',
+    FECHA: '2026-10-12',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'aviso de METAR nuevo y subrayado del guion mientras se locuta'
+    NOVEDADES: 'NOTAM automáticos, desde la API de la FAA o de una carpeta vigilada'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;

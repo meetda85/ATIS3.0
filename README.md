@@ -227,6 +227,52 @@ Los tiempos no son una estimación:
 Las piezas son las mismas que arma el generador del guion, así que cada una es una frase
 completa del ATIS. Copiar el guion sigue dando exactamente el mismo texto de siempre.
 
+## NOTAM automáticos
+
+Lo mismo que con el METAR: el servidor los trae y avisa, **sin meter nada al ATIS por su
+cuenta**. Se configura en *Ajustes → NOTAM automáticos*. Hay dos caminos y se pueden tener
+los dos; si el primero falla, entra el segundo.
+
+### 1. La carpeta vigilada — sin registrarse en nada
+
+Se sigue bajando el Excel de la página de la FAA como siempre, y el programa **levanta solo
+el más reciente** de la carpeta que se le indique (normalmente `Descargas`). Se acabó el
+«bajar, buscar el archivo, subirlo en la aplicación»: se baja y ya.
+
+Prefiere los archivos que se llaman `fnsNotams_…`, y entre ésos el más nuevo; si no hay
+ninguno, toma cualquier otra hoja de cálculo. El botón **Ver qué hay ahí** enseña qué
+encontró, para no adivinar la ruta.
+
+### 2. La API oficial de la FAA — la buena
+
+Con esto ya no se baja ningún archivo: el servidor le pregunta directo a la FAA y contesta
+en un segundo, en JSON. Las llaves se sacan **una sola vez y son gratuitas** en
+<https://api.faa.gov>: crear cuenta, crear una aplicación y pedir acceso a *NOTAM API*
+(la aprobación es manual, tarda un poco). Después se pegan el `client_id` y el
+`client_secret` en esa misma tarjeta.
+
+**El secreto no sale de esa computadora**: se guarda en `servidor/notam.json` y la pantalla
+nunca lo recibe de vuelta — solo se le dice si está puesto y los cuatro primeros y últimos
+caracteres del `client_id`.
+
+### Lo que no se hace, y por qué
+
+La página `notams.aim.faa.gov/notamSearch` está detrás de una protección (Akamai) que
+**bloquea a los programas**: contesta `403 Access Denied` a cualquier cosa que no sea una
+persona con un navegador. Se podría disfrazar el programa de navegador, pero montar el ATIS
+sobre algo que el otro lado trata de impedir es pedir que falle el día menos conveniente.
+Por eso las dos rutas de arriba: una no depende de nadie, la otra es la que la propia FAA
+publica para esto.
+
+### Qué pasa cuando encuentra algo
+
+Un aviso al centro de la pantalla con **los NOTAM que no están cargados**, ya decodificados
+en español, y los que desaparecieron de la lista. Dos botones: *Cargar los NOTAM* —que los
+agrega y marca los que son materia de ATIS, igual que la carga manual— o *Ahora no*.
+
+La carga manual del Excel **sigue funcionando igual**; esto no la reemplaza, le quita el
+trabajo.
+
 ## Control remoto desde otra computadora
 
 La PC de la torre transmite; cualquier otra de la misma red puede alimentarle los datos.
@@ -375,6 +421,7 @@ INSTALAR.bat          instalador para Windows
 SERVIDOR.bat          arranca el servidor de control remoto
 servidor/servidor.js  servidor local: sirve la app y guarda el estado compartido
 servidor/fuente-metar.js  lectura del METAR desde la página del CAPMA
+servidor/fuente-notam.js  NOTAM desde la API de la FAA o desde una carpeta vigilada
 servidor/voz-piper.js     voz neuronal local: genera el audio y lo guarda
 servidor/instalar-voz.js  descarga el motor y las voces neuronales
 VOZ.bat               instala la voz neuronal (una sola vez, con internet)
@@ -397,6 +444,7 @@ js/speech.js          motor de voz del navegador y su bucle
 js/voz-neural.js      bucle con la voz neuronal: descarga el audio y lo reproduce
 js/app.js             interfaz y control
 test/test.js          pruebas (node test/test.js)
+test/test-notam.js        pruebas de los NOTAM automaticos
 test/test-voz-neural.js   pruebas de la voz neuronal y sus rutas del servidor
 test/test-bucle-neural.js pruebas del bucle con voz neuronal frente a fallas
 test/fixtures/        descarga real del FNS usada en las pruebas
@@ -415,6 +463,7 @@ node test/test.js               # decodificadores y generación del guion
 node test/test-voz.js           # el bucle del navegador frente a fallas de voz y de red
 node test/test-bucle-neural.js  # el bucle con voz neuronal frente a fallas
 node test/test-servidor.js      # el servidor de control remoto
+node test/test-notam.js         # los NOTAM automaticos
 node test/test-voz-neural.js    # la voz neuronal y sus rutas del servidor
 npm test                        # todas
 ```
