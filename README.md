@@ -295,6 +295,15 @@ publica para esto.
 La API anterior, `external-api.faa.gov/notamapi/v1`, **ya no es el camino**: ese catálogo
 no ofrece NOTAM API y la FAA movió el servicio al NMS.
 
+### El botón, donde se trabaja
+
+En la tarjeta de **NOTAM vigentes**, junto a *Cargar archivo del FNS*, está **Bajar de la
+FAA**: los trae en el momento sin ir a Ajustes y sin archivos de por medio. Usa la estación
+que esté arriba en la pantalla, y toma la fuente que haya configurada — el NMS si están las
+llaves, o el último Excel de la carpeta.
+
+Si no hay ninguna configurada, lo dice derecho en lugar de fallar en seco.
+
 ### Qué pasa cuando encuentra algo
 
 Un aviso al centro de la pantalla con **los NOTAM que no están cargados**, ya decodificados

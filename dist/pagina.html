@@ -1165,11 +1165,18 @@ body.modo-control .pstate-main::after {
       <button id="btnNotamAdd" class="primary">Decodificar y agregar</button>
       <button id="btnNotamFile">Cargar archivo del FNS</button>
       <input type="file" id="notamFile" hidden>
+      <button id="btnNotamFAA" title="Los trae el servidor del NMS de la FAA, o de la carpeta vigilada">Bajar de la FAA</button>
       <button id="btnNotamClear" class="ghost">Vaciar lista</button>
       <span id="notamStatus" class="status"></span>
     </div>
     <p class="help">
-      Se puede cargar la hoja de cálculo tal como se descarga del FNS
+      <b>Bajar de la FAA</b> los trae solo, sin archivos: del servicio NMS si est&aacute;n
+      puestas las llaves, o del &uacute;ltimo Excel de la carpeta vigilada. Se configura una vez
+      en <i>Ajustes &rarr; NOTAM autom&aacute;ticos</i>, y usa la estaci&oacute;n que est&eacute; arriba.
+      Muestra lo que encontr&oacute; y usted decide si lo carga.
+    </p>
+    <p class="help">
+      Tambi&eacute;n se puede cargar la hoja de cálculo tal como se descarga del FNS
       (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla, o arrastrarla a este recuadro.
       No hace falta tener Excel instalado: el programa lee el archivo por su cuenta. Quedan marcados para transmitir
       solo los de pista, rodaje, iluminación y radioayudas; las posiciones de
@@ -1712,10 +1719,10 @@ body.modo-control .pstate-main::after {
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.6',
+    VERSION: '3.7',
     FECHA: '2026-10-13',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'NOTAM automáticos desde el servicio NMS de la FAA, ya funcionando'
+    NOVEDADES: 'botón Bajar de la FAA en la tarjeta de NOTAM'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;
@@ -5203,7 +5210,7 @@ body.modo-control .pstate-main::after {
       'temperature', 'dewpoint', 'altimeter', 'includeHpa',
       'layers', 'btnAddLayer',
       'notamRaw', 'btnNotamAdd', 'btnNotamClear', 'notamStatus', 'notamList',
-      'btnNotamFile', 'notamFile', 'btnNotamAll', 'btnNotamNone', 'btnNotamAtis',
+      'btnNotamFile', 'notamFile', 'btnNotamFAA', 'btnNotamAll', 'btnNotamNone', 'btnNotamAtis',
       'btnNotamCopy', 'notamSoloVigentes', 'notamSoltar',
       'additionalEs', 'additionalEn', 'includeNotams',
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
@@ -7129,6 +7136,51 @@ body.modo-control .pstate-main::after {
 
   function cerrarAvisoNotam() { if (el.modalNotam) el.modalNotam.hidden = true; }
 
+  /* El botón de la tarjeta de NOTAM: los trae ahora mismo, sin ir a Ajustes.
+     Usa la estación que está arriba en la pantalla, que es la que importa. */
+  function bajarNotamFAA() {
+    if (!ntDisponible()) {
+      status(el.notamStatus, 'Para bajarlos de la FAA hace falta abrir el ATIS con ' +
+        'SERVIDOR.bat. Mientras tanto puede cargar el archivo del FNS.', 'err');
+      return;
+    }
+    var estacion = (el.station.value || '').toUpperCase().trim();
+    if (!/^[A-Z]{4}$/.test(estacion)) {
+      status(el.notamStatus, 'Indique arriba un código OACI de 4 letras.', 'err');
+      return;
+    }
+    el.btnNotamFAA.disabled = true;
+    var antes = el.btnNotamFAA.textContent;
+    el.btnNotamFAA.textContent = 'Bajando…';
+    status(el.notamStatus, 'Trayendo los NOTAM de ' + estacion + '…');
+
+    pedirNotam('/api/notam/buscar?estacion=' + encodeURIComponent(estacion))
+      .then(function (d) {
+        el.btnNotamFAA.disabled = false;
+        el.btnNotamFAA.textContent = antes;
+        if (!d.ok) {
+          /* Si ni siquiera llegó a intentarlo es que falta configurarlo, y eso
+             se dice derecho en lugar de dejar una frase a medias. */
+          var motivo = (d.intentos && d.intentos.length)
+            ? d.intentos.map(function (i) { return i.fuente + ': ' + (i.error || 'sin datos'); }).join(' · ')
+            : (d.error || 'no hay ninguna fuente configurada');
+          status(el.notamStatus, 'No se pudieron traer — ' + motivo +
+            '. Se configura en Ajustes, NOTAM automáticos.', 'err');
+          return;
+        }
+        status(el.notamStatus, d.records.length + ' NOTAM de ' + d.fuente + '.', 'ok');
+        proponerNotam({
+          records: d.records, fuente: d.fuente, archivo: d.archivo || null,
+          cuando: new Date().toISOString(), nuevos: [], idos: []
+        });
+      })
+      .catch(function (e) {
+        el.btnNotamFAA.disabled = false;
+        el.btnNotamFAA.textContent = antes;
+        status(el.notamStatus, 'No se pudo: ' + e.message, 'err');
+      });
+  }
+
   function cargarNotamPropuestos() {
     if (!notamPropuestos) { cerrarAvisoNotam(); return; }
     /* Las fechas viajaron como texto: hay que volverlas fechas */
@@ -7981,6 +8033,7 @@ body.modo-control .pstate-main::after {
       });
     });
 
+    on(el.btnNotamFAA, 'click', bajarNotamFAA);
     on(el.modalNotamSi, 'click', cargarNotamPropuestos);
     on(el.modalNotamNo, 'click', cerrarAvisoNotam);
     on(el.modalNotam, 'click', function (e) { if (e.target === el.modalNotam) cerrarAvisoNotam(); });

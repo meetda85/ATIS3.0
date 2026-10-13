@@ -7,10 +7,10 @@
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.6',
+    VERSION: '3.7',
     FECHA: '2026-10-13',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'NOTAM automáticos desde el servicio NMS de la FAA, ya funcionando'
+    NOVEDADES: 'botón Bajar de la FAA en la tarjeta de NOTAM'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;

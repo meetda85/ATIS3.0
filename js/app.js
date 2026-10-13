@@ -28,7 +28,7 @@
       'temperature', 'dewpoint', 'altimeter', 'includeHpa',
       'layers', 'btnAddLayer',
       'notamRaw', 'btnNotamAdd', 'btnNotamClear', 'notamStatus', 'notamList',
-      'btnNotamFile', 'notamFile', 'btnNotamAll', 'btnNotamNone', 'btnNotamAtis',
+      'btnNotamFile', 'notamFile', 'btnNotamFAA', 'btnNotamAll', 'btnNotamNone', 'btnNotamAtis',
       'btnNotamCopy', 'notamSoloVigentes', 'notamSoltar',
       'additionalEs', 'additionalEn', 'includeNotams',
       'scriptEs', 'scriptEn', 'btnDownload', 'scriptStatus',
@@ -1954,6 +1954,51 @@
 
   function cerrarAvisoNotam() { if (el.modalNotam) el.modalNotam.hidden = true; }
 
+  /* El botón de la tarjeta de NOTAM: los trae ahora mismo, sin ir a Ajustes.
+     Usa la estación que está arriba en la pantalla, que es la que importa. */
+  function bajarNotamFAA() {
+    if (!ntDisponible()) {
+      status(el.notamStatus, 'Para bajarlos de la FAA hace falta abrir el ATIS con ' +
+        'SERVIDOR.bat. Mientras tanto puede cargar el archivo del FNS.', 'err');
+      return;
+    }
+    var estacion = (el.station.value || '').toUpperCase().trim();
+    if (!/^[A-Z]{4}$/.test(estacion)) {
+      status(el.notamStatus, 'Indique arriba un código OACI de 4 letras.', 'err');
+      return;
+    }
+    el.btnNotamFAA.disabled = true;
+    var antes = el.btnNotamFAA.textContent;
+    el.btnNotamFAA.textContent = 'Bajando…';
+    status(el.notamStatus, 'Trayendo los NOTAM de ' + estacion + '…');
+
+    pedirNotam('/api/notam/buscar?estacion=' + encodeURIComponent(estacion))
+      .then(function (d) {
+        el.btnNotamFAA.disabled = false;
+        el.btnNotamFAA.textContent = antes;
+        if (!d.ok) {
+          /* Si ni siquiera llegó a intentarlo es que falta configurarlo, y eso
+             se dice derecho en lugar de dejar una frase a medias. */
+          var motivo = (d.intentos && d.intentos.length)
+            ? d.intentos.map(function (i) { return i.fuente + ': ' + (i.error || 'sin datos'); }).join(' · ')
+            : (d.error || 'no hay ninguna fuente configurada');
+          status(el.notamStatus, 'No se pudieron traer — ' + motivo +
+            '. Se configura en Ajustes, NOTAM automáticos.', 'err');
+          return;
+        }
+        status(el.notamStatus, d.records.length + ' NOTAM de ' + d.fuente + '.', 'ok');
+        proponerNotam({
+          records: d.records, fuente: d.fuente, archivo: d.archivo || null,
+          cuando: new Date().toISOString(), nuevos: [], idos: []
+        });
+      })
+      .catch(function (e) {
+        el.btnNotamFAA.disabled = false;
+        el.btnNotamFAA.textContent = antes;
+        status(el.notamStatus, 'No se pudo: ' + e.message, 'err');
+      });
+  }
+
   function cargarNotamPropuestos() {
     if (!notamPropuestos) { cerrarAvisoNotam(); return; }
     /* Las fechas viajaron como texto: hay que volverlas fechas */
@@ -2806,6 +2851,7 @@
       });
     });
 
+    on(el.btnNotamFAA, 'click', bajarNotamFAA);
     on(el.modalNotamSi, 'click', cargarNotamPropuestos);
     on(el.modalNotamNo, 'click', cerrarAvisoNotam);
     on(el.modalNotam, 'click', function (e) { if (e.target === el.modalNotam) cerrarAvisoNotam(); });

@@ -225,11 +225,18 @@
       <button id="btnNotamAdd" class="primary">Decodificar y agregar</button>
       <button id="btnNotamFile">Cargar archivo del FNS</button>
       <input type="file" id="notamFile" hidden>
+      <button id="btnNotamFAA" title="Los trae el servidor del NMS de la FAA, o de la carpeta vigilada">Bajar de la FAA</button>
       <button id="btnNotamClear" class="ghost">Vaciar lista</button>
       <span id="notamStatus" class="status"></span>
     </div>
     <p class="help">
-      Se puede cargar la hoja de cálculo tal como se descarga del FNS
+      <b>Bajar de la FAA</b> los trae solo, sin archivos: del servicio NMS si est&aacute;n
+      puestas las llaves, o del &uacute;ltimo Excel de la carpeta vigilada. Se configura una vez
+      en <i>Ajustes &rarr; NOTAM autom&aacute;ticos</i>, y usa la estaci&oacute;n que est&eacute; arriba.
+      Muestra lo que encontr&oacute; y usted decide si lo carga.
+    </p>
+    <p class="help">
+      Tambi&eacute;n se puede cargar la hoja de cálculo tal como se descarga del FNS
       (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla, o arrastrarla a este recuadro.
       No hace falta tener Excel instalado: el programa lee el archivo por su cuenta. Quedan marcados para transmitir
       solo los de pista, rodaje, iluminación y radioayudas; las posiciones de
