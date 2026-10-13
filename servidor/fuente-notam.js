@@ -150,8 +150,15 @@ function pedirJSON(url, llaves, tiempoLimite) {
       res.on('end', () => {
         const cuerpo = Buffer.concat(trozos).toString('utf8');
         if (res.statusCode === 401 || res.statusCode === 403) {
-          return rechazar(new Error('la FAA no aceptó las llaves (HTTP ' + res.statusCode +
-            '). Revise que estén bien copiadas y que la API esté aprobada en api.faa.gov'));
+          /* La FAA contesta lo mismo si las llaves están mal que si la aplicación
+             todavía no tiene aprobado el acceso a la API de NOTAM, que es lo más
+             común: en el portal hay que pedir ese acceso aparte y lo aprueban a
+             mano. Se dice de frente para no mandar a nadie a revisar comas. */
+          return rechazar(new Error('la FAA rechazó la consulta (HTTP ' + res.statusCode + '). ' +
+            'Casi siempre es que la aplicación todavía no tiene aprobado el acceso a NOTAM API: ' +
+            'en api.faa.gov, dentro de su aplicación, hay que pedirlo aparte y lo aprueban a mano. ' +
+            'Si ya está aprobado, revise que las llaves estén completas. ' +
+            'Mientras tanto se siguen tomando de la carpeta vigilada.'));
         }
         if (res.statusCode !== 200) {
           return rechazar(new Error('la FAA contestó ' + res.statusCode +
