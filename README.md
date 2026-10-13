@@ -243,17 +243,45 @@ Prefiere los archivos que se llaman `fnsNotams_…`, y entre ésos el más nuevo
 ninguno, toma cualquier otra hoja de cálculo. El botón **Ver qué hay ahí** enseña qué
 encontró, para no adivinar la ruta.
 
-### 2. La API oficial de la FAA — la buena
+### 2. El servicio NMS de la FAA — la buena
 
-Con esto ya no se baja ningún archivo: el servidor le pregunta directo a la FAA y contesta
-en un segundo, en JSON. Las llaves se sacan **una sola vez y son gratuitas** en
-<https://api.faa.gov>: crear cuenta, crear una aplicación y pedir acceso a *NOTAM API*
-(la aprobación es manual, tarda un poco). Después se pegan el `client_id` y el
-`client_secret` en esa misma tarjeta.
+Con esto ya no se baja ningún archivo: el servidor le pregunta directo al **NOTAM
+Management Service** y contesta en menos de un segundo. Las credenciales se piden por
+correo a **notams@faa.gov** y llegan en una hoja de cálculo donde el **KEY** es el
+`client_id` y el **SECRET** el `client_secret`.
+
+Cómo funciona por dentro:
+
+1. Las llaves se cambian por un **pase** (bearer token) en `/v1/auth/token`, con
+   `grant_type=client_credentials` y autenticación básica.
+2. El pase dura **media hora**. Se guarda y se reusa; se renueva solo un minuto antes de
+   caducar, así una revisión cada 30 minutos no pide un pase cada vez.
+3. Con el pase se consulta `/nmsapi/v1/notams?location=MMMX` pidiendo **GEOJSON**, que trae
+   el texto ICAO completo — el mismo que el decodificador ya sabe leer.
+
+**El ambiente importa.** Hay tres y las credenciales sirven solo en el que las dieron:
+
+| Ambiente | Dirección |
+|---|---|
+| Producción | `api-nms.aim.faa.gov` |
+| Preproducción | `api-staging.cgifederal-aim.com` |
+| Pruebas (FIT) | `api-fit.cgifederal-aim.com` |
+
+Si no sabe cuál le tocó, el botón **Comprobar las llaves** las prueba en los tres, dice en
+cuáles entran y deja seleccionado el que sirve.
 
 **El secreto no sale de esa computadora**: se guarda en `servidor/notam.json` y la pantalla
 nunca lo recibe de vuelta — solo se le dice si está puesto y los cuatro primeros y últimos
 caracteres del `client_id`.
+
+### Lo que no se transmite
+
+El NMS devuelve también los **NOTAMC**, que no son información sino el aviso de que otro
+NOTAM quedó cancelado; su texto («… NOTAM CNL») leído al aire no le dice nada a nadie. Se
+usan para lo que sirven —borrar de la lista el NOTAM que cancelan— y se descartan. Lo mismo
+con los **NOTAMR**: se queda el nuevo y se va el que reemplaza.
+
+Con los NOTAM reales de MMMX eso son 32 que entrega la FAA y **23 que salen al aire**.
 
 ### Lo que no se hace, y por qué
 
@@ -263,6 +291,9 @@ persona con un navegador. Se podría disfrazar el programa de navegador, pero mo
 sobre algo que el otro lado trata de impedir es pedir que falle el día menos conveniente.
 Por eso las dos rutas de arriba: una no depende de nadie, la otra es la que la propia FAA
 publica para esto.
+
+La API anterior, `external-api.faa.gov/notamapi/v1`, **ya no es el camino**: ese catálogo
+no ofrece NOTAM API y la FAA movió el servicio al NMS.
 
 ### Qué pasa cuando encuentra algo
 
@@ -421,7 +452,7 @@ INSTALAR.bat          instalador para Windows
 SERVIDOR.bat          arranca el servidor de control remoto
 servidor/servidor.js  servidor local: sirve la app y guarda el estado compartido
 servidor/fuente-metar.js  lectura del METAR desde la página del CAPMA
-servidor/fuente-notam.js  NOTAM desde la API de la FAA o desde una carpeta vigilada
+servidor/fuente-notam.js  NOTAM desde el NMS de la FAA o desde una carpeta vigilada
 servidor/voz-piper.js     voz neuronal local: genera el audio y lo guarda
 servidor/instalar-voz.js  descarga el motor y las voces neuronales
 VOZ.bat               instala la voz neuronal (una sola vez, con internet)

@@ -401,22 +401,35 @@
       </div>
       <div id="ntArchivos" class="vigultimo" hidden></div>
 
-      <h3>2. La API oficial de la FAA <span class="suave">&mdash; la buena, pide un registro gratuito</span></h3>
+      <h3>2. El servicio NMS de la FAA <span class="suave">&mdash; la buena, ya no se baja ning&uacute;n archivo</span></h3>
       <p class="help">
-        Con esto ya no se baja ning&uacute;n archivo: el servidor le pregunta directo a la FAA y
-        contesta en un segundo. Las llaves se sacan una sola vez en
-        <b>api.faa.gov</b>: crear cuenta, crear una aplicaci&oacute;n y pedir acceso a
-        <i>NOTAM API</i>. Son gratuitas y no caducan. Se guardan solo en esta computadora;
-        el secreto nunca sale de aqu&iacute;.
+        El servidor le pregunta directo al <b>NOTAM Management Service</b> de la FAA y contesta
+        en menos de un segundo. Las credenciales se piden por correo a
+        <b>notams@faa.gov</b> y llegan en una hoja de c&aacute;lculo: ah&iacute; el <b>KEY</b> es el
+        <i>client_id</i> y el <b>SECRET</b> es el <i>client_secret</i>. Se guardan solo en esta
+        computadora; el secreto nunca sale de aqu&iacute;.
       </p>
-      <div class="grid2">
-        <label class="field"><span>client_id</span>
+      <p class="help">
+        <b>El ambiente importa</b>: unas credenciales de preproducci&oacute;n no entran a
+        producci&oacute;n, y al rev&eacute;s tampoco. Si no sabe cu&aacute;l le dieron, pulse
+        <i>Comprobar las llaves</i> y el programa las prueba en los tres y le dice.
+      </p>
+      <div class="grid3">
+        <label class="field"><span>client_id (KEY)</span>
           <input id="ntClientId" spellcheck="false" autocomplete="off" placeholder="sin poner">
         </label>
-        <label class="field"><span>client_secret</span>
+        <label class="field"><span>client_secret (SECRET)</span>
           <input id="ntClientSecret" type="password" spellcheck="false" autocomplete="off" placeholder="sin poner">
         </label>
+        <label class="field"><span>Ambiente</span>
+          <select id="ntAmbiente"></select>
+        </label>
       </div>
+      <div class="row buttons">
+        <button id="btnNtLlaves" class="small ghost">Comprobar las llaves</button>
+        <span id="ntLlavesStatus" class="status"></span>
+      </div>
+      <div id="ntAmbientes" class="vigultimo" hidden></div>
 
       <div class="row buttons">
         <button id="btnNtAhora" class="small">Revisar ahora</button>

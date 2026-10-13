@@ -23,11 +23,20 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const http = require('http');
 const vm = require('vm');
 
 const RAIZ = path.join(__dirname, '..');
-const API_FAA = 'https://external-api.faa.gov/notamapi/v1/notams';
-const ESPERA_API = 25000;
+/* El servicio de NOTAM de la FAA (NMS). Hay tres ambientes y las credenciales
+   sirven solo en el que las dieron: unas de preproducción no entran a
+   producción, y al revés tampoco. */
+const AMBIENTES = {
+  prod:    { nombre: 'producción',   host: 'https://api-nms.aim.faa.gov' },
+  staging: { nombre: 'preproducción', host: 'https://api-staging.cgifederal-aim.com' },
+  fit:     { nombre: 'pruebas (FIT)', host: 'https://api-fit.cgifederal-aim.com' }
+};
+const AMBIENTE_POR_OMISION = 'prod';
+const ESPERA_API = 30000;
 
 /* ------------------------------------------------ los módulos del navegador -- */
 
@@ -80,7 +89,11 @@ function completar(reg) {
 function deJSON(json, estacion) {
   const salida = [];
   const objetivo = texto(estacion).toUpperCase();
-  const lista = (json && (json.items || json.features)) || [];
+  /* Cada servicio envuelve la lista a su manera: el NMS la manda en
+     data.geojson, la API vieja en items, y un GeoJSON suelto en features. */
+  const datos = (json && json.data) || {};
+  const lista = (json && (datos.geojson || datos.geoJson || datos.features ||
+    json.items || json.features)) || [];
 
   lista.forEach((item) => {
     const prop = (item && (item.properties || item)) || {};
@@ -108,9 +121,12 @@ function deJSON(json, estacion) {
     if (!crudo || crudo.length < 10) return;
 
     const reg = completar({
-      location: texto(n.icaoLocation || n.location || n.affectedFIR).toUpperCase(),
+      location: texto(n.icaoLocation || n.location || n.affectedFir || n.affectedFIR).toUpperCase(),
       id: texto(n.number || n.id),
-      clase: texto(n.classification || n.type),
+      clase: texto(n.classification || ''),
+      /* N: nuevo · R: reemplaza a otro · C: cancela a otro */
+      tipo: texto(n.type).toUpperCase() || tipoDelTexto(crudo),
+      reemplaza: referido(crudo),
       desde: fecha(n.effectiveStart || n.issued),
       hasta: fecha(n.effectiveEnd),
       raw: crudo
@@ -121,63 +137,144 @@ function deJSON(json, estacion) {
     salida.push(reg);
   });
 
-  return salida;
+  return depurar(salida);
 }
 
-function pedirJSON(url, llaves, tiempoLimite) {
+/* El tipo también está en la primera línea: «B2864/26 NOTAMC B2857/26» */
+function tipoDelTexto(crudo) {
+  const m = /\bNOTAM([NRC])\b/.exec(String(crudo));
+  return m ? m[1] : '';
+}
+
+/* A qué NOTAM se refiere una cancelación o un reemplazo */
+function referido(crudo) {
+  const m = /\bNOTAM[RC]\s+([A-Z]\d{4}\/\d{2})/.exec(String(crudo));
+  return m ? m[1] : '';
+}
+
+/**
+ * Quita lo que no se transmite.
+ *
+ * Un NOTAMC no es información: es el aviso de que otro NOTAM quedó cancelado,
+ * y su texto («... NOTAM CNL») leído al aire no significa nada para nadie. Se
+ * usa para lo que sirve —borrar el que cancela— y se descarta.
+ * Un NOTAMR reemplaza a otro: se queda el nuevo y se va el viejo.
+ */
+function depurar(lista) {
+  const fuera = Object.create(null);
+  lista.forEach((r) => {
+    if ((r.tipo === 'C' || r.tipo === 'R') && r.reemplaza) fuera[r.reemplaza] = true;
+    if (r.tipo === 'C' && r.id) fuera[r.id] = true;
+  });
+  return lista.filter((r) => !(r.id && fuera[r.id]));
+}
+
+/* El NMS no acepta las llaves en cada consulta: primero se cambian por un
+   pase (bearer token) que dura media hora. Se guarda y se reusa mientras
+   sirva; pedir uno nuevo en cada revisión sería tirar tiempo y cuota. */
+const pases = Object.create(null);
+
+function clave(ambiente, llaves) {
+  return ambiente + '|' + llaves.clientId;
+}
+
+function pedir(opciones) {
   return new Promise((resolver, rechazar) => {
     let destino;
-    try { destino = new URL(url); } catch (e) { return rechazar(new Error('dirección inválida')); }
+    try { destino = new URL(opciones.url); }
+    catch (e) { return rechazar(new Error('dirección inválida')); }
 
-    const peticion = https.request({
-      method: 'GET',
+    /* El servicio va por https; http solo aparece en las pruebas, contra un
+       servidor local. */
+    const cliente = destino.protocol === 'http:' ? http : https;
+    const peticion = cliente.request({
+      method: opciones.metodo || 'GET',
       hostname: destino.hostname,
+      port: destino.port || (destino.protocol === 'http:' ? 80 : 443),
       path: destino.pathname + destino.search,
-      headers: {
-        'client_id': llaves.clientId,
-        'client_secret': llaves.clientSecret,
-        'Accept': 'application/json',
-        'User-Agent': 'ATIS3.0 (laboratorio de torre)'
-      }
+      headers: opciones.cabeceras || {}
     }, (res) => {
+      /* El NMS reenvía a una dirección firmada en algunas respuestas */
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && (opciones.saltos || 0) < 5) {
+        res.resume();
+        let siguiente;
+        try { siguiente = new URL(res.headers.location, opciones.url).toString(); }
+        catch (e) { return rechazar(new Error('reenvío inválido')); }
+        return resolver(pedir(Object.assign({}, opciones, { url: siguiente, saltos: (opciones.saltos || 0) + 1 })));
+      }
       const trozos = [];
       let total = 0;
       res.on('data', (t) => {
         total += t.length;
-        if (total > 2e7) { peticion.destroy(); return rechazar(new Error('respuesta demasiado grande')); }
+        if (total > 4e7) { peticion.destroy(); return rechazar(new Error('respuesta demasiado grande')); }
         trozos.push(t);
       });
-      res.on('end', () => {
-        const cuerpo = Buffer.concat(trozos).toString('utf8');
-        if (res.statusCode === 401 || res.statusCode === 403) {
-          /* La FAA contesta lo mismo si las llaves están mal que si la aplicación
-             todavía no tiene aprobado el acceso a la API de NOTAM, que es lo más
-             común: en el portal hay que pedir ese acceso aparte y lo aprueban a
-             mano. Se dice de frente para no mandar a nadie a revisar comas. */
-          return rechazar(new Error('la FAA rechazó la consulta (HTTP ' + res.statusCode + '). ' +
-            'Casi siempre es que la aplicación todavía no tiene aprobado el acceso a NOTAM API: ' +
-            'en api.faa.gov, dentro de su aplicación, hay que pedirlo aparte y lo aprueban a mano. ' +
-            'Si ya está aprobado, revise que las llaves estén completas. ' +
-            'Mientras tanto se siguen tomando de la carpeta vigilada.'));
-        }
-        if (res.statusCode !== 200) {
-          return rechazar(new Error('la FAA contestó ' + res.statusCode +
-            (cuerpo ? ': ' + cuerpo.replace(/\s+/g, ' ').slice(0, 160) : '')));
-        }
-        try { resolver(JSON.parse(cuerpo)); }
-        catch (e) { rechazar(new Error('la FAA contestó algo que no es JSON')); }
-      });
+      res.on('end', () => resolver({
+        codigo: res.statusCode,
+        cuerpo: Buffer.concat(trozos).toString('utf8')
+      }));
     });
 
-    peticion.setTimeout(tiempoLimite || ESPERA_API, () => {
+    peticion.setTimeout(opciones.tiempoLimite || ESPERA_API, () => {
       peticion.destroy();
-      rechazar(new Error('la FAA no respondió en ' + Math.round((tiempoLimite || ESPERA_API) / 1000) + ' s'));
+      rechazar(new Error('la FAA no respondió en ' +
+        Math.round((opciones.tiempoLimite || ESPERA_API) / 1000) + ' s'));
     });
     peticion.on('error', (e) => rechazar(new Error(e.message)));
+    if (opciones.cuerpo) peticion.write(opciones.cuerpo);
     peticion.end();
   });
 }
 
+/** Cambia las llaves por un pase, o devuelve el que ya se tenía si aún sirve */
+async function pase(ambiente, llaves, tiempoLimite, host) {
+  const amb = AMBIENTES[ambiente] || AMBIENTES[AMBIENTE_POR_OMISION];
+  const base = host || amb.host;
+  const k = clave(ambiente, llaves);
+  const guardado = pases[k];
+  /* Se renueva un minuto antes de que caduque, para no quedarse a medias */
+  if (guardado && guardado.vence > Date.now() + 60000) return guardado.token;
+
+  const credenciales = Buffer.from(llaves.clientId + ':' + llaves.clientSecret).toString('base64');
+  const r = await pedir({
+    url: base + '/v1/auth/token',
+    metodo: 'POST',
+    cabeceras: {
+      'Authorization': 'Basic ' + credenciales,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept': 'application/json',
+      'User-Agent': 'ATIS3.0 (laboratorio de torre)'
+    },
+    cuerpo: 'grant_type=client_credentials',
+    tiempoLimite: tiempoLimite
+  });
+
+  if (r.codigo !== 200) {
+    let detalle = '';
+    try {
+      const d = JSON.parse(r.cuerpo);
+      detalle = d.Error || d.error_description || d.message || '';
+    } catch (e) { detalle = r.cuerpo.replace(/\s+/g, ' ').slice(0, 120); }
+    if (r.codigo === 401 || r.codigo === 403) {
+      throw new Error('la FAA no aceptó las llaves en ' + amb.nombre +
+        (detalle ? ' (' + detalle + ')' : '') +
+        '. Las credenciales sirven solo en el ambiente donde se las dieron: ' +
+        'pruebe cambiarlo arriba.');
+    }
+    throw new Error('el servicio de la FAA contestó ' + r.codigo + (detalle ? ': ' + detalle : ''));
+  }
+
+  let d;
+  try { d = JSON.parse(r.cuerpo); }
+  catch (e) { throw new Error('la respuesta del pase no es JSON'); }
+  if (!d.access_token) throw new Error('la FAA no devolvió ningún pase');
+
+  const dura = Math.max(60, parseInt(d.expires_in, 10) || 1799) * 1000;
+  pases[k] = { token: d.access_token, vence: Date.now() + dura, productos: d.api_product_list || '' };
+  return d.access_token;
+}
+
+/** Consulta los NOTAM de una estación en el NMS */
 async function consultarAPI(estacion, llaves, opciones) {
   opciones = opciones || {};
   const sitio = texto(estacion).toUpperCase();
@@ -185,24 +282,57 @@ async function consultarAPI(estacion, llaves, opciones) {
   if (!llaves || !llaves.clientId || !llaves.clientSecret) {
     throw new Error('faltan las llaves de la FAA');
   }
+  const ambiente = AMBIENTES[opciones.ambiente] ? opciones.ambiente : AMBIENTE_POR_OMISION;
+  const amb = AMBIENTES[ambiente];
 
-  /* Se piden de a mil, que es el máximo, y se recorren las páginas si hiciera falta */
-  const porPagina = 1000;
-  let pagina = 1, registros = [], paginas = 0;
-  for (;;) {
-    const url = API_FAA + '?icaoLocation=' + encodeURIComponent(sitio) +
-      '&responseFormat=geoJson&pageSize=' + porPagina + '&pageNum=' + pagina;
-    const json = await pedirJSON(url, llaves, opciones.tiempoLimite);
-    paginas++;
-    registros = registros.concat(deJSON(json, sitio));
-    const total = Number(json.totalCount || json.total || 0);
-    if (!total || registros.length >= total || paginas >= 5) break;
-    const traidos = ((json.items || json.features) || []).length;
-    if (!traidos) break;
-    pagina++;
+  /* host solo para las pruebas: en la operación se usa el del ambiente */
+  const base = opciones.host || amb.host;
+  const token = await pase(ambiente, llaves, opciones.tiempoLimite, opciones.host);
+  const r = await pedir({
+    url: base + '/nmsapi/v1/notams?location=' + encodeURIComponent(sitio),
+    cabeceras: {
+      'Authorization': 'Bearer ' + token,
+      /* GEOJSON en lugar de AIXM: trae lo mismo pero en JSON, y dentro viene
+         el texto ICAO completo, que es el que sabe leer el decodificador. */
+      'nmsResponseFormat': 'GEOJSON',
+      'Accept': 'application/json',
+      'User-Agent': 'ATIS3.0 (laboratorio de torre)'
+    },
+    tiempoLimite: opciones.tiempoLimite
+  });
+
+  if (r.codigo === 401 || r.codigo === 403) {
+    /* El pase pudo caducar antes de tiempo: se tira y que lo pida de nuevo */
+    delete pases[clave(ambiente, llaves)];
+    throw new Error('la FAA rechazó la consulta en ' + amb.nombre + ' (HTTP ' + r.codigo + ')');
+  }
+  if (r.codigo !== 200) {
+    throw new Error('la FAA contestó ' + r.codigo +
+      (r.cuerpo ? ': ' + r.cuerpo.replace(/\s+/g, ' ').slice(0, 140) : ''));
   }
 
-  return { fuente: 'API de la FAA', estacion: sitio, records: registros, paginas: paginas };
+  let json;
+  try { json = JSON.parse(r.cuerpo); }
+  catch (e) { throw new Error('la FAA contestó algo que no es JSON'); }
+
+  return {
+    fuente: 'NMS de la FAA (' + amb.nombre + ')',
+    estacion: sitio,
+    records: deJSON(json, sitio),
+    ambiente: ambiente
+  };
+}
+
+/** Una comprobación rápida de que las llaves sirven, sin pedir NOTAM */
+async function probarLlaves(ambiente, llaves, tiempoLimite, host) {
+  const amb = AMBIENTES[ambiente] || AMBIENTES[AMBIENTE_POR_OMISION];
+  await pase(ambiente, llaves, tiempoLimite, host);
+  const k = clave(ambiente, llaves);
+  return {
+    ok: true, ambiente: ambiente, nombre: amb.nombre,
+    productos: (pases[k] && pases[k].productos) || '',
+    vence: pases[k] ? new Date(pases[k].vence).toISOString() : null
+  };
 }
 
 /* --------------------------------------------- 2) la carpeta de descargas -- */
@@ -281,7 +411,10 @@ async function buscar(estacion, opciones) {
   const intentos = [];
   const fuentes = [];
   if (opciones.llaves && opciones.llaves.clientId && opciones.llaves.clientSecret) {
-    fuentes.push({ nombre: 'API de la FAA', leer: () => consultarAPI(sitio, opciones.llaves, opciones) });
+    fuentes.push({
+      nombre: 'NMS de la FAA',
+      leer: () => consultarAPI(sitio, opciones.llaves, opciones)
+    });
   }
   if (opciones.carpeta) {
     fuentes.push({ nombre: 'carpeta vigilada', leer: () => consultarCarpeta(opciones.carpeta, sitio) });
@@ -330,8 +463,10 @@ function comparar(nuevos, anteriores) {
 }
 
 module.exports = {
-  API_FAA, RE_ARCHIVO,
-  deJSON, consultarAPI, pedirJSON,
+  AMBIENTES, AMBIENTE_POR_OMISION, RE_ARCHIVO,
+  deJSON, depurar, tipoDelTexto, referido, consultarAPI, pase, probarLlaves, pedir,
   buscarArchivos, leerArchivo, consultarCarpeta,
-  buscar, comparar, modulos
+  buscar, comparar, modulos,
+  /* para las pruebas: olvidar los pases guardados */
+  olvidarPases: function () { Object.keys(pases).forEach((k) => delete pases[k]); }
 };

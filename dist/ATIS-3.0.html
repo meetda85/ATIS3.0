@@ -1348,22 +1348,35 @@ body.modo-control .pstate-main::after {
       </div>
       <div id="ntArchivos" class="vigultimo" hidden></div>
 
-      <h3>2. La API oficial de la FAA <span class="suave">&mdash; la buena, pide un registro gratuito</span></h3>
+      <h3>2. El servicio NMS de la FAA <span class="suave">&mdash; la buena, ya no se baja ning&uacute;n archivo</span></h3>
       <p class="help">
-        Con esto ya no se baja ning&uacute;n archivo: el servidor le pregunta directo a la FAA y
-        contesta en un segundo. Las llaves se sacan una sola vez en
-        <b>api.faa.gov</b>: crear cuenta, crear una aplicaci&oacute;n y pedir acceso a
-        <i>NOTAM API</i>. Son gratuitas y no caducan. Se guardan solo en esta computadora;
-        el secreto nunca sale de aqu&iacute;.
+        El servidor le pregunta directo al <b>NOTAM Management Service</b> de la FAA y contesta
+        en menos de un segundo. Las credenciales se piden por correo a
+        <b>notams@faa.gov</b> y llegan en una hoja de c&aacute;lculo: ah&iacute; el <b>KEY</b> es el
+        <i>client_id</i> y el <b>SECRET</b> es el <i>client_secret</i>. Se guardan solo en esta
+        computadora; el secreto nunca sale de aqu&iacute;.
       </p>
-      <div class="grid2">
-        <label class="field"><span>client_id</span>
+      <p class="help">
+        <b>El ambiente importa</b>: unas credenciales de preproducci&oacute;n no entran a
+        producci&oacute;n, y al rev&eacute;s tampoco. Si no sabe cu&aacute;l le dieron, pulse
+        <i>Comprobar las llaves</i> y el programa las prueba en los tres y le dice.
+      </p>
+      <div class="grid3">
+        <label class="field"><span>client_id (KEY)</span>
           <input id="ntClientId" spellcheck="false" autocomplete="off" placeholder="sin poner">
         </label>
-        <label class="field"><span>client_secret</span>
+        <label class="field"><span>client_secret (SECRET)</span>
           <input id="ntClientSecret" type="password" spellcheck="false" autocomplete="off" placeholder="sin poner">
         </label>
+        <label class="field"><span>Ambiente</span>
+          <select id="ntAmbiente"></select>
+        </label>
       </div>
+      <div class="row buttons">
+        <button id="btnNtLlaves" class="small ghost">Comprobar las llaves</button>
+        <span id="ntLlavesStatus" class="status"></span>
+      </div>
+      <div id="ntAmbientes" class="vigultimo" hidden></div>
 
       <div class="row buttons">
         <button id="btnNtAhora" class="small">Revisar ahora</button>
@@ -1706,10 +1719,10 @@ body.modo-control .pstate-main::after {
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.5',
-    FECHA: '2026-10-12',
+    VERSION: '3.6',
+    FECHA: '2026-10-13',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'NOTAM automáticos, desde la API de la FAA o de una carpeta vigilada'
+    NOVEDADES: 'NOTAM automáticos desde el servicio NMS de la FAA, ya funcionando'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;
@@ -5245,6 +5258,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       'modalMetarSi', 'modalMetarNo', 'metarSonido',
       'ntBadge', 'ntActiva', 'ntEstacion', 'ntMinutos', 'ntCarpeta', 'btnNtCarpeta', 'ntArchivos',
       'ntClientId', 'ntClientSecret', 'btnNtAhora', 'btnNtGuardar', 'ntStatus', 'ntUltimo',
+      'ntAmbiente', 'btnNtLlaves', 'ntLlavesStatus', 'ntAmbientes',
       'modalNotam', 'modalNotamHora', 'modalNotamSub', 'modalNotamLista',
       'modalNotamSi', 'modalNotamNo',
       'pendiente', 'pendienteTexto', 'btnAplicarYa',
@@ -7022,6 +7036,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     el.ntEstacion.value = d.estacion || 'MMMX';
     el.ntMinutos.value = d.minutos || 30;
     el.ntCarpeta.value = d.carpeta || '';
+    if (d.ambientes && el.ntAmbiente && !el.ntAmbiente.options.length) {
+      el.ntAmbiente.innerHTML = d.ambientes.map(function (a) {
+        return '<option value="' + escapeHtml(a.clave) + '">' + escapeHtml(a.nombre) + '</option>';
+      }).join('');
+    }
+    if (d.ambiente && el.ntAmbiente) selectIfPresent(el.ntAmbiente, d.ambiente);
     /* El secreto no viaja; si ya está puesto se indica sin enseñarlo */
     if (d.llaves && d.llaves.puestas) {
       el.ntClientId.placeholder = d.llaves.clientId || 'ya está puesto';
@@ -7038,7 +7058,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       activo: el.ntActiva.checked,
       estacion: el.ntEstacion.value.toUpperCase().trim(),
       minutos: +el.ntMinutos.value || 30,
-      carpeta: el.ntCarpeta.value.trim()
+      carpeta: el.ntCarpeta.value.trim(),
+      ambiente: el.ntAmbiente ? el.ntAmbiente.value : undefined
     };
     /* Las llaves solo se mandan si se escribieron: en blanco se dejan como estaban */
     if (el.ntClientId.value.trim()) cuerpo.clientId = el.ntClientId.value.trim();
@@ -7925,6 +7946,45 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }).catch(function (e) {
         el.btnNtAhora.disabled = false;
         status(el.ntStatus, 'No se pudo: ' + e.message, 'err');
+      });
+    });
+
+    on(el.btnNtLlaves, 'click', function () {
+      if (!ntDisponible()) {
+        status(el.ntLlavesStatus, 'Esto necesita el servidor.', 'err'); return;
+      }
+      el.btnNtLlaves.disabled = true;
+      status(el.ntLlavesStatus, 'Probando las llaves en los tres ambientes…');
+      pedirNotam('/api/notam/llaves', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: el.ntClientId.value.trim(),
+          clientSecret: el.ntClientSecret.value.trim()
+        })
+      }).then(function (d) {
+        el.btnNtLlaves.disabled = false;
+        el.ntAmbientes.hidden = false;
+        if (d.error) { status(el.ntLlavesStatus, d.error, 'err'); return; }
+        el.ntAmbientes.innerHTML = (d.ambientes || []).map(function (a) {
+          return '<div class="voiceitem' + (a.ok ? ' natural' : ' falla') + '">' +
+            '<span>' + (a.ok ? '✓' : '✕') + '</span>' +
+            '<span class="vname">' + escapeHtml(a.nombre) + '</span>' +
+            '<span class="vlang">' + escapeHtml(a.ok ? (a.productos || 'sirven aquí')
+              : (a.error || '').slice(0, 70)) + '</span></div>';
+        }).join('');
+        var sirven = (d.ambientes || []).filter(function (a) { return a.ok; });
+        if (!sirven.length) {
+          status(el.ntLlavesStatus, 'Esas llaves no entran en ningún ambiente. ' +
+            'Revise que estén completas.', 'err');
+          return;
+        }
+        /* Se deja puesto el que sirve, para no hacerlo a mano */
+        selectIfPresent(el.ntAmbiente, sirven[0].ambiente);
+        status(el.ntLlavesStatus, 'Sirven en ' + sirven.map(function (a) { return a.nombre; }).join(' y ') +
+          '. Se dejó seleccionado ' + sirven[0].nombre + '; pulse Guardar.', 'ok');
+      }).catch(function (e) {
+        el.btnNtLlaves.disabled = false;
+        status(el.ntLlavesStatus, 'No se pudo comprobar: ' + e.message, 'err');
       });
     });
 

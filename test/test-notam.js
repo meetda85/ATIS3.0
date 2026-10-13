@@ -39,7 +39,61 @@ async function test(nombre, fn) {
 const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json());
 
 const EJEMPLO = path.join(__dirname, 'fixtures', 'faa_notamapi_MMMX.json');
+const NMS = path.join(__dirname, 'fixtures', 'nms_geojson_MMMX.json');
 const FIXTURES = path.join(__dirname, 'fixtures');
+
+/* Un NMS de mentiras: hace el intercambio de pase igual que el de verdad y
+   devuelve el ejemplo guardado. Así las pruebas no dependen de la red ni de
+   unas credenciales que no viajan en el repositorio. */
+const LLAVES = { clientId: 'LLAVE-DE-PRUEBA', clientSecret: 'SECRETO-DE-PRUEBA' };
+
+function nmsFalso(opciones) {
+  opciones = opciones || {};
+  const http = require('http');
+  const cuenta = { tokens: 0, consultas: 0, cabeceras: [] };
+  const srv = http.createServer((pet, resp) => {
+    if (pet.url === '/v1/auth/token' && pet.method === 'POST') {
+      cuenta.tokens++;
+      let cuerpo = '';
+      pet.on('data', (t) => { cuerpo += t; });
+      pet.on('end', () => {
+        const aut = String(pet.headers.authorization || '');
+        const esperado = 'Basic ' + Buffer.from(LLAVES.clientId + ':' + LLAVES.clientSecret).toString('base64');
+        if (opciones.rechazar || aut !== esperado) {
+          resp.writeHead(401, { 'Content-Type': 'application/json' });
+          return resp.end(JSON.stringify({ ErrorCode: 'invalid_client', Error: 'ClientId is Invalid' }));
+        }
+        if (cuerpo.indexOf('grant_type=client_credentials') < 0) {
+          resp.writeHead(400, { 'Content-Type': 'application/json' });
+          return resp.end(JSON.stringify({ Error: 'falta grant_type' }));
+        }
+        resp.writeHead(200, { 'Content-Type': 'application/json' });
+        resp.end(JSON.stringify({
+          access_token: 'PASE-' + cuenta.tokens,
+          expires_in: String(opciones.expiraEn || 1799),
+          api_product_list: '[FAA Notam Distribution APIs]',
+          status: 'approved'
+        }));
+      });
+      return;
+    }
+    if (/^\/nmsapi\/v1\/notams/.test(pet.url)) {
+      cuenta.consultas++;
+      cuenta.cabeceras.push({
+        aut: pet.headers.authorization || '',
+        formato: pet.headers.nmsresponseformat || '',
+        url: pet.url
+      });
+      if (!/^Bearer PASE-/.test(String(pet.headers.authorization || ''))) {
+        resp.writeHead(401); return resp.end('sin pase');
+      }
+      resp.writeHead(200, { 'Content-Type': 'application/json' });
+      return resp.end(fs.readFileSync(NMS));
+    }
+    resp.writeHead(404); resp.end('no');
+  });
+  return { srv: srv, cuenta: cuenta };
+}
 
 (async () => {
   /* ==================================================== la API de la FAA == */
@@ -96,6 +150,145 @@ const FIXTURES = path.join(__dirname, 'fixtures');
         assert.ok(Array.isArray(r), 'el caso ' + i + ' no devolvio una lista');
         assert.strictEqual(r.length, 0, 'el caso ' + i + ' invento ' + r.length + ' registros');
       });
+  });
+
+  /* ========================================= cancelaciones y reemplazos == */
+  console.log('\nNOTAM: lo que no se transmite');
+
+  await test('saca el tipo y a quien se refiere de la primera linea', () => {
+    assert.strictEqual(fuente.tipoDelTexto('A9186/26 NOTAMN\nQ) ...'), 'N');
+    assert.strictEqual(fuente.tipoDelTexto('B2864/26 NOTAMC B2857/26\n...'), 'C');
+    assert.strictEqual(fuente.tipoDelTexto('B2279/26 NOTAMR B2100/26\n...'), 'R');
+    assert.strictEqual(fuente.tipoDelTexto('sin encabezado'), '');
+    assert.strictEqual(fuente.referido('B2864/26 NOTAMC B2857/26'), 'B2857/26');
+    assert.strictEqual(fuente.referido('B2279/26 NOTAMR B2100/26'), 'B2100/26');
+    assert.strictEqual(fuente.referido('A9186/26 NOTAMN'), '');
+  });
+
+  await test('una cancelacion no se transmite, y borra al que cancela', () => {
+    const lista = [
+      { id: 'B2857/26', tipo: 'N', raw: 'TWY EDGE LGT U/S' },
+      { id: 'B2864/26', tipo: 'C', reemplaza: 'B2857/26', raw: 'B2864/26 NOTAMC B2857/26 TWY EDGE LGT NOTAM CNL' },
+      { id: 'A9186/26', tipo: 'N', raw: 'SOUTH MMMX ARR OPR IN FREQ 121.40MHZ' }
+    ];
+    const r = fuente.depurar(lista);
+    assert.strictEqual(r.length, 1, 'debia quedar solo el que sigue vigente');
+    assert.strictEqual(r[0].id, 'A9186/26');
+    assert.ok(!r.some((x) => /NOTAM CNL/.test(x.raw)), 'se colo un aviso de cancelacion');
+  });
+
+  await test('un reemplazo se queda, y el reemplazado se va', () => {
+    const r = fuente.depurar([
+      { id: 'B2100/26', tipo: 'N', raw: 'viejo' },
+      { id: 'B2279/26', tipo: 'R', reemplaza: 'B2100/26', raw: 'B2279/26 NOTAMR B2100/26 nuevo' }
+    ]);
+    assert.strictEqual(r.length, 1);
+    assert.strictEqual(r[0].id, 'B2279/26', 'se quedo con el viejo en lugar del nuevo');
+  });
+
+  await test('con los NOTAM reales de MMMX quedan fuera las cuatro cancelaciones', () => {
+    const json = JSON.parse(fs.readFileSync(NMS, 'utf8'));
+    const todos = json.data.geojson.length;
+    const r = fuente.deJSON(json, 'MMMX');
+    assert.strictEqual(todos, 32, 'el ejemplo guardado cambio');
+    assert.ok(r.length < todos, 'no filtro nada');
+    assert.strictEqual(r.filter((x) => x.tipo === 'C').length, 0, 'se colo una cancelacion');
+    assert.strictEqual(r.filter((x) => /NOTAM CNL/.test(x.raw)).length, 0,
+      'quedo un "NOTAM CNL" que se leeria al aire');
+    /* y los que quedan si son del aerodromo y se entienden */
+    const ATIS = fuente.modulos();
+    r.forEach((x) => {
+      assert.strictEqual(x.location, 'MMMX');
+      const es = ATIS.notam.parse(x.raw, 'es');
+      assert.ok(es.plain && es.plain.length > 3, 'no se pudo leer ' + x.id);
+    });
+  });
+
+  /* ======================================================= el NMS == */
+  console.log('\nNOTAM: el servicio NMS de la FAA');
+
+  await test('cambia las llaves por un pase y lo usa en la consulta', async () => {
+    const falso = nmsFalso();
+    await new Promise((r) => falso.srv.listen(0, '127.0.0.1', r));
+    const host = 'http://127.0.0.1:' + falso.srv.address().port;
+    try {
+      fuente.olvidarPases();
+      const r = await fuente.consultarAPI('MMMX', LLAVES, { ambiente: 'staging', host: host });
+      assert.ok(r.records.length > 15, 'solo trajo ' + r.records.length);
+      assert.strictEqual(falso.cuenta.tokens, 1, 'pidio ' + falso.cuenta.tokens + ' pases');
+      assert.strictEqual(falso.cuenta.consultas, 1);
+      const c = falso.cuenta.cabeceras[0];
+      assert.strictEqual(c.aut, 'Bearer PASE-1', 'no mando el pase');
+      assert.strictEqual(c.formato, 'GEOJSON', 'no pidio GEOJSON');
+      assert.ok(/location=MMMX/.test(c.url), 'no filtro por estacion: ' + c.url);
+    } finally { falso.srv.close(); }
+  });
+
+  await test('reusa el pase mientras sirva, en lugar de pedir uno cada vez', async () => {
+    const falso = nmsFalso();
+    await new Promise((r) => falso.srv.listen(0, '127.0.0.1', r));
+    const host = 'http://127.0.0.1:' + falso.srv.address().port;
+    try {
+      fuente.olvidarPases();
+      for (let i = 0; i < 3; i++) await fuente.consultarAPI('MMMX', LLAVES, { ambiente: 'staging', host: host });
+      assert.strictEqual(falso.cuenta.consultas, 3);
+      assert.strictEqual(falso.cuenta.tokens, 1, 'pidio ' + falso.cuenta.tokens + ' pases para 3 consultas');
+    } finally { falso.srv.close(); }
+  });
+
+  await test('un pase a punto de caducar se renueva antes de usarlo', async () => {
+    /* Un pase que dura menos que el margen de renovación (un minuto) ya nace
+       vencido para nuestros efectos: cada consulta tiene que pedir uno nuevo. */
+    const falso = nmsFalso({ expiraEn: 30 });
+    await new Promise((r) => falso.srv.listen(0, '127.0.0.1', r));
+    const host = 'http://127.0.0.1:' + falso.srv.address().port;
+    try {
+      fuente.olvidarPases();
+      await fuente.consultarAPI('MMMX', LLAVES, { ambiente: 'staging', host: host });
+      await fuente.consultarAPI('MMMX', LLAVES, { ambiente: 'staging', host: host });
+      assert.strictEqual(falso.cuenta.tokens, 2, 'no renovo el pase a punto de caducar');
+    } finally { falso.srv.close(); }
+  });
+
+  await test('si las llaves no entran, lo dice nombrando el ambiente', async () => {
+    const falso = nmsFalso({ rechazar: true });
+    await new Promise((r) => falso.srv.listen(0, '127.0.0.1', r));
+    const host = 'http://127.0.0.1:' + falso.srv.address().port;
+    try {
+      fuente.olvidarPases();
+      await assert.rejects(
+        () => fuente.consultarAPI('MMMX', LLAVES, { ambiente: 'staging', host: host }),
+        (e) => {
+          assert.ok(/preproducción/.test(e.message), 'no nombro el ambiente: ' + e.message);
+          assert.ok(/ambiente/.test(e.message), 'no sugiere revisar el ambiente');
+          return true;
+        });
+      assert.strictEqual(falso.cuenta.consultas, 0, 'consulto sin tener pase');
+    } finally { falso.srv.close(); }
+  });
+
+  await test('probarLlaves dice si entran, sin pedir ningun NOTAM', async () => {
+    const falso = nmsFalso();
+    await new Promise((r) => falso.srv.listen(0, '127.0.0.1', r));
+    const host = 'http://127.0.0.1:' + falso.srv.address().port;
+    try {
+      fuente.olvidarPases();
+      const r = await fuente.probarLlaves('staging', LLAVES, 10000, host);
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(r.nombre, 'preproducción');
+      assert.ok(/Distribution/.test(r.productos), 'no dijo que productos: ' + r.productos);
+      assert.strictEqual(falso.cuenta.consultas, 0, 'pidio NOTAM cuando solo iba a comprobar');
+    } finally { falso.srv.close(); }
+  });
+
+  await test('los tres ambientes estan declarados con su direccion', () => {
+    assert.deepStrictEqual(Object.keys(fuente.AMBIENTES).sort().join(','), 'fit,prod,staging');
+    Object.keys(fuente.AMBIENTES).forEach((k) => {
+      const a = fuente.AMBIENTES[k];
+      assert.ok(/^https:\/\//.test(a.host), k + ' no tiene direccion segura');
+      assert.ok(a.nombre, k + ' no tiene nombre');
+    });
+    assert.strictEqual(fuente.AMBIENTE_POR_OMISION, 'prod', 'por omision debe ser produccion');
   });
 
   /* ================================================= la carpeta vigilada == */
@@ -223,7 +416,7 @@ const FIXTURES = path.join(__dirname, 'fixtures');
       carpeta: FIXTURES, tiempoLimite: 20000
     });
     assert.strictEqual(r.intentos.length, 2, 'debio intentar las dos');
-    assert.strictEqual(r.intentos[0].fuente, 'API de la FAA');
+    assert.strictEqual(r.intentos[0].fuente, 'NMS de la FAA');
     assert.strictEqual(r.intentos[0].ok, false, 'unas llaves inventadas no pueden funcionar');
     assert.ok(r.intentos[0].error, 'no dijo por que fallo la API');
     assert.strictEqual(r.ok, true, 'la carpeta tenia que salvarlo: ' + r.error);
@@ -299,11 +492,12 @@ const FIXTURES = path.join(__dirname, 'fixtures');
     assert.strictEqual(d.ok, false);
     /* con las llaves de mentiras de la prueba anterior tiene que intentar las dos */
     assert.strictEqual(d.intentos.length, 2, 'no intento las dos fuentes');
-    const api = d.intentos.filter((i) => /API/.test(i.fuente))[0];
+    const api = d.intentos.filter((i) => /NMS/.test(i.fuente))[0];
     const carpeta = d.intentos.filter((i) => /carpeta/.test(i.fuente))[0];
-    assert.ok(api && /401|llaves/.test(api.error), 'la API debio quejarse de las llaves: ' + (api && api.error));
+    assert.ok(api && /llaves|ambiente|401/.test(api.error),
+      'el NMS debio quejarse de las llaves: ' + (api && api.error));
     assert.ok(carpeta && /ZZZZ/.test(carpeta.error), 'la carpeta debio nombrar la estacion: ' + (carpeta && carpeta.error));
-    assert.ok(d.error.indexOf('API de la FAA') >= 0 && d.error.indexOf('carpeta') >= 0,
+    assert.ok(d.error.indexOf('NMS de la FAA') >= 0 && d.error.indexOf('carpeta') >= 0,
       'el resumen debe nombrar las dos: ' + d.error);
   });
 

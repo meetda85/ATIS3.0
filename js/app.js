@@ -51,6 +51,7 @@
       'modalMetarSi', 'modalMetarNo', 'metarSonido',
       'ntBadge', 'ntActiva', 'ntEstacion', 'ntMinutos', 'ntCarpeta', 'btnNtCarpeta', 'ntArchivos',
       'ntClientId', 'ntClientSecret', 'btnNtAhora', 'btnNtGuardar', 'ntStatus', 'ntUltimo',
+      'ntAmbiente', 'btnNtLlaves', 'ntLlavesStatus', 'ntAmbientes',
       'modalNotam', 'modalNotamHora', 'modalNotamSub', 'modalNotamLista',
       'modalNotamSi', 'modalNotamNo',
       'pendiente', 'pendienteTexto', 'btnAplicarYa',
@@ -1828,6 +1829,12 @@
     el.ntEstacion.value = d.estacion || 'MMMX';
     el.ntMinutos.value = d.minutos || 30;
     el.ntCarpeta.value = d.carpeta || '';
+    if (d.ambientes && el.ntAmbiente && !el.ntAmbiente.options.length) {
+      el.ntAmbiente.innerHTML = d.ambientes.map(function (a) {
+        return '<option value="' + escapeHtml(a.clave) + '">' + escapeHtml(a.nombre) + '</option>';
+      }).join('');
+    }
+    if (d.ambiente && el.ntAmbiente) selectIfPresent(el.ntAmbiente, d.ambiente);
     /* El secreto no viaja; si ya está puesto se indica sin enseñarlo */
     if (d.llaves && d.llaves.puestas) {
       el.ntClientId.placeholder = d.llaves.clientId || 'ya está puesto';
@@ -1844,7 +1851,8 @@
       activo: el.ntActiva.checked,
       estacion: el.ntEstacion.value.toUpperCase().trim(),
       minutos: +el.ntMinutos.value || 30,
-      carpeta: el.ntCarpeta.value.trim()
+      carpeta: el.ntCarpeta.value.trim(),
+      ambiente: el.ntAmbiente ? el.ntAmbiente.value : undefined
     };
     /* Las llaves solo se mandan si se escribieron: en blanco se dejan como estaban */
     if (el.ntClientId.value.trim()) cuerpo.clientId = el.ntClientId.value.trim();
@@ -2731,6 +2739,45 @@
       }).catch(function (e) {
         el.btnNtAhora.disabled = false;
         status(el.ntStatus, 'No se pudo: ' + e.message, 'err');
+      });
+    });
+
+    on(el.btnNtLlaves, 'click', function () {
+      if (!ntDisponible()) {
+        status(el.ntLlavesStatus, 'Esto necesita el servidor.', 'err'); return;
+      }
+      el.btnNtLlaves.disabled = true;
+      status(el.ntLlavesStatus, 'Probando las llaves en los tres ambientes…');
+      pedirNotam('/api/notam/llaves', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: el.ntClientId.value.trim(),
+          clientSecret: el.ntClientSecret.value.trim()
+        })
+      }).then(function (d) {
+        el.btnNtLlaves.disabled = false;
+        el.ntAmbientes.hidden = false;
+        if (d.error) { status(el.ntLlavesStatus, d.error, 'err'); return; }
+        el.ntAmbientes.innerHTML = (d.ambientes || []).map(function (a) {
+          return '<div class="voiceitem' + (a.ok ? ' natural' : ' falla') + '">' +
+            '<span>' + (a.ok ? '✓' : '✕') + '</span>' +
+            '<span class="vname">' + escapeHtml(a.nombre) + '</span>' +
+            '<span class="vlang">' + escapeHtml(a.ok ? (a.productos || 'sirven aquí')
+              : (a.error || '').slice(0, 70)) + '</span></div>';
+        }).join('');
+        var sirven = (d.ambientes || []).filter(function (a) { return a.ok; });
+        if (!sirven.length) {
+          status(el.ntLlavesStatus, 'Esas llaves no entran en ningún ambiente. ' +
+            'Revise que estén completas.', 'err');
+          return;
+        }
+        /* Se deja puesto el que sirve, para no hacerlo a mano */
+        selectIfPresent(el.ntAmbiente, sirven[0].ambiente);
+        status(el.ntLlavesStatus, 'Sirven en ' + sirven.map(function (a) { return a.nombre; }).join(' y ') +
+          '. Se dejó seleccionado ' + sirven[0].nombre + '; pulse Guardar.', 'ok');
+      }).catch(function (e) {
+        el.btnNtLlaves.disabled = false;
+        status(el.ntLlavesStatus, 'No se pudo comprobar: ' + e.message, 'err');
       });
     });
 

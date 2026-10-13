@@ -121,6 +121,7 @@ let notam = {
   estacion: 'MMMX',
   minutos: 30,
   carpeta: '',
+  ambiente: notamFuente.AMBIENTE_POR_OMISION,
   llaves: { clientId: '', clientSecret: '' },
   ultimo: null,          /* { records, fuente, cuando, archivo } */
   revisado: null,
@@ -140,7 +141,7 @@ function guardarNotam() {
   try {
     fs.writeFileSync(ARCHIVO_NOTAM, JSON.stringify({
       activo: notam.activo, estacion: notam.estacion, minutos: notam.minutos,
-      carpeta: notam.carpeta, llaves: notam.llaves
+      carpeta: notam.carpeta, ambiente: notam.ambiente, llaves: notam.llaves
     }), 'utf8');
   } catch (err) {
     console.error('No se pudo guardar la configuración de NOTAM:', err.message);
@@ -153,7 +154,10 @@ function estadoNotam() {
   const l = notam.llaves || {};
   return {
     activo: notam.activo, estacion: notam.estacion, minutos: notam.minutos,
-    carpeta: notam.carpeta,
+    carpeta: notam.carpeta, ambiente: notam.ambiente,
+    ambientes: Object.keys(notamFuente.AMBIENTES).map((k) => ({
+      clave: k, nombre: notamFuente.AMBIENTES[k].nombre
+    })),
     llaves: {
       puestas: !!(l.clientId && l.clientSecret),
       clientId: l.clientId ? l.clientId.slice(0, 4) + '…' + l.clientId.slice(-4) : ''
@@ -168,7 +172,7 @@ async function revisarNotam(motivo) {
   notam.revisiones++;
   try {
     const r = await notamFuente.buscar(notam.estacion, {
-      llaves: notam.llaves, carpeta: notam.carpeta
+      llaves: notam.llaves, carpeta: notam.carpeta, ambiente: notam.ambiente
     });
     if (!r.ok) {
       notam.error = r.error;
@@ -563,13 +567,45 @@ const servidor = http.createServer(async (req, res) => {
   if (url.startsWith('/api/notam/buscar') && req.method === 'GET') {
     const pedido = new URL(url, 'http://local');
     const estacion = String(pedido.searchParams.get('estacion') || notam.estacion).toUpperCase();
-    const r = await notamFuente.buscar(estacion, { llaves: notam.llaves, carpeta: notam.carpeta });
+    const r = await notamFuente.buscar(estacion, {
+      llaves: notam.llaves, carpeta: notam.carpeta, ambiente: notam.ambiente
+    });
     console.log('[' + new Date().toLocaleTimeString() + '] NOTAM de ' + estacion + ': ' +
       (r.ok ? r.records.length + ' desde ' + r.fuente : 'no se pudo (' + r.error + ')'));
     return json(res, r.ok ? 200 : 502, r);
   }
 
   /* Qué hojas de cálculo hay en una carpeta, para poder elegirla sin adivinar */
+  /* Comprobar las llaves sin traer nada: dice si entran y en qué ambiente */
+  if (url === '/api/notam/llaves' && req.method === 'POST') {
+    try {
+      const c = await leerCuerpo(req);
+      const llaves = {
+        clientId: String(c.clientId || notam.llaves.clientId || '').trim(),
+        clientSecret: String(c.clientSecret || notam.llaves.clientSecret || '').trim()
+      };
+      if (!llaves.clientId || !llaves.clientSecret) {
+        return json(res, 200, { ok: false, error: 'faltan las llaves' });
+      }
+      /* Se prueban los tres ambientes: así se descubre solo en cuál sirven */
+      const salida = [];
+      for (const amb of Object.keys(notamFuente.AMBIENTES)) {
+        try {
+          const r = await notamFuente.probarLlaves(amb, llaves, 20000);
+          salida.push({ ambiente: amb, nombre: r.nombre, ok: true, productos: r.productos });
+        } catch (e) {
+          salida.push({ ambiente: amb, nombre: notamFuente.AMBIENTES[amb].nombre, ok: false, error: e.message });
+        }
+      }
+      const sirve = salida.filter((x) => x.ok);
+      console.log('[' + new Date().toLocaleTimeString() + '] llaves de la FAA: ' +
+        (sirve.length ? 'sirven en ' + sirve.map((x) => x.nombre).join(', ') : 'no sirven en ningún ambiente'));
+      return json(res, 200, { ok: sirve.length > 0, ambientes: salida });
+    } catch (e) {
+      return json(res, 400, { error: e.message });
+    }
+  }
+
   if (url.startsWith('/api/notam/carpeta') && req.method === 'GET') {
     const pedido = new URL(url, 'http://local');
     const ruta = String(pedido.searchParams.get('ruta') || notam.carpeta || '');
@@ -591,6 +627,7 @@ const servidor = http.createServer(async (req, res) => {
       if (c.estacion) notam.estacion = String(c.estacion).toUpperCase().slice(0, 4);
       if (c.minutos) notam.minutos = Math.max(5, Math.min(240, parseInt(c.minutos, 10) || 30));
       if (c.carpeta !== undefined) notam.carpeta = String(c.carpeta).slice(0, 400);
+      if (c.ambiente && notamFuente.AMBIENTES[c.ambiente]) notam.ambiente = c.ambiente;
       /* Las llaves solo se cambian si llegan; una cadena vacía las borra */
       if (c.clientId !== undefined) notam.llaves.clientId = String(c.clientId).trim().slice(0, 120);
       if (c.clientSecret !== undefined) notam.llaves.clientSecret = String(c.clientSecret).trim().slice(0, 120);
