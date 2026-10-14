@@ -943,3 +943,10 @@ body.modo-control .pstate-main::after {
 .ntfila .ntid { font: 600 12px/1 ui-monospace, Consolas, monospace; color: var(--muted); }
 .ntfila .ntq { font-size: 11px; color: var(--muted); margin-left: 8px; }
 .ntfila .nttxt { display: block; margin-top: 5px; font-size: 13px; line-height: 1.55; }
+
+/* Ajustes de administracion */
+.tab .candadito { font-size: 11px; margin-left: 5px; opacity: .75; }
+.tab.abierta .candadito { opacity: 0; }
+.candado { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 12px 0 4px; }
+.candado .field { max-width: 190px; }
+.candado input { font: 600 20px/1 ui-monospace, Consolas, monospace; letter-spacing: .32em; text-align: center; }

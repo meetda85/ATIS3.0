@@ -19,6 +19,7 @@ const fuente = require('./fuente-metar');
 const version = require('../js/version.js');
 const voz = require('./voz-piper');
 const notamFuente = require('./fuente-notam');
+const admin = require('./admin');
 
 const RAIZ = path.join(__dirname, '..');
 const ARCHIVO_ESTADO = path.join(__dirname, 'estado.json');
@@ -433,8 +434,58 @@ async function sintetizarPiezas(cuerpo) {
 }
 
 /* ------------------------------------------------------------- servidor -- */
+/* Las rutas que cambian credenciales o fuentes piden el pase de
+   administración. Sin él, el servidor dice que no: el candado de la pantalla
+   no sería candado si cualquiera pudiera saltárselo hablándole al servidor. */
+function exigirAdmin(req, res) {
+  if (admin.abierto(req)) return false;
+  json(res, 403, {
+    error: 'esto está en Ajustes de administración: hace falta la clave',
+    admin: true
+  });
+  return true;
+}
+
 const servidor = http.createServer(async (req, res) => {
   const url = req.url || '/';
+
+  /* ---------------------------------------------- administración -- */
+  if (url === '/api/admin' && req.method === 'GET') {
+    return json(res, 200, Object.assign(admin.estado(), { abierto: admin.abierto(req) }));
+  }
+
+  if (url === '/api/admin/entrar' && req.method === 'POST') {
+    try {
+      const c = await leerCuerpo(req);
+      const r = admin.entrar(String(c.clave || ''));
+      if (!r.ok) {
+        console.log('[' + new Date().toLocaleTimeString() + '] clave de administración rechazada' +
+          (r.esperaSegundos ? ' (en espera ' + r.esperaSegundos + ' s)' : ''));
+        return json(res, 401, r);
+      }
+      console.log('[' + new Date().toLocaleTimeString() + '] se entró a Ajustes de administración');
+      return json(res, 200, r);
+    } catch (e) {
+      return json(res, 400, { error: e.message });
+    }
+  }
+
+  if (url === '/api/admin/salir' && req.method === 'POST') {
+    admin.salir(admin.paseDe(req));
+    return json(res, 200, { ok: true });
+  }
+
+  if (url === '/api/admin/clave' && req.method === 'POST') {
+    if (exigirAdmin(req, res)) return;
+    try {
+      const c = await leerCuerpo(req);
+      const r = admin.cambiar(String(c.actual || ''), String(c.nueva || ''));
+      if (r.ok) console.log('Clave de administración cambiada');
+      return json(res, r.ok ? 200 : 400, r);
+    } catch (e) {
+      return json(res, 400, { error: e.message });
+    }
+  }
 
   if (url === '/api/estado' && req.method === 'GET') {
     return json(res, 200, estado);
@@ -497,6 +548,7 @@ const servidor = http.createServer(async (req, res) => {
   }
 
   if (url === '/api/metar' && req.method === 'POST') {
+    if (exigirAdmin(req, res)) return;
     try {
       const c = await leerCuerpo(req);
       if (typeof c.activo === 'boolean') metar.activo = c.activo;
@@ -544,6 +596,7 @@ const servidor = http.createServer(async (req, res) => {
   }
 
   if (url === '/api/voz/instalar' && req.method === 'POST') {
+    if (exigirAdmin(req, res)) return;
     try {
       const c = await leerCuerpo(req);
       const r = instalarVoz(c);
@@ -558,6 +611,7 @@ const servidor = http.createServer(async (req, res) => {
   }
 
   if (url === '/api/voz/limpiar' && req.method === 'POST') {
+    if (exigirAdmin(req, res)) return;
     const borrados = voz.limpiarCache();
     console.log('Caché de voz vaciado: ' + borrados + ' archivos');
     return json(res, 200, { borrados: borrados, estado: voz.estado(true) });
@@ -578,6 +632,7 @@ const servidor = http.createServer(async (req, res) => {
   /* Qué hojas de cálculo hay en una carpeta, para poder elegirla sin adivinar */
   /* Comprobar las llaves sin traer nada: dice si entran y en qué ambiente */
   if (url === '/api/notam/llaves' && req.method === 'POST') {
+    if (exigirAdmin(req, res)) return;
     try {
       const c = await leerCuerpo(req);
       const llaves = {
@@ -621,6 +676,7 @@ const servidor = http.createServer(async (req, res) => {
   }
 
   if (url === '/api/notam' && req.method === 'POST') {
+    if (exigirAdmin(req, res)) return;
     try {
       const c = await leerCuerpo(req);
       if (typeof c.activo === 'boolean') notam.activo = c.activo;
@@ -732,6 +788,11 @@ function anunciar(puerto) {
     : (ev.disponible ? 'incompleta, falta ' + ev.falta.join(' y ')
       : 'no instalada — se instala desde Ajustes → Voz neuronal, o con VOZ.bat')));
   console.log('');
+  if (admin.esLaDeFabrica()) {
+    console.log('  Ajustes de administración: la clave sigue siendo la de fábrica (0348).');
+    console.log('  Se cambia desde la propia pantalla, en Administración.');
+    console.log('');
+  }
   console.log('  Esta ventana debe quedarse abierta. Ctrl+C para detener.');
   console.log('');
   /* Línea para el .bat: así sabe a qué dirección abrir el navegador */

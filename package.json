@@ -7,7 +7,7 @@
     "start": "node servidor/servidor.js",
     "servidor": "node servidor/servidor.js",
     "voz": "node servidor/instalar-voz.js",
-    "test": "node test/test.js && node test/test-voz.js && node test/test-bucle-neural.js && node test/test-servidor.js && node test/test-notam.js && node test/test-voz-neural.js"
+    "test": "node test/test.js && node test/test-voz.js && node test/test-bucle-neural.js && node test/test-admin.js && node test/test-servidor.js && node test/test-notam.js && node test/test-voz-neural.js"
   },
   "license": "MIT"
 }

@@ -340,6 +340,41 @@ Requiere **Node.js** en la PC de la torre (solo ahí). Si no está, `SERVIDOR.ba
 las dos formas de ponerlo, incluida la que no instala nada. Sin Node, el ATIS funciona
 igual que siempre; lo único que no hay es control remoto.
 
+## Tres páginas, y una con clave
+
+| Página | Quién entra | Qué hay |
+|---|---|---|
+| **Operación** | todos | el ATIS: METAR, NOTAM, guion, transmitir |
+| **Ajustes** | todos | tema, velocidad de locución, voces, voz neuronal, registro |
+| **Administración** | con clave | credenciales de la FAA, fuentes de datos, control remoto, estado |
+
+La clave de fábrica es **0348** y se cambia desde la propia pantalla (de 4 a 12 cifras).
+Mientras siga siendo la de fábrica, el programa lo dice —en la pantalla y en la ventana del
+servidor— en lugar de callárselo.
+
+### Qué protege de verdad, y qué no
+
+Esto no es un candado pintado en la pantalla:
+
+- **La clave vive en el servidor**, guardada en resumen (PBKDF2 con sal, 120 000 vueltas).
+  No se puede leer de vuelta, y **nunca viaja a la pantalla**: mirar el código de la página
+  no la revela.
+- **Las rutas que cambian credenciales o fuentes exigen el pase.** Sin él el servidor
+  contesta `403`, aunque se le hable directo saltándose la pantalla. Hay pruebas que fallan
+  si alguna vez dejara de exigirlo.
+- **Repetir claves equivocadas cuesta**: a los cinco fallos empieza una espera que se
+  duplica. Cuatro cifras son diez mil combinaciones; a mano no se prueban, y con un
+  programa tampoco vale la pena.
+- **El secreto de la FAA nunca sale del servidor**, con clave o sin ella. Aun si alguien
+  entrara, no se lo lleva.
+- Al cambiar la clave **se cierran todas las sesiones**, aquí y en las computadoras de
+  control remoto.
+- Al recargar la página el candado **vuelve a estar puesto**; la sesión no se recuerda.
+
+Dicho todo eso, con honestidad: esto es un laboratorio en una red local, no un banco. Una
+clave de cuatro cifras detiene a quien no tiene por qué andar ahí; no detiene a alguien
+decidido con acceso físico a esa computadora.
+
 ## Dos páginas
 
 La aplicación está dividida en dos pestañas:
@@ -461,6 +496,7 @@ INSTALAR.bat          instalador para Windows
 SERVIDOR.bat          arranca el servidor de control remoto
 servidor/servidor.js  servidor local: sirve la app y guarda el estado compartido
 servidor/fuente-metar.js  lectura del METAR desde la página del CAPMA
+servidor/admin.js         la clave de la pagina de administracion
 servidor/fuente-notam.js  NOTAM desde el NMS de la FAA o desde una carpeta vigilada
 servidor/voz-piper.js     voz neuronal local: genera el audio y lo guarda
 servidor/instalar-voz.js  descarga el motor y las voces neuronales
@@ -484,6 +520,7 @@ js/speech.js          motor de voz del navegador y su bucle
 js/voz-neural.js      bucle con la voz neuronal: descarga el audio y lo reproduce
 js/app.js             interfaz y control
 test/test.js          pruebas (node test/test.js)
+test/test-admin.js        pruebas de la clave de administracion
 test/test-notam.js        pruebas de los NOTAM automaticos
 test/test-voz-neural.js   pruebas de la voz neuronal y sus rutas del servidor
 test/test-bucle-neural.js pruebas del bucle con voz neuronal frente a fallas
@@ -503,6 +540,7 @@ node test/test.js               # decodificadores y generación del guion
 node test/test-voz.js           # el bucle del navegador frente a fallas de voz y de red
 node test/test-bucle-neural.js  # el bucle con voz neuronal frente a fallas
 node test/test-servidor.js      # el servidor de control remoto
+node test/test-admin.js         # la clave de administracion
 node test/test-notam.js         # los NOTAM automaticos
 node test/test-voz-neural.js    # la voz neuronal y sus rutas del servidor
 npm test                        # todas

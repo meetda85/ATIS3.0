@@ -381,8 +381,18 @@ const GUION_EN = 'Mexico City International Airport, information Charlie. ' +
       assert.ok(malo.status === 404, 'no puede servir nada de fuera del caché');
     });
 
-    await test('vaciar los audios guardados los borra de verdad', async () => {
-      const d = await fetch(BASE + '/api/voz/limpiar', { method: 'POST' }).then(r => r.json());
+    await test('vaciar los audios guardados pide la clave, y entonces los borra', async () => {
+      /* Sin la clave de administración el servidor no vacía nada */
+      const sinClave = await fetch(BASE + '/api/voz/limpiar', { method: 'POST' });
+      assert.strictEqual(sinClave.status, 403, 'vacio el cache sin clave');
+      const entrada = await fetch(BASE + '/api/admin/entrar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clave: '0348' })
+      }).then(r => r.json());
+      assert.ok(entrada.pase, 'no se pudo entrar a administracion');
+      const d = await fetch(BASE + '/api/voz/limpiar', {
+        method: 'POST', headers: { 'X-ATIS-Admin': entrada.pase }
+      }).then(r => r.json());
       assert.ok(d.borrados >= 1, 'no borró nada');
       assert.strictEqual(d.estado.cache.archivos, 0);
       const r = await fetch(BASE + piezas[0].archivo);
@@ -390,6 +400,7 @@ const GUION_EN = 'Mexico City International Airport, information Charlie. ' +
     });
   }
 
+  try { fs.unlinkSync(path.join(RAIZ, 'servidor', 'admin.json')); } catch (e) { /* ignorado */ }
   console.log('');
   console.log(pass + ' pruebas correctas, ' + fail + ' fallidas' +
     (omitidas ? ', ' + omitidas + ' omitidas' : ''));

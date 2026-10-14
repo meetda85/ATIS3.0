@@ -30,10 +30,30 @@ async function test(nombre, fn) {
 }
 const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json());
 
+/* Cambiar la configuración exige la clave de administración. Las pruebas
+   entran igual que una persona, para comprobar el camino de verdad. */
+const ADMIN = path.join(__dirname, '..', 'servidor', 'admin.json');
+let pase = '';
+async function entrarAdmin() {
+  const r = await api('/api/admin/entrar', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clave: '0348' })
+  });
+  pase = r.pase || '';
+  return r;
+}
+function conPase(opciones) {
+  opciones = opciones || {};
+  opciones.headers = Object.assign({ 'X-ATIS-Admin': pase }, opciones.headers || {});
+  return opciones;
+}
+
 (async () => {
   try { fs.unlinkSync(ESTADO); } catch (e) { /* no existía */ }
+  try { fs.unlinkSync(ADMIN); } catch (e) { /* no existía */ }
   const srv = arrancarServidor();
   await dormir(1200);
+  await entrarAdmin();
 
   /* ---- Lectura del METAR desde la fuente del CAPMA ---- */
   const fuente = require(path.join(__dirname, '..', 'servidor', 'fuente-metar.js'));
@@ -224,10 +244,10 @@ const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json())
     const puertoFalso = falso.address().port;
     try {
       /* Se apunta la vigilancia a ese sitio; el NOAA queda como respaldo */
-      await api('/api/metar', {
+      await api('/api/metar', conPase({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: 'http://127.0.0.1:' + puertoFalso + '/capma', estacion: 'MMMX' })
-      });
+      }));
 
       const r = await api('/api/metar/buscar?estacion=MMMX');
       assert.strictEqual(r.ok, true, 'no lo encontro: ' + r.error);
@@ -309,6 +329,49 @@ const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json())
     assert.strictEqual(d.andando, false, 'no deberia haber ninguna andando');
   });
 
+  await test('sin la clave, la configuracion no se toca', async () => {
+    const r = await fetch(BASE + '/api/metar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estacion: 'KJFK' })
+    });
+    assert.strictEqual(r.status, 403, 'dejo cambiar la fuente sin clave');
+    const d = await r.json();
+    assert.strictEqual(d.admin, true, 'no dijo que era cosa de administracion');
+    /* y de verdad no cambio nada */
+    const est = await api('/api/metar');
+    assert.notStrictEqual(est.estacion, 'KJFK', 'cambio la estacion sin tener permiso');
+  });
+
+  await test('con una clave equivocada tampoco, y se va poniendo lenta', async () => {
+    let ultimo = null;
+    for (let i = 0; i < 6; i++) {
+      ultimo = await api('/api/admin/entrar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clave: '9999' })
+      });
+      assert.strictEqual(ultimo.ok, false, 'acepto una clave equivocada');
+    }
+    assert.ok(ultimo.esperaSegundos > 0, 'no castiga los intentos repetidos');
+    /* el pase que ya se tenia sigue sirviendo: los fallos no cierran sesiones */
+    const r = await fetch(BASE + '/api/metar', conPase({
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ minutos: 7 })
+    }));
+    assert.strictEqual(r.status, 200, 'el pase valido dejo de servir');
+  });
+
+  await test('la clave nunca viaja a la pantalla', async () => {
+    const d = await api('/api/admin');
+    assert.strictEqual(JSON.stringify(d).indexOf('0348'), -1, 'mando la clave');
+    assert.strictEqual(d.hash, undefined);
+    assert.strictEqual(d.sal, undefined);
+    assert.strictEqual(d.deFabrica, true, 'deberia avisar que es la de fabrica');
+    /* tampoco en el archivo: ahi va el resumen, no la clave */
+    const guardado = JSON.parse(fs.readFileSync(ADMIN, 'utf8'));
+    assert.strictEqual(guardado.hash.indexOf('0348'), -1);
+    assert.ok(guardado.sal && guardado.hash.length === 64, 'no quedo bien resumida');
+  });
+
   await test('el estado sobrevive al reinicio del servidor', async () => {
     srv.kill('SIGKILL');
     await dormir(600);
@@ -321,6 +384,7 @@ const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json())
   });
 
   try { fs.unlinkSync(ESTADO); } catch (e) { /* ignorado */ }
+  try { fs.unlinkSync(ADMIN); } catch (e) { /* ignorado */ }
   console.log('\n' + pass + ' pruebas correctas, ' + fail + ' fallidas\n');
   process.exit(fail ? 1 : 0);
 })();

@@ -952,6 +952,13 @@ body.modo-control .pstate-main::after {
 .ntfila .ntq { font-size: 11px; color: var(--muted); margin-left: 8px; }
 .ntfila .nttxt { display: block; margin-top: 5px; font-size: 13px; line-height: 1.55; }
 
+/* Ajustes de administracion */
+.tab .candadito { font-size: 11px; margin-left: 5px; opacity: .75; }
+.tab.abierta .candadito { opacity: 0; }
+.candado { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 12px 0 4px; }
+.candado .field { max-width: 190px; }
+.candado input { font: 600 20px/1 ui-monospace, Consolas, monospace; letter-spacing: .32em; text-align: center; }
+
 </style>
 </head>
 <body>
@@ -1010,6 +1017,10 @@ body.modo-control .pstate-main::after {
   </button>
   <button class="tab" id="tabAjustes" data-page="pageAjustes" role="tab" aria-selected="false">
     <span class="tnum">2</span> Ajustes
+  </button>
+  <button class="tab" id="tabAdmin" data-page="pageAdmin" role="tab" aria-selected="false">
+    <span class="tnum">3</span> Administraci&oacute;n
+    <span class="candadito" id="admCandadito" title="Pide clave">&#128274;</span>
   </button>
   <div class="saltos" id="saltos">
     <span class="plabel">Ir a</span>
@@ -1272,165 +1283,7 @@ body.modo-control .pstate-main::after {
 
   <div class="page" id="pageAjustes" role="tabpanel" hidden>
 
-    <!-- ============ METAR AUTOMÁTICO ============ -->
-    <section class="card span2">
-      <h2>METAR automático <span class="enlace-badge" id="vigBadge">apagado</span></h2>
-      <p class="help">
-        Revisa cada cierto tiempo la red AFTN del CAPMA y avisa cuando hay un METAR
-        nuevo. <b>Nunca cambia el ATIS por su cuenta</b>: avisa, usted decide, y el cambio
-        entra al terminar el ciclo. Necesita el servidor (<code>SERVIDOR.bat</code>).
-      </p>
-      <p class="help">
-        Si el CAPMA no contesta, lo busca en el servicio del <b>NOAA</b>
-        (aviationweather.gov), que publica el mismo METAR oficial con unos minutos
-        m&aacute;s de retraso. Abajo se ve de cu&aacute;l de las dos sali&oacute;. As&iacute;, que una
-        fuente se caiga no deja al ATIS sin METAR.
-      </p>
-      <label class="checkline grande">
-        <input type="checkbox" id="vigActiva">
-        <span><b>Revisar el METAR automáticamente</b></span>
-      </label>
-      <div class="grid3">
-        <label class="field"><span>Dirección de la fuente</span>
-          <input id="vigUrl" spellcheck="false" value="http://capma.mx/reportemetar/elegir_samx_3.php">
-        </label>
-        <label class="field"><span>Estación</span>
-          <input id="vigEstacion" maxlength="4" value="MMMX">
-        </label>
-        <label class="field"><span>Revisar cada</span>
-          <div class="ppausas">
-            <input id="vigMinutos" type="number" min="2" max="60" step="1" value="5">
-            <span class="psep">minutos</span>
-          </div>
-        </label>
-      </div>
-      <div class="row buttons">
-        <button id="btnVigAhora" class="small">Revisar ahora</button>
-        <button id="btnProbarRed" class="small ghost">Probar la conexi&oacute;n</button>
-        <span id="vigStatus" class="status"></span>
-      </div>
-      <div id="vigUltimo" class="vigultimo"></div>
-      <div id="redPrueba" class="vigultimo" hidden></div>
-    </section>
-
-    <!-- ============ NOTAM AUTOMÁTICOS ============ -->
-    <section class="card span2">
-      <h2>NOTAM autom&aacute;ticos <span class="enlace-badge" id="ntBadge">apagado</span></h2>
-      <p class="help">
-        Trae los NOTAM vigentes solo, sin bajar el Excel a mano. <b>Nunca los mete al ATIS
-        por su cuenta</b>: avisa, usted decide cu&aacute;les marcar, igual que ahora. Necesita el
-        servidor (<code>SERVIDOR.bat</code>).
-      </p>
-
-      <label class="checkline grande">
-        <input type="checkbox" id="ntActiva">
-        <span><b>Revisar los NOTAM autom&aacute;ticamente</b></span>
-      </label>
-
-      <div class="grid3">
-        <label class="field"><span>Estaci&oacute;n</span>
-          <input id="ntEstacion" maxlength="4" value="MMMX">
-        </label>
-        <label class="field"><span>Revisar cada</span>
-          <div class="ppausas">
-            <input id="ntMinutos" type="number" min="5" max="240" step="5" value="30">
-            <span class="psep">minutos</span>
-          </div>
-        </label>
-      </div>
-
-      <h3>1. La carpeta de descargas <span class="suave">&mdash; sin registrarse en nada</span></h3>
-      <p class="help">
-        Siga bajando el Excel de la p&aacute;gina de la FAA como siempre; el programa levanta solo
-        el m&aacute;s reciente de esta carpeta. Es la ruta que funciona hoy mismo.
-      </p>
-      <div class="grid3">
-        <label class="field ancho2"><span>Carpeta que se vigila</span>
-          <input id="ntCarpeta" spellcheck="false" placeholder="C:\Users\jacke\Downloads">
-        </label>
-        <div class="field">
-          <span>&nbsp;</span>
-          <button id="btnNtCarpeta" class="small ghost">Ver qu&eacute; hay ah&iacute;</button>
-        </div>
-      </div>
-      <div id="ntArchivos" class="vigultimo" hidden></div>
-
-      <h3>2. El servicio NMS de la FAA <span class="suave">&mdash; la buena, ya no se baja ning&uacute;n archivo</span></h3>
-      <p class="help">
-        El servidor le pregunta directo al <b>NOTAM Management Service</b> de la FAA y contesta
-        en menos de un segundo. Las credenciales se piden por correo a
-        <b>notams@faa.gov</b> y llegan en una hoja de c&aacute;lculo: ah&iacute; el <b>KEY</b> es el
-        <i>client_id</i> y el <b>SECRET</b> es el <i>client_secret</i>. Se guardan solo en esta
-        computadora; el secreto nunca sale de aqu&iacute;.
-      </p>
-      <p class="help">
-        <b>El ambiente importa</b>: unas credenciales de preproducci&oacute;n no entran a
-        producci&oacute;n, y al rev&eacute;s tampoco. Si no sabe cu&aacute;l le dieron, pulse
-        <i>Comprobar las llaves</i> y el programa las prueba en los tres y le dice.
-      </p>
-      <div class="grid3">
-        <label class="field"><span>client_id (KEY)</span>
-          <input id="ntClientId" spellcheck="false" autocomplete="off" placeholder="sin poner">
-        </label>
-        <label class="field"><span>client_secret (SECRET)</span>
-          <input id="ntClientSecret" type="password" spellcheck="false" autocomplete="off" placeholder="sin poner">
-        </label>
-        <label class="field"><span>Ambiente</span>
-          <select id="ntAmbiente"></select>
-        </label>
-      </div>
-      <div class="row buttons">
-        <button id="btnNtLlaves" class="small ghost">Comprobar las llaves</button>
-        <span id="ntLlavesStatus" class="status"></span>
-      </div>
-      <div id="ntAmbientes" class="vigultimo" hidden></div>
-
-      <div class="row buttons">
-        <button id="btnNtAhora" class="small">Revisar ahora</button>
-        <button id="btnNtGuardar" class="small ghost">Guardar los cambios</button>
-        <span id="ntStatus" class="status"></span>
-      </div>
-      <div id="ntUltimo" class="vigultimo"></div>
-    </section>
-
-    <!-- ============ ESTADO DEL PROGRAMA ============ -->
-    <section class="card span2">
-      <h2>Estado del programa <span class="enlace-badge" id="saludBadge">comprobando…</span></h2>
-      <p class="help">
-        Comprueba que la instalación quedó completa. Todo esto funciona <b>sin internet</b>:
-        si algo aparece en rojo, falta un archivo y conviene reinstalar.
-      </p>
-      <div id="saludLista" class="voicelist"></div>
-      <div class="row buttons" style="margin-top:10px">
-        <button id="btnSaludCopy" class="small ghost">Copiar comprobación</button>
-        <span id="saludStatus" class="status"></span>
-      </div>
-    </section>
-
-    <!-- ============ CONTROL REMOTO ============ -->
-    <section class="card span2">
-      <h2>Control remoto <span class="enlace-badge" id="enlaceEstado">sin servidor</span></h2>
-      <p class="help" id="enlaceDetalle"></p>
-      <div class="field" id="enlacePapel" hidden>
-        <span>Papel de esta computadora</span>
-        <div class="segmented">
-          <button type="button" data-papel="transmisor">Transmite el audio</button>
-          <button type="button" data-papel="control">Control remoto</button>
-        </div>
-      </div>
-      <h3>Equipos conectados</h3>
-      <div id="enlaceEquipos" class="equipos"></div>
-      <p class="help">
-        La PC de la torre transmite; cualquier otra de la misma red abre esa dirección y
-        manda los datos. Los cambios entran <b>al terminar el ciclo en curso</b>, nunca a
-        media frase. Si se cae la red o el servidor, la PC de la torre <b>sigue al aire</b>
-        con los últimos datos recibidos: el enlace alimenta información, no manda sobre el
-        audio.
-      </p>
-    </section>
-
-    <!-- ============ APARIENCIA ============ -->
-    <section class="card">
+        <section class="card">
       <h2>Apariencia</h2>
       <div class="field">
         <span>Modo de color</span>
@@ -1592,6 +1445,222 @@ body.modo-control .pstate-main::after {
   </section>
 
   </div>
+
+<!-- ============ PÁGINA DE ADMINISTRACIÓN ============ -->
+<div class="page" id="pageAdmin" role="tabpanel" hidden>
+
+  <!-- ============ CANDADO ============ -->
+  <section class="card span2" id="secCandado">
+    <h2>Ajustes de administraci&oacute;n <span class="enlace-badge" id="admBadge">cerrado</span></h2>
+    <p class="help">
+      Aqu&iacute; viven las credenciales y las fuentes de datos: lo que si alguien mueve sin
+      saber, deja al ATIS sin METAR o sin NOTAM. Lo de uso diario &mdash;tema, velocidad de
+      locuci&oacute;n, voces, registro&mdash; est&aacute; en <b>Ajustes</b>, abierto para todos.
+    </p>
+    <div class="candado" id="admEntrar">
+      <label class="field">
+        <span>Clave</span>
+        <input id="admClave" type="password" inputmode="numeric" autocomplete="off"
+               maxlength="12" placeholder="&bull;&bull;&bull;&bull;">
+      </label>
+      <button id="btnAdmEntrar" class="primary">Entrar</button>
+      <span id="admStatus" class="status"></span>
+    </div>
+    <p class="help" id="admNota" hidden></p>
+  </section>
+
+  <div id="admContenido" hidden>
+<!-- ============ METAR AUTOMÁTICO ============ -->
+    <section class="card span2">
+      <h2>METAR automático <span class="enlace-badge" id="vigBadge">apagado</span></h2>
+      <p class="help">
+        Revisa cada cierto tiempo la red AFTN del CAPMA y avisa cuando hay un METAR
+        nuevo. <b>Nunca cambia el ATIS por su cuenta</b>: avisa, usted decide, y el cambio
+        entra al terminar el ciclo. Necesita el servidor (<code>SERVIDOR.bat</code>).
+      </p>
+      <p class="help">
+        Si el CAPMA no contesta, lo busca en el servicio del <b>NOAA</b>
+        (aviationweather.gov), que publica el mismo METAR oficial con unos minutos
+        m&aacute;s de retraso. Abajo se ve de cu&aacute;l de las dos sali&oacute;. As&iacute;, que una
+        fuente se caiga no deja al ATIS sin METAR.
+      </p>
+      <label class="checkline grande">
+        <input type="checkbox" id="vigActiva">
+        <span><b>Revisar el METAR automáticamente</b></span>
+      </label>
+      <div class="grid3">
+        <label class="field"><span>Dirección de la fuente</span>
+          <input id="vigUrl" spellcheck="false" value="http://capma.mx/reportemetar/elegir_samx_3.php">
+        </label>
+        <label class="field"><span>Estación</span>
+          <input id="vigEstacion" maxlength="4" value="MMMX">
+        </label>
+        <label class="field"><span>Revisar cada</span>
+          <div class="ppausas">
+            <input id="vigMinutos" type="number" min="2" max="60" step="1" value="5">
+            <span class="psep">minutos</span>
+          </div>
+        </label>
+      </div>
+      <div class="row buttons">
+        <button id="btnVigAhora" class="small">Revisar ahora</button>
+        <button id="btnProbarRed" class="small ghost">Probar la conexi&oacute;n</button>
+        <span id="vigStatus" class="status"></span>
+      </div>
+      <div id="vigUltimo" class="vigultimo"></div>
+      <div id="redPrueba" class="vigultimo" hidden></div>
+    </section>
+
+    <!-- ============ NOTAM AUTOMÁTICOS ============ -->
+    <section class="card span2">
+      <h2>NOTAM autom&aacute;ticos <span class="enlace-badge" id="ntBadge">apagado</span></h2>
+      <p class="help">
+        Trae los NOTAM vigentes solo, sin bajar el Excel a mano. <b>Nunca los mete al ATIS
+        por su cuenta</b>: avisa, usted decide cu&aacute;les marcar, igual que ahora. Necesita el
+        servidor (<code>SERVIDOR.bat</code>).
+      </p>
+
+      <label class="checkline grande">
+        <input type="checkbox" id="ntActiva">
+        <span><b>Revisar los NOTAM autom&aacute;ticamente</b></span>
+      </label>
+
+      <div class="grid3">
+        <label class="field"><span>Estaci&oacute;n</span>
+          <input id="ntEstacion" maxlength="4" value="MMMX">
+        </label>
+        <label class="field"><span>Revisar cada</span>
+          <div class="ppausas">
+            <input id="ntMinutos" type="number" min="5" max="240" step="5" value="30">
+            <span class="psep">minutos</span>
+          </div>
+        </label>
+      </div>
+
+      <h3>1. La carpeta de descargas <span class="suave">&mdash; sin registrarse en nada</span></h3>
+      <p class="help">
+        Siga bajando el Excel de la p&aacute;gina de la FAA como siempre; el programa levanta solo
+        el m&aacute;s reciente de esta carpeta. Es la ruta que funciona hoy mismo.
+      </p>
+      <div class="grid3">
+        <label class="field ancho2"><span>Carpeta que se vigila</span>
+          <input id="ntCarpeta" spellcheck="false" placeholder="C:\Users\jacke\Downloads">
+        </label>
+        <div class="field">
+          <span>&nbsp;</span>
+          <button id="btnNtCarpeta" class="small ghost">Ver qu&eacute; hay ah&iacute;</button>
+        </div>
+      </div>
+      <div id="ntArchivos" class="vigultimo" hidden></div>
+
+      <h3>2. El servicio NMS de la FAA <span class="suave">&mdash; la buena, ya no se baja ning&uacute;n archivo</span></h3>
+      <p class="help">
+        El servidor le pregunta directo al <b>NOTAM Management Service</b> de la FAA y contesta
+        en menos de un segundo. Las credenciales se piden por correo a
+        <b>notams@faa.gov</b> y llegan en una hoja de c&aacute;lculo: ah&iacute; el <b>KEY</b> es el
+        <i>client_id</i> y el <b>SECRET</b> es el <i>client_secret</i>. Se guardan solo en esta
+        computadora; el secreto nunca sale de aqu&iacute;.
+      </p>
+      <p class="help">
+        <b>El ambiente importa</b>: unas credenciales de preproducci&oacute;n no entran a
+        producci&oacute;n, y al rev&eacute;s tampoco. Si no sabe cu&aacute;l le dieron, pulse
+        <i>Comprobar las llaves</i> y el programa las prueba en los tres y le dice.
+      </p>
+      <div class="grid3">
+        <label class="field"><span>client_id (KEY)</span>
+          <input id="ntClientId" spellcheck="false" autocomplete="off" placeholder="sin poner">
+        </label>
+        <label class="field"><span>client_secret (SECRET)</span>
+          <input id="ntClientSecret" type="password" spellcheck="false" autocomplete="off" placeholder="sin poner">
+        </label>
+        <label class="field"><span>Ambiente</span>
+          <select id="ntAmbiente"></select>
+        </label>
+      </div>
+      <div class="row buttons">
+        <button id="btnNtLlaves" class="small ghost">Comprobar las llaves</button>
+        <span id="ntLlavesStatus" class="status"></span>
+      </div>
+      <div id="ntAmbientes" class="vigultimo" hidden></div>
+
+      <div class="row buttons">
+        <button id="btnNtAhora" class="small">Revisar ahora</button>
+        <button id="btnNtGuardar" class="small ghost">Guardar los cambios</button>
+        <span id="ntStatus" class="status"></span>
+      </div>
+      <div id="ntUltimo" class="vigultimo"></div>
+    </section>
+
+    <!-- ============ ESTADO DEL PROGRAMA ============ -->
+    <section class="card span2">
+      <h2>Estado del programa <span class="enlace-badge" id="saludBadge">comprobando…</span></h2>
+      <p class="help">
+        Comprueba que la instalación quedó completa. Todo esto funciona <b>sin internet</b>:
+        si algo aparece en rojo, falta un archivo y conviene reinstalar.
+      </p>
+      <div id="saludLista" class="voicelist"></div>
+      <div class="row buttons" style="margin-top:10px">
+        <button id="btnSaludCopy" class="small ghost">Copiar comprobación</button>
+        <span id="saludStatus" class="status"></span>
+      </div>
+    </section>
+
+    <!-- ============ CONTROL REMOTO ============ -->
+    <section class="card span2">
+      <h2>Control remoto <span class="enlace-badge" id="enlaceEstado">sin servidor</span></h2>
+      <p class="help" id="enlaceDetalle"></p>
+      <div class="field" id="enlacePapel" hidden>
+        <span>Papel de esta computadora</span>
+        <div class="segmented">
+          <button type="button" data-papel="transmisor">Transmite el audio</button>
+          <button type="button" data-papel="control">Control remoto</button>
+        </div>
+      </div>
+      <h3>Equipos conectados</h3>
+      <div id="enlaceEquipos" class="equipos"></div>
+      <p class="help">
+        La PC de la torre transmite; cualquier otra de la misma red abre esa dirección y
+        manda los datos. Los cambios entran <b>al terminar el ciclo en curso</b>, nunca a
+        media frase. Si se cae la red o el servidor, la PC de la torre <b>sigue al aire</b>
+        con los últimos datos recibidos: el enlace alimenta información, no manda sobre el
+        audio.
+      </p>
+    </section>
+
+    <!-- ============ APARIENCIA ============ -->
+    <!-- ============ CAMBIAR LA CLAVE ============ -->
+    <section class="card span2">
+      <h2>Clave de administraci&oacute;n</h2>
+      <p class="help">
+        De 4 a 12 cifras. Al cambiarla se cierran todas las sesiones abiertas, aqu&iacute; y en
+        las computadoras de control remoto.
+      </p>
+      <div class="grid3">
+        <label class="field"><span>Clave actual</span>
+          <input id="admActual" type="password" inputmode="numeric" autocomplete="off" maxlength="12">
+        </label>
+        <label class="field"><span>Clave nueva</span>
+          <input id="admNueva" type="password" inputmode="numeric" autocomplete="off" maxlength="12">
+        </label>
+        <div class="field"><span>&nbsp;</span>
+          <button id="btnAdmClave" class="small">Cambiar la clave</button>
+        </div>
+      </div>
+      <div class="row buttons">
+        <button id="btnAdmSalir" class="small ghost">Cerrar la sesi&oacute;n</button>
+        <span id="admClaveStatus" class="status"></span>
+      </div>
+      <p class="help">
+        Para que quede claro qu&eacute; protege esto: la clave vive en el servidor, guardada en
+        resumen, y nunca viaja a la pantalla. Las rutas que cambian credenciales la exigen,
+        as&iacute; que no es un candado de adorno. Y el secreto de la FAA <b>nunca</b> sale del
+        servidor, con clave o sin ella. Dicho eso, cuatro cifras detienen a quien no tiene
+        por qu&eacute; andar aqu&iacute;; no a alguien decidido con acceso a esta computadora.
+      </p>
+    </section>
+  </div>
+</div>
+
 </main>
 
 
@@ -1726,10 +1795,10 @@ body.modo-control .pstate-main::after {
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.7',
-    FECHA: '2026-10-13',
+    VERSION: '3.8',
+    FECHA: '2026-10-14',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'botón Bajar de la FAA en la tarjeta de NOTAM'
+    NOVEDADES: 'Ajustes separados en dos: los de todos y los de administración, con clave'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;
@@ -5253,6 +5322,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       'logList', 'btnLogCopy', 'btnLogClear', 'logAuto', 'logStatus',
       'btnTema', 'temaTexto', 'rateVal',
       'tabAtis', 'tabAjustes', 'pageAtis', 'pageAjustes', 'temaOpciones', 'saltos',
+      'tabAdmin', 'pageAdmin', 'admBadge', 'admClave', 'btnAdmEntrar', 'admStatus', 'admNota',
+      'admEntrar', 'admContenido', 'admActual', 'admNueva', 'btnAdmClave', 'btnAdmSalir',
+      'admClaveStatus', 'admCandadito', 'secCandado',
       'libreActivo', 'libreEs', 'libreEn', 'cardLibre',
       'pavance', 'posicion', 'posTexto', 'btnPrev', 'btnNext', 'paireDatos',
       'preflight', 'preflightLista', 'btnIgual', 'btnCorregir', 'metarEdad',
@@ -5294,6 +5366,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     } catch (e) { /* ignorado */ }
     iniciarEnlace();
     iniciarMotor();
+    iniciarAdmin();
     iniciarNotam();
     comprobarInstalacion();
     if (vigDisponible()) {
@@ -7478,23 +7551,159 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
    * ================================================================== */
   var PAGINA_KEY = 'atis3.pagina';
 
+  var PAGINAS = [
+    { id: 'pageAtis', tab: 'tabAtis' },
+    { id: 'pageAjustes', tab: 'tabAjustes' },
+    { id: 'pageAdmin', tab: 'tabAdmin' }
+  ];
+
   function mostrarPagina(cual) {
-    var esAjustes = cual === 'pageAjustes';
-    el.pageAtis.hidden = esAjustes;
-    el.pageAjustes.hidden = !esAjustes;
-    el.tabAtis.classList.toggle('on', !esAjustes);
-    el.tabAjustes.classList.toggle('on', esAjustes);
-    el.saltos.hidden = esAjustes;
-    el.tabAtis.setAttribute('aria-selected', String(!esAjustes));
-    el.tabAjustes.setAttribute('aria-selected', String(esAjustes));
-    try { localStorage.setItem(PAGINA_KEY, cual); } catch (e) { /* ignorado */ }
+    if (!PAGINAS.some(function (p) { return p.id === cual; })) cual = 'pageAtis';
+    PAGINAS.forEach(function (p) {
+      var es = p.id === cual;
+      if (el[p.id]) el[p.id].hidden = !es;
+      if (el[p.tab]) {
+        el[p.tab].classList.toggle('on', es);
+        el[p.tab].setAttribute('aria-selected', String(es));
+      }
+    });
+    el.saltos.hidden = cual !== 'pageAtis';
+    /* La página de administración no se recuerda: al volver a abrir el
+       programa se entra a Operación, con el candado puesto otra vez. */
+    try {
+      localStorage.setItem(PAGINA_KEY, cual === 'pageAdmin' ? 'pageAjustes' : cual);
+    } catch (e) { /* ignorado */ }
     global.scrollTo(0, 0);
+    if (cual === 'pageAdmin') pintarAdmin();
   }
 
   function iniciarPaginas() {
     var guardada = null;
     try { guardada = localStorage.getItem(PAGINA_KEY); } catch (e) { /* ignorado */ }
     mostrarPagina(guardada === 'pageAjustes' ? 'pageAjustes' : 'pageAtis');
+  }
+
+  /* ================================================================== *
+   * Ajustes de administración
+   *
+   * El candado de aquí es la puerta; la cerradura está en el servidor. El
+   * pase que devuelve viaja en cada petición que cambia credenciales o
+   * fuentes, y sin él el servidor contesta que no. Así el candado no se
+   * puede saltar mirando el código de la página.
+   * ================================================================== */
+  var pase = '';
+
+  /* Las peticiones que el servidor protege llevan el pase */
+  function conPase(opciones) {
+    opciones = opciones || {};
+    opciones.headers = Object.assign({}, opciones.headers || {});
+    if (pase) opciones.headers['X-ATIS-Admin'] = pase;
+    return opciones;
+  }
+
+  function adminAbierto() { return !!pase; }
+
+  function pintarAdmin(info) {
+    if (!el.admBadge) return;
+    var hay = ntDisponible();
+    if (!hay) {
+      el.admBadge.textContent = 'necesita el servidor';
+      el.admBadge.className = 'enlace-badge mal';
+      el.admEntrar.hidden = true;
+      el.admContenido.hidden = true;
+      el.admNota.hidden = false;
+      el.admNota.innerHTML = 'Esta parte necesita que el ATIS se haya abierto con ' +
+        '<b>SERVIDOR.bat</b>: la clave la guarda y la comprueba el servidor, no la pantalla.';
+      return;
+    }
+    el.admBadge.textContent = adminAbierto() ? 'abierto' : 'cerrado';
+    el.admBadge.className = 'enlace-badge ' + (adminAbierto() ? 'ok' : '');
+    el.admEntrar.hidden = adminAbierto();
+    el.admContenido.hidden = !adminAbierto();
+    el.tabAdmin.classList.toggle('abierta', adminAbierto());
+
+    var notas = [];
+    if (info && info.deFabrica) {
+      notas.push('<b>La clave sigue siendo la de fábrica.</b> Conviene cambiarla abajo.');
+    }
+    if (info && info.bloqueadoSegundos) {
+      notas.push('Hubo varios intentos fallidos: hay que esperar ' +
+        info.bloqueadoSegundos + ' segundos.');
+    }
+    el.admNota.hidden = !notas.length;
+    el.admNota.innerHTML = notas.join('<br>');
+  }
+
+  function entrarAdmin() {
+    if (!ntDisponible()) { pintarAdmin(); return; }
+    var clave = (el.admClave.value || '').trim();
+    if (!clave) { status(el.admStatus, 'Escriba la clave.', 'err'); return; }
+    el.btnAdmEntrar.disabled = true;
+    status(el.admStatus, 'Comprobando…');
+    fetch('/api/admin/entrar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clave: clave })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      el.btnAdmEntrar.disabled = false;
+      el.admClave.value = '';
+      if (!d.ok) {
+        status(el.admStatus, d.esperaSegundos
+          ? 'Demasiados intentos. Espere ' + d.esperaSegundos + ' segundos.'
+          : 'Clave incorrecta.', 'err');
+        pintarAdmin(d);
+        return;
+      }
+      pase = d.pase;
+      status(el.admStatus, '');
+      pintarAdmin(d);
+      /* Ahora que hay pase, se puede leer lo que estaba protegido */
+      iniciarNotam();
+      if (vigDisponible()) pedirVigilancia(null).then(pintarVigilancia).catch(function () {});
+    }).catch(function (e) {
+      el.btnAdmEntrar.disabled = false;
+      status(el.admStatus, 'No se pudo comprobar: ' + e.message, 'err');
+    });
+  }
+
+  function salirAdmin() {
+    if (!pase) return;
+    fetch('/api/admin/salir', conPase({ method: 'POST' })).catch(function () { /* igual se cierra */ });
+    pase = '';
+    pintarAdmin();
+    status(el.admClaveStatus, 'Sesión cerrada.', 'ok');
+  }
+
+  function cambiarClaveAdmin() {
+    var actual = (el.admActual.value || '').trim();
+    var nueva = (el.admNueva.value || '').trim();
+    if (!actual || !nueva) { status(el.admClaveStatus, 'Hacen falta las dos claves.', 'err'); return; }
+    if (!/^\d{4,12}$/.test(nueva)) {
+      status(el.admClaveStatus, 'La clave nueva debe ser de 4 a 12 cifras.', 'err'); return;
+    }
+    el.btnAdmClave.disabled = true;
+    fetch('/api/admin/clave', conPase({
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actual: actual, nueva: nueva })
+    })).then(function (r) { return r.json(); }).then(function (d) {
+      el.btnAdmClave.disabled = false;
+      el.admActual.value = '';
+      el.admNueva.value = '';
+      if (!d.ok) { status(el.admClaveStatus, d.error || 'No se pudo cambiar.', 'err'); return; }
+      /* Al cambiarla se cierran todas las sesiones, también la de aquí */
+      pase = '';
+      pintarAdmin();
+      status(el.admStatus, 'Clave cambiada. Vuelva a entrar con la nueva.', 'ok');
+    }).catch(function (e) {
+      el.btnAdmClave.disabled = false;
+      status(el.admClaveStatus, 'No se pudo: ' + e.message, 'err');
+    });
+  }
+
+  function iniciarAdmin() {
+    if (!ntDisponible()) { pintarAdmin(); return; }
+    fetch('/api/admin').then(function (r) { return r.json(); })
+      .then(function (d) { pintarAdmin(d); })
+      .catch(function () { pintarAdmin(); });
   }
 
   /* ================================================================== *
@@ -8177,6 +8386,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       var destino = document.getElementById(b.dataset.ir);
       if (destino) destino.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+
+    on(el.tabAdmin, 'click', function () { mostrarPagina('pageAdmin'); });
+    on(el.btnAdmEntrar, 'click', entrarAdmin);
+    on(el.admClave, 'keydown', function (e) { if (e.key === 'Enter') entrarAdmin(); });
+    on(el.btnAdmClave, 'click', cambiarClaveAdmin);
+    on(el.btnAdmSalir, 'click', salirAdmin);
 
     on(el.tabAtis, 'click', function () { mostrarPagina('pageAtis'); });
     on(el.tabAjustes, 'click', function () { mostrarPagina('pageAjustes'); });

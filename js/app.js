@@ -39,6 +39,9 @@
       'logList', 'btnLogCopy', 'btnLogClear', 'logAuto', 'logStatus',
       'btnTema', 'temaTexto', 'rateVal',
       'tabAtis', 'tabAjustes', 'pageAtis', 'pageAjustes', 'temaOpciones', 'saltos',
+      'tabAdmin', 'pageAdmin', 'admBadge', 'admClave', 'btnAdmEntrar', 'admStatus', 'admNota',
+      'admEntrar', 'admContenido', 'admActual', 'admNueva', 'btnAdmClave', 'btnAdmSalir',
+      'admClaveStatus', 'admCandadito', 'secCandado',
       'libreActivo', 'libreEs', 'libreEn', 'cardLibre',
       'pavance', 'posicion', 'posTexto', 'btnPrev', 'btnNext', 'paireDatos',
       'preflight', 'preflightLista', 'btnIgual', 'btnCorregir', 'metarEdad',
@@ -80,6 +83,7 @@
     } catch (e) { /* ignorado */ }
     iniciarEnlace();
     iniciarMotor();
+    iniciarAdmin();
     iniciarNotam();
     comprobarInstalacion();
     if (vigDisponible()) {
@@ -2264,23 +2268,159 @@
    * ================================================================== */
   var PAGINA_KEY = 'atis3.pagina';
 
+  var PAGINAS = [
+    { id: 'pageAtis', tab: 'tabAtis' },
+    { id: 'pageAjustes', tab: 'tabAjustes' },
+    { id: 'pageAdmin', tab: 'tabAdmin' }
+  ];
+
   function mostrarPagina(cual) {
-    var esAjustes = cual === 'pageAjustes';
-    el.pageAtis.hidden = esAjustes;
-    el.pageAjustes.hidden = !esAjustes;
-    el.tabAtis.classList.toggle('on', !esAjustes);
-    el.tabAjustes.classList.toggle('on', esAjustes);
-    el.saltos.hidden = esAjustes;
-    el.tabAtis.setAttribute('aria-selected', String(!esAjustes));
-    el.tabAjustes.setAttribute('aria-selected', String(esAjustes));
-    try { localStorage.setItem(PAGINA_KEY, cual); } catch (e) { /* ignorado */ }
+    if (!PAGINAS.some(function (p) { return p.id === cual; })) cual = 'pageAtis';
+    PAGINAS.forEach(function (p) {
+      var es = p.id === cual;
+      if (el[p.id]) el[p.id].hidden = !es;
+      if (el[p.tab]) {
+        el[p.tab].classList.toggle('on', es);
+        el[p.tab].setAttribute('aria-selected', String(es));
+      }
+    });
+    el.saltos.hidden = cual !== 'pageAtis';
+    /* La página de administración no se recuerda: al volver a abrir el
+       programa se entra a Operación, con el candado puesto otra vez. */
+    try {
+      localStorage.setItem(PAGINA_KEY, cual === 'pageAdmin' ? 'pageAjustes' : cual);
+    } catch (e) { /* ignorado */ }
     global.scrollTo(0, 0);
+    if (cual === 'pageAdmin') pintarAdmin();
   }
 
   function iniciarPaginas() {
     var guardada = null;
     try { guardada = localStorage.getItem(PAGINA_KEY); } catch (e) { /* ignorado */ }
     mostrarPagina(guardada === 'pageAjustes' ? 'pageAjustes' : 'pageAtis');
+  }
+
+  /* ================================================================== *
+   * Ajustes de administración
+   *
+   * El candado de aquí es la puerta; la cerradura está en el servidor. El
+   * pase que devuelve viaja en cada petición que cambia credenciales o
+   * fuentes, y sin él el servidor contesta que no. Así el candado no se
+   * puede saltar mirando el código de la página.
+   * ================================================================== */
+  var pase = '';
+
+  /* Las peticiones que el servidor protege llevan el pase */
+  function conPase(opciones) {
+    opciones = opciones || {};
+    opciones.headers = Object.assign({}, opciones.headers || {});
+    if (pase) opciones.headers['X-ATIS-Admin'] = pase;
+    return opciones;
+  }
+
+  function adminAbierto() { return !!pase; }
+
+  function pintarAdmin(info) {
+    if (!el.admBadge) return;
+    var hay = ntDisponible();
+    if (!hay) {
+      el.admBadge.textContent = 'necesita el servidor';
+      el.admBadge.className = 'enlace-badge mal';
+      el.admEntrar.hidden = true;
+      el.admContenido.hidden = true;
+      el.admNota.hidden = false;
+      el.admNota.innerHTML = 'Esta parte necesita que el ATIS se haya abierto con ' +
+        '<b>SERVIDOR.bat</b>: la clave la guarda y la comprueba el servidor, no la pantalla.';
+      return;
+    }
+    el.admBadge.textContent = adminAbierto() ? 'abierto' : 'cerrado';
+    el.admBadge.className = 'enlace-badge ' + (adminAbierto() ? 'ok' : '');
+    el.admEntrar.hidden = adminAbierto();
+    el.admContenido.hidden = !adminAbierto();
+    el.tabAdmin.classList.toggle('abierta', adminAbierto());
+
+    var notas = [];
+    if (info && info.deFabrica) {
+      notas.push('<b>La clave sigue siendo la de fábrica.</b> Conviene cambiarla abajo.');
+    }
+    if (info && info.bloqueadoSegundos) {
+      notas.push('Hubo varios intentos fallidos: hay que esperar ' +
+        info.bloqueadoSegundos + ' segundos.');
+    }
+    el.admNota.hidden = !notas.length;
+    el.admNota.innerHTML = notas.join('<br>');
+  }
+
+  function entrarAdmin() {
+    if (!ntDisponible()) { pintarAdmin(); return; }
+    var clave = (el.admClave.value || '').trim();
+    if (!clave) { status(el.admStatus, 'Escriba la clave.', 'err'); return; }
+    el.btnAdmEntrar.disabled = true;
+    status(el.admStatus, 'Comprobando…');
+    fetch('/api/admin/entrar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clave: clave })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      el.btnAdmEntrar.disabled = false;
+      el.admClave.value = '';
+      if (!d.ok) {
+        status(el.admStatus, d.esperaSegundos
+          ? 'Demasiados intentos. Espere ' + d.esperaSegundos + ' segundos.'
+          : 'Clave incorrecta.', 'err');
+        pintarAdmin(d);
+        return;
+      }
+      pase = d.pase;
+      status(el.admStatus, '');
+      pintarAdmin(d);
+      /* Ahora que hay pase, se puede leer lo que estaba protegido */
+      iniciarNotam();
+      if (vigDisponible()) pedirVigilancia(null).then(pintarVigilancia).catch(function () {});
+    }).catch(function (e) {
+      el.btnAdmEntrar.disabled = false;
+      status(el.admStatus, 'No se pudo comprobar: ' + e.message, 'err');
+    });
+  }
+
+  function salirAdmin() {
+    if (!pase) return;
+    fetch('/api/admin/salir', conPase({ method: 'POST' })).catch(function () { /* igual se cierra */ });
+    pase = '';
+    pintarAdmin();
+    status(el.admClaveStatus, 'Sesión cerrada.', 'ok');
+  }
+
+  function cambiarClaveAdmin() {
+    var actual = (el.admActual.value || '').trim();
+    var nueva = (el.admNueva.value || '').trim();
+    if (!actual || !nueva) { status(el.admClaveStatus, 'Hacen falta las dos claves.', 'err'); return; }
+    if (!/^\d{4,12}$/.test(nueva)) {
+      status(el.admClaveStatus, 'La clave nueva debe ser de 4 a 12 cifras.', 'err'); return;
+    }
+    el.btnAdmClave.disabled = true;
+    fetch('/api/admin/clave', conPase({
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actual: actual, nueva: nueva })
+    })).then(function (r) { return r.json(); }).then(function (d) {
+      el.btnAdmClave.disabled = false;
+      el.admActual.value = '';
+      el.admNueva.value = '';
+      if (!d.ok) { status(el.admClaveStatus, d.error || 'No se pudo cambiar.', 'err'); return; }
+      /* Al cambiarla se cierran todas las sesiones, también la de aquí */
+      pase = '';
+      pintarAdmin();
+      status(el.admStatus, 'Clave cambiada. Vuelva a entrar con la nueva.', 'ok');
+    }).catch(function (e) {
+      el.btnAdmClave.disabled = false;
+      status(el.admClaveStatus, 'No se pudo: ' + e.message, 'err');
+    });
+  }
+
+  function iniciarAdmin() {
+    if (!ntDisponible()) { pintarAdmin(); return; }
+    fetch('/api/admin').then(function (r) { return r.json(); })
+      .then(function (d) { pintarAdmin(d); })
+      .catch(function () { pintarAdmin(); });
   }
 
   /* ================================================================== *
@@ -2963,6 +3103,12 @@
       var destino = document.getElementById(b.dataset.ir);
       if (destino) destino.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+
+    on(el.tabAdmin, 'click', function () { mostrarPagina('pageAdmin'); });
+    on(el.btnAdmEntrar, 'click', entrarAdmin);
+    on(el.admClave, 'keydown', function (e) { if (e.key === 'Enter') entrarAdmin(); });
+    on(el.btnAdmClave, 'click', cambiarClaveAdmin);
+    on(el.btnAdmSalir, 'click', salirAdmin);
 
     on(el.tabAtis, 'click', function () { mostrarPagina('pageAtis'); });
     on(el.tabAjustes, 'click', function () { mostrarPagina('pageAjustes'); });

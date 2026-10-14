@@ -7,10 +7,10 @@
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.7',
-    FECHA: '2026-10-13',
+    VERSION: '3.8',
+    FECHA: '2026-10-14',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'botón Bajar de la FAA en la tarjeta de NOTAM'
+    NOVEDADES: 'Ajustes separados en dos: los de todos y los de administración, con clave'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;

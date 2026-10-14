@@ -38,6 +38,24 @@ async function test(nombre, fn) {
 }
 const api = (ruta, opciones) => fetch(BASE + ruta, opciones).then(r => r.json());
 
+/* La configuración está detrás de la clave de administración; las pruebas
+   entran igual que una persona. */
+const ADMIN = path.join(RAIZ, 'servidor', 'admin.json');
+let pase = '';
+async function entrarAdmin() {
+  const r = await api('/api/admin/entrar', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clave: '0348' })
+  });
+  pase = r.pase || '';
+  return r;
+}
+function conPase(opciones) {
+  opciones = opciones || {};
+  opciones.headers = Object.assign({ 'X-ATIS-Admin': pase }, opciones.headers || {});
+  return opciones;
+}
+
 const EJEMPLO = path.join(__dirname, 'fixtures', 'faa_notamapi_MMMX.json');
 const NMS = path.join(__dirname, 'fixtures', 'nms_geojson_MMMX.json');
 const FIXTURES = path.join(__dirname, 'fixtures');
@@ -426,8 +444,10 @@ function nmsFalso(opciones) {
   /* ========================================================= el servidor == */
   console.log('\nNOTAM: el servidor (puerto ' + PUERTO + ')');
   try { fs.unlinkSync(AJUSTES); } catch (e) { /* no existia */ }
+  try { fs.unlinkSync(ADMIN); } catch (e) { /* no existia */ }
   arrancarServidor();
   await dormir(1300);
+  await entrarAdmin();
 
   await test('entrega la configuracion, y el secreto nunca sale', async () => {
     const d = await api('/api/notam');
@@ -439,11 +459,11 @@ function nmsFalso(opciones) {
   });
 
   await test('guarda la configuracion y la conserva al reiniciar', async () => {
-    const d = await api('/api/notam', {
+    const d = await api('/api/notam', conPase({
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ estacion: 'mmmx', minutos: 45, carpeta: FIXTURES,
         clientId: 'ABCD1234EFGH', clientSecret: 'secreto-de-verdad' })
-    });
+    }));
     assert.strictEqual(d.estacion, 'MMMX', 'no puso el indicador en mayusculas');
     assert.strictEqual(d.minutos, 45);
     assert.strictEqual(d.carpeta, FIXTURES);
@@ -457,11 +477,11 @@ function nmsFalso(opciones) {
   });
 
   await test('respeta los limites de la revision', async () => {
-    const a = await api('/api/notam', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ minutos: 1 }) });
+    const a = await api('/api/notam', conPase({ method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ minutos: 1 }) }));
     assert.strictEqual(a.minutos, 5, 'no puso el minimo');
-    const b = await api('/api/notam', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ minutos: 9999 }) });
+    const b = await api('/api/notam', conPase({ method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ minutos: 9999 }) }));
     assert.strictEqual(b.minutos, 240, 'no puso el maximo');
   });
 
@@ -502,8 +522,8 @@ function nmsFalso(opciones) {
   });
 
   await test('sin llaves no se intenta la API siquiera', async () => {
-    await api('/api/notam', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId: '', clientSecret: '' }) });
+    await api('/api/notam', conPase({ method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: '', clientSecret: '' }) }));
     const d = await api('/api/notam/buscar?estacion=ZZZZ');
     assert.strictEqual(d.intentos.length, 1, 'salio a la red sin llaves');
     assert.ok(/carpeta/.test(d.intentos[0].fuente));
@@ -511,7 +531,24 @@ function nmsFalso(opciones) {
     assert.strictEqual(est.llaves.puestas, false, 'no borro las llaves');
   });
 
+  await test('sin la clave no se pueden poner ni probar las llaves de la FAA', async () => {
+    const guardar = await fetch(BASE + '/api/notam', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: 'ajeno', clientSecret: 'ajeno' })
+    });
+    assert.strictEqual(guardar.status, 403, 'dejo poner credenciales sin clave');
+    const probar = await fetch(BASE + '/api/notam/llaves', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: 'ajeno', clientSecret: 'ajeno' })
+    });
+    assert.strictEqual(probar.status, 403, 'dejo probar credenciales sin clave');
+    /* leer la configuracion si es libre: no trae nada secreto */
+    const ver = await fetch(BASE + '/api/notam');
+    assert.strictEqual(ver.status, 200);
+  });
+
   try { fs.unlinkSync(AJUSTES); } catch (e) { /* ignorado */ }
+  try { fs.unlinkSync(ADMIN); } catch (e) { /* ignorado */ }
   console.log('');
   console.log(pass + ' pruebas correctas, ' + fail + ' fallidas');
   apagarTodo();
