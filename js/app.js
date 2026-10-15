@@ -73,6 +73,7 @@
     setLetter(el.letterBig.textContent || 'A');
     iniciarTema();
     iniciarPaginas();
+    vigilarBarras();
     if (el.verBadge) {
       el.verBadge.textContent = 'v' + (ATIS.VERSION || '?');
       el.verBadge.title = 'Versión instalada: ' + VERSION +
@@ -151,12 +152,23 @@
     var ap = ATIS.getAirport(code);
     var runways = ap ? ap.runways : [];
     var seleccionables = pistasSeleccionables(runways);
+    /* La configuración de la hora no la manda el METAR: la pista en uso y la
+       aproximación las pone el controlador y ahí se quedan. Rehacer la lista
+       de pistas (al decodificar un METAR nuevo) no debe borrarlas. */
+    var aprPrevia = keepFields ? (el.approachRunway.value || savedApproachRwy) : '';
 
     el.approachRunway.innerHTML = '<option value="">— sin pista —</option>' +
       seleccionables.map(function (r) {
         return '<option value="' + r.valor + '">' + r.valor +
           (r.ambas ? ' (ambas)' : '') + '</option>';
       }).join('');
+    if (aprPrevia) selectIfPresent(el.approachRunway, aprPrevia);
+    if (keepFields) {
+      /* Solo se descartan las pistas que ese aeródromo no tiene */
+      var validas = {};
+      seleccionables.forEach(function (r) { validas[r.valor] = true; });
+      runwaysInUse = runwaysInUse.filter(function (r) { return validas[r]; });
+    }
 
     el.runwayChips.innerHTML = seleccionables.map(function (r) {
       return '<button type="button" class="chip' + (r.ambas ? ' ambas' : '') +
@@ -765,58 +777,172 @@
     return min;
   }
 
+  /* Cada aviso dice además a qué campo hay que ir: «campo» es el elemento que
+     se señala y donde se pone el cursor; con «zona» se señala el recuadro
+     entero (las fichas de pista, la lista de NOTAM), porque lo que falta no es
+     un control suelto. Un aviso sin campo es puramente informativo. */
   function verificar() {
     var avisos = [];
-    function err(t) { avisos.push({ nivel: 'error', texto: t }); }
-    function adv(t) { avisos.push({ nivel: 'aviso', texto: t }); }
+    function err(t, campo, zona) { avisos.push({ nivel: 'error', texto: t, campo: campo || '', zona: !!zona }); }
+    function adv(t, campo, zona) { avisos.push({ nivel: 'aviso', texto: t, campo: campo || '', zona: !!zona }); }
 
-    if (!el.langEs.checked && !el.langEn.checked) err('No hay ningún idioma marcado para transmitir.');
+    if (!el.langEs.checked && !el.langEn.checked) {
+      err('No hay ningún idioma marcado para transmitir.', 'langsel', true);
+    }
     var neural = motorElegido() === 'neuronal';
     var hayVoz = ajustarIdiomasPorMotor();
     var dondeFalta = neural ? 'la voz neuronal de ese idioma no está instalada'
       : 'el equipo no tiene esa voz';
-    if (el.langEs.checked && !hayVoz.es) err('El español está marcado pero ' + dondeFalta + '.');
-    if (el.langEn.checked && !hayVoz.en) err('El inglés está marcado pero ' + dondeFalta + '.');
+    if (el.langEs.checked && !hayVoz.es) err('El español está marcado pero ' + dondeFalta + '.', 'voiceEs');
+    if (el.langEn.checked && !hayVoz.en) err('El inglés está marcado pero ' + dondeFalta + '.', 'voiceEn');
 
     if (el.libreActivo.checked) {
       var hayEs = el.langEs.checked && el.libreEs.value.trim();
       var hayEn = el.langEn.checked && el.libreEn.value.trim();
-      if (!hayEs && !hayEn) err('El texto libre está activado y no hay texto escrito.');
-      else if (el.langEs.checked && el.langEn.checked && (!hayEs || !hayEn)) {
+      if (!hayEs && !hayEn) {
+        err('El texto libre está activado y no hay texto escrito.',
+          el.langEs.checked ? 'libreEs' : 'libreEn');
+      } else if (el.langEs.checked && el.langEn.checked && (!hayEs || !hayEn)) {
         adv('El texto libre solo está escrito en ' + (hayEs ? 'español' : 'inglés') +
-          ': el otro idioma saldrá sin él.');
+          ': el otro idioma saldrá sin él.', hayEs ? 'libreEn' : 'libreEs');
       } else adv('Texto libre activo: se añadirá al final del ATIS.');
     }
 
-    if (!runwaysInUse.length) adv('No hay pista en uso marcada: el mensaje no la va a anunciar.');
-    if (!el.obsTime.value.replace(/\D/g, '')) adv('Falta la hora de la observación.');
-    if (el.windMode.value !== 'calm' && !el.windSpeed.value.replace(/\D/g, '')) adv('Falta el viento.');
-    if (!el.altimeter.value.replace(/\D/g, '')) adv('Falta el altímetro.');
-    if (!el.visValue.value.trim()) adv('Falta la visibilidad.');
+    if (!runwaysInUse.length) adv('No hay pista en uso marcada: el mensaje no la va a anunciar.', 'runwayChips', true);
+    if (!el.obsTime.value.replace(/\D/g, '')) adv('Falta la hora de la observación.', 'obsTime');
+    if (el.windMode.value !== 'calm' && !el.windSpeed.value.replace(/\D/g, '')) adv('Falta el viento.', 'windSpeed');
+    if (!el.altimeter.value.replace(/\D/g, '')) adv('Falta el altímetro.', 'altimeter');
+    if (!el.visValue.value.trim()) adv('Falta la visibilidad.', 'visValue');
 
     var edad = minutosDelMetar();
-    if (edad !== null && edad >= 60) adv('La observación tiene ' + edad + ' minutos: conviene actualizar el METAR.');
+    if (edad !== null && edad >= 60) {
+      adv('La observación tiene ' + edad + ' minutos: conviene actualizar el METAR.', 'metarRaw');
+    }
 
     var vencidos = notams.filter(function (n) {
       return n.include && ATIS.fns.vigencia(n.meta, new Date()) !== 'vigente';
     }).length;
-    if (vencidos) adv(vencidos + ' NOTAM marcado(s) para transmitir están fuera de vigencia.');
+    if (vencidos) adv(vencidos + ' NOTAM marcado(s) para transmitir están fuera de vigencia.', 'notamList', true);
 
     return avisos;
+  }
+
+  /* ---------- Ir a corregir, uno por uno ----------
+     Mientras «senalando» esté puesto, cada repintado vuelve a marcar en rojo
+     (o en ámbar) los campos que siguen mal, y quita la marca del que ya se
+     corrigió. Se pone al fallar la verificación antes de transmitir y se
+     quita cuando ya no queda nada que corregir. */
+  var senalando = false;
+  var avisosEnPantalla = [];
+  var avisoActual = -1;
+
+  function nodoDeAviso(a) {
+    if (!a || !a.campo) return null;
+    return el[a.campo] || document.getElementById(a.campo);
+  }
+
+  function limpiarMarcas() {
+    var marcados = document.querySelectorAll('.malo, .flojo, .zona-mala, .zona-floja, .ahora, .aterriza');
+    Array.prototype.forEach.call(marcados, function (n) {
+      n.classList.remove('malo', 'flojo', 'zona-mala', 'zona-floja', 'ahora', 'aterriza');
+    });
+  }
+
+  function marcarCampos(avisos) {
+    limpiarMarcas();
+    if (!senalando) return;
+    var navegables = avisos.filter(function (a) { return a.campo; });
+    avisos.forEach(function (a) {
+      var nodo = nodoDeAviso(a);
+      if (!nodo) return;
+      var grave = a.nivel === 'error';
+      if (a.zona) nodo.classList.add(grave ? 'zona-mala' : 'zona-floja');
+      else nodo.classList.add(grave ? 'malo' : 'flojo');
+    });
+    /* El que se está corrigiendo, siempre en rojo */
+    if (avisoActual >= 0 && navegables[avisoActual]) {
+      var actual = nodoDeAviso(navegables[avisoActual]);
+      if (actual) actual.classList.add('ahora');
+    }
+  }
+
+  /* Lleva la pantalla al aviso número i y deja ahí el cursor */
+  function irAviso(i) {
+    var navegables = avisosEnPantalla.filter(function (a) { return a.campo; });
+    if (!navegables.length) {
+      status(el.scriptStatus, 'No hay ningún campo que corregir.', 'ok');
+      return;
+    }
+    if (i < 0 || i >= navegables.length) i = 0;
+    avisoActual = i;
+    var a = navegables[i];
+    var nodo = nodoDeAviso(a);
+    if (!nodo) return;
+
+    marcarCampos(avisosEnPantalla);
+
+    var pagina = nodo.closest ? nodo.closest('.page') : null;
+    if (pagina && pagina.hidden) mostrarPagina(pagina.id);
+
+    /* Después de cambiar de página la ventana vuelve arriba: el salto va
+       después, en el cuadro siguiente de dibujo. */
+    global.requestAnimationFrame(function () {
+      try { nodo.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+      catch (e) { nodo.scrollIntoView(); }
+      if (!a.zona && nodo.focus) {
+        try { nodo.focus({ preventScroll: true }); } catch (e) { nodo.focus(); }
+        if (nodo.select && nodo.tagName === 'INPUT') { try { nodo.select(); } catch (e) { /* no se puede */ } }
+      }
+      nodo.classList.remove('aterriza');
+      void nodo.offsetWidth;            /* reinicia la animación */
+      nodo.classList.add('aterriza');
+    });
+
+    pintarListaAvisos();
+    pintarBotonCorregir();
+  }
+
+  function pintarBotonCorregir() {
+    if (!el.btnCorregir) return;
+    var cuantos = avisosEnPantalla.filter(function (a) { return a.campo; }).length;
+    if (!cuantos) {
+      el.btnCorregir.hidden = true;
+      return;
+    }
+    el.btnCorregir.hidden = false;
+    el.btnCorregir.textContent = avisoActual < 0
+      ? (cuantos === 1 ? 'Ir a corregir' : 'Ir a corregir (1 de ' + cuantos + ')')
+      : (cuantos === 1 ? 'Volver al campo'
+        : 'Siguiente (' + (((avisoActual + 1) % cuantos) + 1) + ' de ' + cuantos + ')');
+    el.btnCorregir.title = 'Lleva al campo que falta y lo deja marcado en rojo';
+  }
+
+  function pintarListaAvisos() {
+    var n = -1;
+    el.preflightLista.innerHTML = avisosEnPantalla.map(function (a) {
+      var i = a.campo ? ++n : -1;
+      return '<li class="' + a.nivel + (i === avisoActual ? ' puesto' : '') + '"' +
+        (i >= 0 ? ' data-i="' + i + '"' : ' style="cursor:default"') + '>' +
+        escapeHtml(a.texto) + '</li>';
+    }).join('');
   }
 
   function pintarVerificacion() {
     var avisos = verificar();
     var graves = avisos.filter(function (a) { return a.nivel === 'error'; });
+    avisosEnPantalla = avisos;
+    if (avisoActual >= avisos.filter(function (a) { return a.campo; }).length) avisoActual = -1;
     if (!avisos.length) {
       el.preflight.hidden = true;
+      senalando = false;
+      avisoActual = -1;
     } else {
       el.preflight.hidden = false;
       el.preflight.className = 'preflight' + (graves.length ? ' grave' : '');
-      el.preflightLista.innerHTML = avisos.map(function (a) {
-        return '<li class="' + a.nivel + '">' + escapeHtml(a.texto) + '</li>';
-      }).join('');
+      pintarListaAvisos();
     }
+    marcarCampos(avisos);
+    pintarBotonCorregir();
     return { avisos: avisos, graves: graves };
   }
 
@@ -873,11 +999,17 @@
     var chequeo = pintarVerificacion();
     if (chequeo.avisos.length && !forzar) {
       el.btnIgual.hidden = chequeo.graves.length > 0;   /* un error no se puede forzar */
+      senalando = true;
+      avisoActual = -1;
+      marcarCampos(chequeo.avisos);
+      pintarBotonCorregir();
       status(el.scriptStatus, chequeo.graves.length
         ? 'Hay que corregir lo marcado en rojo antes de transmitir.'
-        : 'Revise lo que falta, o pulse «Transmitir de todos modos».', 'err');
+        : 'Revise lo que falta, o pulse «Ir a corregir», o «Transmitir de todos modos».', 'err');
       return;
     }
+    senalando = false;
+    limpiarMarcas();
 
     var secuencia = [];
     /* Las piezas viajan con el guion: de ahí sale el subrayado */
@@ -978,9 +1110,13 @@
     var chequeo = pintarVerificacion();
     if (chequeo.avisos.length && forzar !== true) {
       el.btnIgual.hidden = chequeo.graves.length > 0;
+      senalando = true;
+      avisoActual = -1;
+      marcarCampos(chequeo.avisos);
+      pintarBotonCorregir();
       status(el.scriptStatus, chequeo.graves.length
         ? 'Hay que corregir lo marcado en rojo antes de poner esto al aire.'
-        : 'Revise lo que falta, o pulse «Transmitir de todos modos».', 'err');
+        : 'Revise lo que falta, o pulse «Ir a corregir», o «Transmitir de todos modos».', 'err');
       return;
     }
     ATIS.speech.alFinDeCiclo(function () { play(true); });
@@ -997,6 +1133,8 @@
     el.btnStop.disabled = false;
     el.pavance.hidden = false;
     el.preflight.hidden = true;
+    senalando = false;
+    limpiarMarcas();
     document.querySelector('.brand .dot').classList.add('live');
     prepararAvance(cual);
   }
@@ -2294,6 +2432,28 @@
     if (cual === 'pageAdmin') pintarAdmin();
   }
 
+  /* La altura de las barras fijas, medida de verdad: con ella las pestañas se
+     colocan debajo de la barra superior y los saltos a un campo no lo dejan
+     escondido detrás. Se vuelve a medir si la ventana cambia de ancho y la
+     barra pasa a dos renglones. */
+  function medirBarras() {
+    var topbar = document.querySelector('.topbar');
+    var tabs = document.querySelector('.tabs');
+    var raiz = document.documentElement;
+    if (topbar) raiz.style.setProperty('--alto-topbar', Math.round(topbar.offsetHeight) + 'px');
+    if (tabs) raiz.style.setProperty('--alto-tabs', Math.round(tabs.offsetHeight) + 'px');
+  }
+
+  function vigilarBarras() {
+    medirBarras();
+    global.addEventListener('resize', medirBarras);
+    if (global.ResizeObserver) {
+      var ro = new global.ResizeObserver(medirBarras);
+      var topbar = document.querySelector('.topbar');
+      if (topbar) ro.observe(topbar);
+    }
+  }
+
   function iniciarPaginas() {
     var guardada = null;
     try { guardada = localStorage.getItem(PAGINA_KEY); } catch (e) { /* ignorado */ }
@@ -2799,9 +2959,22 @@
     on(el.btnIgual, 'click', function () {
       if (enAire()) relevar(true); else play(true);
     });
+    /* No esconde el recuadro: lleva al primer campo que falta, lo deja
+       marcado en rojo, y en cada pulsación pasa al siguiente. */
     on(el.btnCorregir, 'click', function () {
-      el.preflight.hidden = true;
-      mostrarPagina('pageAtis');
+      senalando = true;
+      var cuantos = avisosEnPantalla.filter(function (a) { return a.campo; }).length;
+      marcarCampos(avisosEnPantalla);
+      irAviso(cuantos ? (avisoActual + 1) % cuantos : 0);
+    });
+
+    /* Cada renglón de la lista lleva a su campo */
+    on(el.preflightLista, 'click', function (e) {
+      var li = e.target.closest ? e.target.closest('li[data-i]') : null;
+      if (!li) return;
+      senalando = true;
+      marcarCampos(avisosEnPantalla);
+      irAviso(+li.dataset.i);
     });
 
     on(el.btnPrev, 'click', function () { motor().saltar(-1); });

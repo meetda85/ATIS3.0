@@ -392,7 +392,9 @@ interrumpir el bucle. La pestaña en la que se quedó se conserva al cerrar el p
 1. Abrir **ATIS 3.0** desde el Escritorio (o `index.html` con doble clic).
 2. Pegar el METAR en el cuadro 1 y pulsar **Decodificar y llenar** (o `Enter`).
    También está **Obtener en línea**, que consulta el METAR vigente de la estación.
-3. Marcar la(s) pista(s) en uso y el tipo de aproximación.
+3. Marcar la(s) pista(s) en uso y el tipo de aproximación. Se marcan una vez y ahí se
+   quedan: decodificar un METAR nuevo no las borra, porque la configuración de la hora la
+   pone el controlador, no la observación. Solo se sueltan al cambiar de estación.
 4. Cargar los NOTAM en el cuadro 5 de la pestaña **Operación**. Hay dos caminos:
    - **Cargar archivo del FNS**: se elige la hoja de cálculo tal como se descarga
      (`fnsNotams_….xls`), sin abrirla ni convertirla a nada.
@@ -524,6 +526,7 @@ test/test-admin.js        pruebas de la clave de administracion
 test/test-notam.js        pruebas de los NOTAM automaticos
 test/test-voz-neural.js   pruebas de la voz neuronal y sus rutas del servidor
 test/test-bucle-neural.js pruebas del bucle con voz neuronal frente a fallas
+test/test-pantalla.js     pruebas de la pantalla en un navegador de verdad
 test/fixtures/        descarga real del FNS usada en las pruebas
 build/build.js        genera dist/ATIS-3.0.html (un solo archivo)
 dist/ATIS-3.0.html    version portable, todo en un archivo
@@ -543,11 +546,13 @@ node test/test-servidor.js      # el servidor de control remoto
 node test/test-admin.js         # la clave de administracion
 node test/test-notam.js         # los NOTAM automaticos
 node test/test-voz-neural.js    # la voz neuronal y sus rutas del servidor
+node test/test-pantalla.js      # el acomodo de la pantalla, en un navegador de verdad
 npm test                        # todas
 ```
 
-Las pruebas de síntesis se omiten solas si la carpeta `voz` no está instalada, así que
-`npm test` corre igual en una computadora sin la voz neuronal.
+Las pruebas de síntesis se omiten solas si la carpeta `voz` no está instalada, y las de
+pantalla si no hay Playwright, así que `npm test` corre igual en la computadora de la
+torre.
 
 ## Antes de transmitir
 
@@ -557,6 +562,13 @@ visibilidad; la observación tiene más de una hora; hay NOTAM marcados fuera de
 un idioma marcado sin voz instalada. Un ATIS completo no genera ningún aviso, así que esto
 no estorba en la operación normal. Lo que es un **error** (ningún idioma, texto libre
 vacío, voz faltante) no se puede forzar; lo demás sale con *Transmitir de todos modos*.
+
+Cuando la revisión detiene el intento, cada cosa que falta queda señalada **en el campo
+mismo**: en rojo lo que impide transmitir y en ámbar lo que solo avisa. El botón **Ir a
+corregir** lleva al primero, le pone el cursor encima y lo marca en rojo; cada pulsación
+pasa al siguiente y el botón va diciendo por cuál va (*Siguiente (2 de 4)*). También se
+puede pulsar directamente el renglón de la lista para ir a ese campo. La marca se quita
+sola en cuanto el campo queda bien, sin tener que volver a pulsar nada.
 
 En la consola, a la derecha, está siempre a la vista el resumen de lo que se transmite:
 letra, pista en uso, viento, visibilidad, altímetro y hora de la observación. La hora se

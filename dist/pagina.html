@@ -228,7 +228,10 @@ body { transition: background-color .2s ease, color .2s ease; }
    ========================================================================== */
 /* ---- Pestañas: operación y ajustes ---- */
 .tabs {
-  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 62px); z-index: 25;
+  /* La altura real de la barra superior la mide el programa y la deja en
+     --alto-topbar: así las pestañas quedan justo debajo, no detrás, aunque la
+     barra crezca a dos renglones en pantallas angostas. */
+  position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--alto-topbar, 95px)); z-index: 25;
   display: flex; align-items: flex-end; gap: 4px;
   padding: 10px 22px 0;
   max-width: 1560px; margin: 0 auto;
@@ -263,15 +266,38 @@ main {
 .page {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;          /* cada tarjeta con su altura natural */
+  /* Las tarjetas que comparten renglón terminan a la misma altura: así los
+     renglones quedan parejos y no se ven escalones. En Operación todas las
+     tarjetas ocupan el ancho completo o van dentro de .banda, que lleva su
+     propio acomodo. */
+  align-items: stretch;
   gap: 16px;
   padding-top: 16px;
 }
 .span2 { grid-column: 1 / -1; }
+
+/* ---- Banda de la observación: dos columnas sin huecos ----
+   Información y Cielo quedan en la columna izquierda, una debajo de la otra;
+   Viento ocupa la derecha de arriba abajo. Así ninguna tarjeta deja el hueco
+   que dejaba la rejilla cuando una columna era más alta que la otra.
+   El orden del HTML no cambia, así que el tabulador sigue yendo 2, 3, 4. */
+.banda {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+.banda > #secInfo   { grid-area: 1 / 1 / 2 / 2; }
+.banda > #secViento { grid-area: 1 / 2 / 3 / 3; align-self: stretch; }
+.banda > #secCielo  { grid-area: 2 / 1 / 3 / 2; }
+@media (max-width: 1180px) {
+  .banda { grid-template-columns: 1fr; }
+  .banda > #secInfo, .banda > #secViento, .banda > #secCielo { grid-area: auto; }
+}
 @media (max-width: 960px) {
   .page { grid-template-columns: 1fr; }
   main { padding: 0 16px 210px; }
-  .tabs { padding: 10px 16px 0; top: calc(env(safe-area-inset-top, 0px) + 108px); }
+  .tabs { padding: 10px 16px 0; }
   .tab { padding: 9px 14px 10px; font-size: 11.5px; }
 }
 
@@ -753,12 +779,14 @@ button.stop:hover:not(:disabled) { background: var(--red); color: var(--surface)
 @media (max-width: 1200px) { .saltos { display: none; } }
 
 /* Los títulos no quedan debajo de las barras fijas al saltar */
-.card[id^="sec"] { scroll-margin-top: 130px; }
+.card[id^="sec"], .card, .banda > .card {
+  scroll-margin-top: calc(var(--alto-topbar, 95px) + var(--alto-tabs, 52px) + 14px);
+}
 
 /* ---------- Pista sin lado: las dos de esa dirección ---------- */
 .chip.ambas { border-style: dashed; font-weight: 650; }
 .chip.ambas.on { border-style: solid; }
-.pistanota {
+.field > span.pistanota, .pistanota {
   font-size: 11px; color: var(--muted); text-transform: none;
   letter-spacing: 0; font-weight: 400; margin-top: 2px;
 }
@@ -953,6 +981,157 @@ body.modo-control .pstate-main::after {
 .candado .field { max-width: 190px; }
 .candado input { font: 600 20px/1 ui-monospace, Consolas, monospace; letter-spacing: .32em; text-align: center; }
 
+/* ==========================================================================
+   Capa de acabado — la vista «premium»
+   Nada de esto cambia la estructura: son los mismos componentes con mejor
+   superficie, mejor relieve y mejor foco. Los dos modos salen de tokens.
+   ========================================================================== */
+
+:root {
+  --card-top:  #ffffff;
+  --card-bot:  #f8fafc;
+  --sheen:     rgba(255, 255, 255, .9);
+  --hairline:  rgba(15, 23, 32, .05);
+  --glow:      rgba(11, 122, 75, .22);
+  --inset:     inset 0 1px 2px rgba(15, 23, 32, .035);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --card-top:  #16202d;
+    --card-bot:  #0f1620;
+    --sheen:     rgba(255, 255, 255, .05);
+    --hairline:  rgba(255, 255, 255, .04);
+    --glow:      rgba(47, 209, 137, .26);
+    --inset:     inset 0 1px 2px rgba(0, 0, 0, .35);
+  }
+}
+:root[data-theme="dark"] {
+  --card-top:  #16202d;
+  --card-bot:  #0f1620;
+  --sheen:     rgba(255, 255, 255, .05);
+  --hairline:  rgba(255, 255, 255, .04);
+  --glow:      rgba(47, 209, 137, .26);
+  --inset:     inset 0 1px 2px rgba(0, 0, 0, .35);
+}
+
+/* ---- Fondo con profundidad: un velo del color de acento, muy tenue ---- */
+body {
+  background-image:
+    radial-gradient(1100px 520px at 12% -8%, var(--accent-weak), transparent 70%),
+    radial-gradient(900px 460px at 94% 2%, var(--amber-weak), transparent 72%);
+  background-attachment: fixed;
+}
+
+/* ---- Tarjetas con relieve ---- */
+.card {
+  background: linear-gradient(180deg, var(--card-top), var(--card-bot));
+  border-radius: 14px;
+  box-shadow: var(--shadow-1), inset 0 1px 0 var(--sheen);
+  transition: box-shadow .18s ease, border-color .18s ease, transform .18s ease;
+}
+.card:hover { box-shadow: var(--shadow-2), inset 0 1px 0 var(--sheen); }
+.card:focus-within { border-color: var(--line); }
+
+/* Barrita de acento a la izquierda del título, para que la jerarquía se lea */
+.card > h2:first-child { position: relative; }
+.card > h2:first-child::after {
+  content: ""; position: absolute; left: -18px; top: 1px;
+  width: 3px; height: 15px; border-radius: 0 3px 3px 0;
+  background: var(--accent); opacity: .85;
+}
+
+/* ---- Campos ---- */
+input, select, textarea { border-radius: 9px; box-shadow: var(--inset); }
+input:focus, select:focus, textarea:focus {
+  box-shadow: 0 0 0 3px var(--accent-ring), var(--inset);
+}
+input[type="range"], input[type="checkbox"] { box-shadow: none; }
+.field > span { font-size: 9.5px; letter-spacing: .14em; }
+
+/* ---- Botones ---- */
+button { border-radius: 9px; }
+button.primary {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(0, 0, 0, .06));
+  box-shadow: 0 1px 2px var(--glow), 0 6px 16px var(--glow);
+}
+button.primary:hover { box-shadow: 0 2px 4px var(--glow), 0 10px 22px var(--glow); }
+button.primary:active { box-shadow: 0 1px 2px var(--glow); }
+
+/* ---- Fichas de pista ---- */
+.chip { box-shadow: var(--inset); letter-spacing: .02em; }
+.chip.on { box-shadow: 0 1px 2px var(--glow), 0 5px 14px var(--glow); }
+
+/* ---- Barra superior y pestañas ---- */
+.topbar { box-shadow: 0 1px 0 var(--hairline); }
+.tab.on { box-shadow: 0 -2px 6px var(--hairline), inset 0 1px 0 var(--sheen); }
+
+/* ---- Barras de desplazamiento discretas ---- */
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--line); border-radius: 99px;
+  border: 3px solid transparent; background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
+
+/* ==========================================================================
+   Campos señalados por la verificación previa
+   ========================================================================== */
+/* Rojo el que impide transmitir, ámbar el que solo avisa. El resalte dura
+   mientras el campo siga mal; se quita solo en cuanto se corrige. */
+.malo, .malo:hover {
+  border-color: var(--red) !important;
+  box-shadow: 0 0 0 3px var(--red-weak), var(--inset) !important;
+}
+.malo:focus { box-shadow: 0 0 0 3px var(--red-weak), var(--inset) !important; }
+.flojo, .flojo:hover {
+  border-color: var(--amber) !important;
+  box-shadow: 0 0 0 3px var(--amber-weak), var(--inset) !important;
+}
+/* Cuando lo que falta es un grupo (las fichas de pista, los idiomas) se
+   señala el recuadro entero, no un control suelto. */
+.zona-mala {
+  border-radius: 10px; padding: 7px 9px; margin: -7px -9px;
+  border: 1px solid var(--red); background: var(--red-weak);
+}
+.zona-floja {
+  border-radius: 10px; padding: 7px 9px; margin: -7px -9px;
+  border: 1px solid var(--amber); background: var(--amber-weak);
+}
+/* El campo al que se acaba de saltar va siempre en rojo, sea error o aviso:
+   es el que toca corregir ahora. Los demás conservan su color. */
+.ahora, .ahora:hover, .ahora:focus {
+  border-color: var(--red) !important;
+  box-shadow: 0 0 0 3px var(--red-weak), var(--inset) !important;
+}
+.zona-mala.ahora, .zona-floja.ahora {
+  border-color: var(--red); background: var(--red-weak);
+  box-shadow: 0 0 0 3px var(--red-weak);
+}
+
+/* Un parpadeo corto al llegar, para que se vea a dónde saltó */
+@keyframes aterriza {
+  0%   { box-shadow: 0 0 0 0 var(--red-weak); }
+  40%  { box-shadow: 0 0 0 10px var(--red-weak); }
+  100% { box-shadow: 0 0 0 3px var(--red-weak); }
+}
+.aterriza { animation: aterriza .5s ease-out; }
+
+/* La lista de la verificación previa: cada renglón lleva a su campo */
+.preflight li { cursor: pointer; }
+.preflight li:hover { text-decoration: underline; }
+.preflight li.puesto {
+  list-style: disclosure-closed;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* Al saltar a un campo, que no quede debajo de las barras fijas */
+input, select, textarea, .chips, .notamlist {
+  scroll-margin-top: calc(var(--alto-topbar, 95px) + var(--alto-tabs, 52px) + 20px);
+  scroll-margin-bottom: 220px;
+}
+
 </style>
 
 <script>
@@ -1047,6 +1226,9 @@ body.modo-control .pstate-main::after {
     </div>
     <div id="metarDecoded" class="decoded"></div>
   </section>
+
+  <!-- Las tres tarjetas de la observación, en dos columnas sin huecos -->
+  <div class="banda span2">
 
   <!-- ============ INFORMACIÓN / APROXIMACIÓN / PISTA ============ -->
   <section class="card" id="secInfo">
@@ -1164,6 +1346,8 @@ body.modo-control .pstate-main::after {
     <div id="layers" class="layers"></div>
     <button id="btnAddLayer" class="ghost small">+ Agregar capa</button>
   </section>
+
+  </div><!-- /banda -->
 
   <!-- ============ NOTAM ============ -->
   <section class="card span2" id="secNotam">
@@ -1752,7 +1936,7 @@ body.modo-control .pstate-main::after {
   <div class="popts">
     <div class="pgroup">
       <span class="plabel">Idiomas</span>
-      <div class="langsel">
+      <div class="langsel" id="langsel">
         <label><input type="checkbox" id="langEs" checked> ES</label>
         <label><input type="checkbox" id="langEn" checked> EN</label>
       </div>
@@ -1788,10 +1972,11 @@ body.modo-control .pstate-main::after {
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.8',
-    FECHA: '2026-10-14',
+    VERSION: '3.9',
+    FECHA: '2026-10-15',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Ajustes separados en dos: los de todos y los de administración, con clave'
+    NOVEDADES: 'Pantalla sin huecos, la pista en uso ya no se borra con el METAR nuevo, '
+      + 'y «Ir a corregir» lleva campo por campo marcándolos en rojo'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;
@@ -5324,6 +5509,7 @@ body.modo-control .pstate-main::after {
     setLetter(el.letterBig.textContent || 'A');
     iniciarTema();
     iniciarPaginas();
+    vigilarBarras();
     if (el.verBadge) {
       el.verBadge.textContent = 'v' + (ATIS.VERSION || '?');
       el.verBadge.title = 'Versión instalada: ' + VERSION +
@@ -5402,12 +5588,23 @@ body.modo-control .pstate-main::after {
     var ap = ATIS.getAirport(code);
     var runways = ap ? ap.runways : [];
     var seleccionables = pistasSeleccionables(runways);
+    /* La configuración de la hora no la manda el METAR: la pista en uso y la
+       aproximación las pone el controlador y ahí se quedan. Rehacer la lista
+       de pistas (al decodificar un METAR nuevo) no debe borrarlas. */
+    var aprPrevia = keepFields ? (el.approachRunway.value || savedApproachRwy) : '';
 
     el.approachRunway.innerHTML = '<option value="">— sin pista —</option>' +
       seleccionables.map(function (r) {
         return '<option value="' + r.valor + '">' + r.valor +
           (r.ambas ? ' (ambas)' : '') + '</option>';
       }).join('');
+    if (aprPrevia) selectIfPresent(el.approachRunway, aprPrevia);
+    if (keepFields) {
+      /* Solo se descartan las pistas que ese aeródromo no tiene */
+      var validas = {};
+      seleccionables.forEach(function (r) { validas[r.valor] = true; });
+      runwaysInUse = runwaysInUse.filter(function (r) { return validas[r]; });
+    }
 
     el.runwayChips.innerHTML = seleccionables.map(function (r) {
       return '<button type="button" class="chip' + (r.ambas ? ' ambas' : '') +
@@ -6016,58 +6213,172 @@ body.modo-control .pstate-main::after {
     return min;
   }
 
+  /* Cada aviso dice además a qué campo hay que ir: «campo» es el elemento que
+     se señala y donde se pone el cursor; con «zona» se señala el recuadro
+     entero (las fichas de pista, la lista de NOTAM), porque lo que falta no es
+     un control suelto. Un aviso sin campo es puramente informativo. */
   function verificar() {
     var avisos = [];
-    function err(t) { avisos.push({ nivel: 'error', texto: t }); }
-    function adv(t) { avisos.push({ nivel: 'aviso', texto: t }); }
+    function err(t, campo, zona) { avisos.push({ nivel: 'error', texto: t, campo: campo || '', zona: !!zona }); }
+    function adv(t, campo, zona) { avisos.push({ nivel: 'aviso', texto: t, campo: campo || '', zona: !!zona }); }
 
-    if (!el.langEs.checked && !el.langEn.checked) err('No hay ningún idioma marcado para transmitir.');
+    if (!el.langEs.checked && !el.langEn.checked) {
+      err('No hay ningún idioma marcado para transmitir.', 'langsel', true);
+    }
     var neural = motorElegido() === 'neuronal';
     var hayVoz = ajustarIdiomasPorMotor();
     var dondeFalta = neural ? 'la voz neuronal de ese idioma no está instalada'
       : 'el equipo no tiene esa voz';
-    if (el.langEs.checked && !hayVoz.es) err('El español está marcado pero ' + dondeFalta + '.');
-    if (el.langEn.checked && !hayVoz.en) err('El inglés está marcado pero ' + dondeFalta + '.');
+    if (el.langEs.checked && !hayVoz.es) err('El español está marcado pero ' + dondeFalta + '.', 'voiceEs');
+    if (el.langEn.checked && !hayVoz.en) err('El inglés está marcado pero ' + dondeFalta + '.', 'voiceEn');
 
     if (el.libreActivo.checked) {
       var hayEs = el.langEs.checked && el.libreEs.value.trim();
       var hayEn = el.langEn.checked && el.libreEn.value.trim();
-      if (!hayEs && !hayEn) err('El texto libre está activado y no hay texto escrito.');
-      else if (el.langEs.checked && el.langEn.checked && (!hayEs || !hayEn)) {
+      if (!hayEs && !hayEn) {
+        err('El texto libre está activado y no hay texto escrito.',
+          el.langEs.checked ? 'libreEs' : 'libreEn');
+      } else if (el.langEs.checked && el.langEn.checked && (!hayEs || !hayEn)) {
         adv('El texto libre solo está escrito en ' + (hayEs ? 'español' : 'inglés') +
-          ': el otro idioma saldrá sin él.');
+          ': el otro idioma saldrá sin él.', hayEs ? 'libreEn' : 'libreEs');
       } else adv('Texto libre activo: se añadirá al final del ATIS.');
     }
 
-    if (!runwaysInUse.length) adv('No hay pista en uso marcada: el mensaje no la va a anunciar.');
-    if (!el.obsTime.value.replace(/\D/g, '')) adv('Falta la hora de la observación.');
-    if (el.windMode.value !== 'calm' && !el.windSpeed.value.replace(/\D/g, '')) adv('Falta el viento.');
-    if (!el.altimeter.value.replace(/\D/g, '')) adv('Falta el altímetro.');
-    if (!el.visValue.value.trim()) adv('Falta la visibilidad.');
+    if (!runwaysInUse.length) adv('No hay pista en uso marcada: el mensaje no la va a anunciar.', 'runwayChips', true);
+    if (!el.obsTime.value.replace(/\D/g, '')) adv('Falta la hora de la observación.', 'obsTime');
+    if (el.windMode.value !== 'calm' && !el.windSpeed.value.replace(/\D/g, '')) adv('Falta el viento.', 'windSpeed');
+    if (!el.altimeter.value.replace(/\D/g, '')) adv('Falta el altímetro.', 'altimeter');
+    if (!el.visValue.value.trim()) adv('Falta la visibilidad.', 'visValue');
 
     var edad = minutosDelMetar();
-    if (edad !== null && edad >= 60) adv('La observación tiene ' + edad + ' minutos: conviene actualizar el METAR.');
+    if (edad !== null && edad >= 60) {
+      adv('La observación tiene ' + edad + ' minutos: conviene actualizar el METAR.', 'metarRaw');
+    }
 
     var vencidos = notams.filter(function (n) {
       return n.include && ATIS.fns.vigencia(n.meta, new Date()) !== 'vigente';
     }).length;
-    if (vencidos) adv(vencidos + ' NOTAM marcado(s) para transmitir están fuera de vigencia.');
+    if (vencidos) adv(vencidos + ' NOTAM marcado(s) para transmitir están fuera de vigencia.', 'notamList', true);
 
     return avisos;
+  }
+
+  /* ---------- Ir a corregir, uno por uno ----------
+     Mientras «senalando» esté puesto, cada repintado vuelve a marcar en rojo
+     (o en ámbar) los campos que siguen mal, y quita la marca del que ya se
+     corrigió. Se pone al fallar la verificación antes de transmitir y se
+     quita cuando ya no queda nada que corregir. */
+  var senalando = false;
+  var avisosEnPantalla = [];
+  var avisoActual = -1;
+
+  function nodoDeAviso(a) {
+    if (!a || !a.campo) return null;
+    return el[a.campo] || document.getElementById(a.campo);
+  }
+
+  function limpiarMarcas() {
+    var marcados = document.querySelectorAll('.malo, .flojo, .zona-mala, .zona-floja, .ahora, .aterriza');
+    Array.prototype.forEach.call(marcados, function (n) {
+      n.classList.remove('malo', 'flojo', 'zona-mala', 'zona-floja', 'ahora', 'aterriza');
+    });
+  }
+
+  function marcarCampos(avisos) {
+    limpiarMarcas();
+    if (!senalando) return;
+    var navegables = avisos.filter(function (a) { return a.campo; });
+    avisos.forEach(function (a) {
+      var nodo = nodoDeAviso(a);
+      if (!nodo) return;
+      var grave = a.nivel === 'error';
+      if (a.zona) nodo.classList.add(grave ? 'zona-mala' : 'zona-floja');
+      else nodo.classList.add(grave ? 'malo' : 'flojo');
+    });
+    /* El que se está corrigiendo, siempre en rojo */
+    if (avisoActual >= 0 && navegables[avisoActual]) {
+      var actual = nodoDeAviso(navegables[avisoActual]);
+      if (actual) actual.classList.add('ahora');
+    }
+  }
+
+  /* Lleva la pantalla al aviso número i y deja ahí el cursor */
+  function irAviso(i) {
+    var navegables = avisosEnPantalla.filter(function (a) { return a.campo; });
+    if (!navegables.length) {
+      status(el.scriptStatus, 'No hay ningún campo que corregir.', 'ok');
+      return;
+    }
+    if (i < 0 || i >= navegables.length) i = 0;
+    avisoActual = i;
+    var a = navegables[i];
+    var nodo = nodoDeAviso(a);
+    if (!nodo) return;
+
+    marcarCampos(avisosEnPantalla);
+
+    var pagina = nodo.closest ? nodo.closest('.page') : null;
+    if (pagina && pagina.hidden) mostrarPagina(pagina.id);
+
+    /* Después de cambiar de página la ventana vuelve arriba: el salto va
+       después, en el cuadro siguiente de dibujo. */
+    global.requestAnimationFrame(function () {
+      try { nodo.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+      catch (e) { nodo.scrollIntoView(); }
+      if (!a.zona && nodo.focus) {
+        try { nodo.focus({ preventScroll: true }); } catch (e) { nodo.focus(); }
+        if (nodo.select && nodo.tagName === 'INPUT') { try { nodo.select(); } catch (e) { /* no se puede */ } }
+      }
+      nodo.classList.remove('aterriza');
+      void nodo.offsetWidth;            /* reinicia la animación */
+      nodo.classList.add('aterriza');
+    });
+
+    pintarListaAvisos();
+    pintarBotonCorregir();
+  }
+
+  function pintarBotonCorregir() {
+    if (!el.btnCorregir) return;
+    var cuantos = avisosEnPantalla.filter(function (a) { return a.campo; }).length;
+    if (!cuantos) {
+      el.btnCorregir.hidden = true;
+      return;
+    }
+    el.btnCorregir.hidden = false;
+    el.btnCorregir.textContent = avisoActual < 0
+      ? (cuantos === 1 ? 'Ir a corregir' : 'Ir a corregir (1 de ' + cuantos + ')')
+      : (cuantos === 1 ? 'Volver al campo'
+        : 'Siguiente (' + (((avisoActual + 1) % cuantos) + 1) + ' de ' + cuantos + ')');
+    el.btnCorregir.title = 'Lleva al campo que falta y lo deja marcado en rojo';
+  }
+
+  function pintarListaAvisos() {
+    var n = -1;
+    el.preflightLista.innerHTML = avisosEnPantalla.map(function (a) {
+      var i = a.campo ? ++n : -1;
+      return '<li class="' + a.nivel + (i === avisoActual ? ' puesto' : '') + '"' +
+        (i >= 0 ? ' data-i="' + i + '"' : ' style="cursor:default"') + '>' +
+        escapeHtml(a.texto) + '</li>';
+    }).join('');
   }
 
   function pintarVerificacion() {
     var avisos = verificar();
     var graves = avisos.filter(function (a) { return a.nivel === 'error'; });
+    avisosEnPantalla = avisos;
+    if (avisoActual >= avisos.filter(function (a) { return a.campo; }).length) avisoActual = -1;
     if (!avisos.length) {
       el.preflight.hidden = true;
+      senalando = false;
+      avisoActual = -1;
     } else {
       el.preflight.hidden = false;
       el.preflight.className = 'preflight' + (graves.length ? ' grave' : '');
-      el.preflightLista.innerHTML = avisos.map(function (a) {
-        return '<li class="' + a.nivel + '">' + escapeHtml(a.texto) + '</li>';
-      }).join('');
+      pintarListaAvisos();
     }
+    marcarCampos(avisos);
+    pintarBotonCorregir();
     return { avisos: avisos, graves: graves };
   }
 
@@ -6124,11 +6435,17 @@ body.modo-control .pstate-main::after {
     var chequeo = pintarVerificacion();
     if (chequeo.avisos.length && !forzar) {
       el.btnIgual.hidden = chequeo.graves.length > 0;   /* un error no se puede forzar */
+      senalando = true;
+      avisoActual = -1;
+      marcarCampos(chequeo.avisos);
+      pintarBotonCorregir();
       status(el.scriptStatus, chequeo.graves.length
         ? 'Hay que corregir lo marcado en rojo antes de transmitir.'
-        : 'Revise lo que falta, o pulse «Transmitir de todos modos».', 'err');
+        : 'Revise lo que falta, o pulse «Ir a corregir», o «Transmitir de todos modos».', 'err');
       return;
     }
+    senalando = false;
+    limpiarMarcas();
 
     var secuencia = [];
     /* Las piezas viajan con el guion: de ahí sale el subrayado */
@@ -6229,9 +6546,13 @@ body.modo-control .pstate-main::after {
     var chequeo = pintarVerificacion();
     if (chequeo.avisos.length && forzar !== true) {
       el.btnIgual.hidden = chequeo.graves.length > 0;
+      senalando = true;
+      avisoActual = -1;
+      marcarCampos(chequeo.avisos);
+      pintarBotonCorregir();
       status(el.scriptStatus, chequeo.graves.length
         ? 'Hay que corregir lo marcado en rojo antes de poner esto al aire.'
-        : 'Revise lo que falta, o pulse «Transmitir de todos modos».', 'err');
+        : 'Revise lo que falta, o pulse «Ir a corregir», o «Transmitir de todos modos».', 'err');
       return;
     }
     ATIS.speech.alFinDeCiclo(function () { play(true); });
@@ -6248,6 +6569,8 @@ body.modo-control .pstate-main::after {
     el.btnStop.disabled = false;
     el.pavance.hidden = false;
     el.preflight.hidden = true;
+    senalando = false;
+    limpiarMarcas();
     document.querySelector('.brand .dot').classList.add('live');
     prepararAvance(cual);
   }
@@ -7545,6 +7868,28 @@ body.modo-control .pstate-main::after {
     if (cual === 'pageAdmin') pintarAdmin();
   }
 
+  /* La altura de las barras fijas, medida de verdad: con ella las pestañas se
+     colocan debajo de la barra superior y los saltos a un campo no lo dejan
+     escondido detrás. Se vuelve a medir si la ventana cambia de ancho y la
+     barra pasa a dos renglones. */
+  function medirBarras() {
+    var topbar = document.querySelector('.topbar');
+    var tabs = document.querySelector('.tabs');
+    var raiz = document.documentElement;
+    if (topbar) raiz.style.setProperty('--alto-topbar', Math.round(topbar.offsetHeight) + 'px');
+    if (tabs) raiz.style.setProperty('--alto-tabs', Math.round(tabs.offsetHeight) + 'px');
+  }
+
+  function vigilarBarras() {
+    medirBarras();
+    global.addEventListener('resize', medirBarras);
+    if (global.ResizeObserver) {
+      var ro = new global.ResizeObserver(medirBarras);
+      var topbar = document.querySelector('.topbar');
+      if (topbar) ro.observe(topbar);
+    }
+  }
+
   function iniciarPaginas() {
     var guardada = null;
     try { guardada = localStorage.getItem(PAGINA_KEY); } catch (e) { /* ignorado */ }
@@ -8050,9 +8395,22 @@ body.modo-control .pstate-main::after {
     on(el.btnIgual, 'click', function () {
       if (enAire()) relevar(true); else play(true);
     });
+    /* No esconde el recuadro: lleva al primer campo que falta, lo deja
+       marcado en rojo, y en cada pulsación pasa al siguiente. */
     on(el.btnCorregir, 'click', function () {
-      el.preflight.hidden = true;
-      mostrarPagina('pageAtis');
+      senalando = true;
+      var cuantos = avisosEnPantalla.filter(function (a) { return a.campo; }).length;
+      marcarCampos(avisosEnPantalla);
+      irAviso(cuantos ? (avisoActual + 1) % cuantos : 0);
+    });
+
+    /* Cada renglón de la lista lleva a su campo */
+    on(el.preflightLista, 'click', function (e) {
+      var li = e.target.closest ? e.target.closest('li[data-i]') : null;
+      if (!li) return;
+      senalando = true;
+      marcarCampos(avisosEnPantalla);
+      irAviso(+li.dataset.i);
     });
 
     on(el.btnPrev, 'click', function () { motor().saltar(-1); });

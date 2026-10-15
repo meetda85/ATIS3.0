@@ -7,10 +7,11 @@
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.8',
-    FECHA: '2026-10-14',
+    VERSION: '3.9',
+    FECHA: '2026-10-15',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Ajustes separados en dos: los de todos y los de administración, con clave'
+    NOVEDADES: 'Pantalla sin huecos, la pista en uso ya no se borra con el METAR nuevo, '
+      + 'y «Ir a corregir» lleva campo por campo marcándolos en rojo'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;

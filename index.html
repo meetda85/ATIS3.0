@@ -101,6 +101,9 @@
     <div id="metarDecoded" class="decoded"></div>
   </section>
 
+  <!-- Las tres tarjetas de la observación, en dos columnas sin huecos -->
+  <div class="banda span2">
+
   <!-- ============ INFORMACIÓN / APROXIMACIÓN / PISTA ============ -->
   <section class="card" id="secInfo">
     <h2><span class="num">2</span>Información</h2>
@@ -217,6 +220,8 @@
     <div id="layers" class="layers"></div>
     <button id="btnAddLayer" class="ghost small">+ Agregar capa</button>
   </section>
+
+  </div><!-- /banda -->
 
   <!-- ============ NOTAM ============ -->
   <section class="card span2" id="secNotam">
@@ -805,7 +810,7 @@
   <div class="popts">
     <div class="pgroup">
       <span class="plabel">Idiomas</span>
-      <div class="langsel">
+      <div class="langsel" id="langsel">
         <label><input type="checkbox" id="langEs" checked> ES</label>
         <label><input type="checkbox" id="langEn" checked> EN</label>
       </div>
