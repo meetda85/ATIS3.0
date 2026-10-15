@@ -1132,6 +1132,74 @@ input, select, textarea, .chips, .notamlist {
   scroll-margin-bottom: 220px;
 }
 
+/* ==========================================================================
+   La lista de NOTAM, leída de un vistazo
+   Tres grupos —los que todavía no empiezan, los vigentes y los vencidos— y en
+   cada renglón, en grande, lo que importa: cuánto falta para que cambie. El
+   rango exacto queda debajo, en pequeño, para consultarlo.
+   ========================================================================== */
+.ngrupo {
+  display: flex; align-items: center; gap: 8px;
+  margin: 14px 0 6px; padding-bottom: 5px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.ngrupo:first-of-type { margin-top: 4px; }
+.ngtit {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .14em;
+  color: var(--muted);
+}
+.ngn {
+  font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: var(--r-pill);
+  background: var(--surface-3); color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.ngnota { font-size: 10.5px; color: var(--muted); font-style: italic; }
+.g-futuro  .ngtit, .g-futuro  .ngn { color: var(--blue); }
+.g-vigente .ngtit, .g-vigente .ngn { color: var(--accent); }
+.g-futuro  .ngn { background: rgba(10, 86, 176, .10); }
+.g-vigente .ngn { background: var(--accent-weak); }
+
+/* El renglón: la columna de la derecha pasa a dos renglones */
+.notamrow .nwhen {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  line-height: 1.25; min-width: 150px;
+}
+.notamrow .ncuando {
+  font-size: 11.5px; font-weight: 650; color: var(--text-2); white-space: nowrap;
+}
+.notamrow .nrango {
+  font-size: 10px; color: var(--muted); white-space: nowrap; opacity: .85;
+}
+
+/* El estado se ve también en el renglón, sin tener que leer la hora */
+.notamrow.e-vigente  { border-left: 3px solid var(--accent); }
+.notamrow.e-futuro   { border-left: 3px solid var(--blue); }
+.notamrow.e-expirado { border-left: 3px solid var(--line); opacity: .62; }
+.notamrow.e-vigente  .ncuando { color: var(--accent); }
+.notamrow.e-futuro   .ncuando { color: var(--blue); }
+.notamrow.e-expirado .ncuando { color: var(--muted); font-weight: 500; }
+
+/* Lo que cambia dentro de las dos horas siguientes: eso es lo que hay que ver */
+.notamrow.pronto {
+  border-left-color: var(--amber);
+  box-shadow: inset 3px 0 0 var(--amber), 0 0 0 1px var(--amber-weak);
+}
+.notamrow.pronto .ncuando {
+  color: var(--amber); font-weight: 700;
+}
+.notamrow.pronto .ncuando::before {
+  content: "⏱ "; font-weight: 400;
+}
+.notamcount .avisa { color: var(--amber); }
+
+/* Con tres grupos, la lista necesita un poco más de alto antes de desplazarse */
+.notamlist { max-height: 440px; }
+
+@media (max-width: 900px) {
+  .notamrow { grid-template-columns: auto 1fr auto; row-gap: 4px; }
+  .notamrow .ncond { grid-column: 1 / -1; white-space: normal; }
+  .notamrow .nwhen { align-items: flex-start; }
+}
+
 </style>
 
 <script>
@@ -1972,11 +2040,12 @@ input, select, textarea, .chips, .notamlist {
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.9',
+    VERSION: '3.10',
     FECHA: '2026-10-15',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Pantalla sin huecos, la pista en uso ya no se borra con el METAR nuevo, '
-      + 'y «Ir a corregir» lleva campo por campo marcándolos en rojo'
+    NOVEDADES: 'Lista de NOTAM por grupos, con el tiempo que falta para que cada uno '
+      + 'entre o salga; la pantalla ya no se sube sola al cargarlos; y los botones de '
+      + 'administración vuelven a guardar de verdad'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;
@@ -4844,6 +4913,8 @@ input, select, textarea, .chips, .notamlist {
 
   function pedir(ruta, opciones) {
     if (!conServidor || !global.fetch) return Promise.reject(new Error('sin servidor'));
+    /* Las rutas protegidas piden el pase de administración; lo guarda app.js */
+    if (ATIS.conPase) opciones = ATIS.conPase(opciones);
     return global.fetch(ruta, opciones).then(function (r) {
       if (!r.ok) throw new Error('el servidor contestó ' + r.status);
       return r.json();
@@ -5510,6 +5581,7 @@ input, select, textarea, .chips, .notamlist {
     iniciarTema();
     iniciarPaginas();
     vigilarBarras();
+    relojNotams();
     if (el.verBadge) {
       el.verBadge.textContent = 'v' + (ATIS.VERSION || '?');
       el.verBadge.title = 'Versión instalada: ' + VERSION +
@@ -5979,51 +6051,141 @@ input, select, textarea, .chips, .notamlist {
     return dd + '/' + mm + ' ' + ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
   }
 
+  /* Cuánto falta (o cuánto hace), dicho como lo diría una persona */
+  function cuantoFalta(minutos) {
+    var m = Math.round(Math.abs(minutos));
+    if (m < 1) return 'menos de un minuto';
+    if (m < 60) return m + ' min';
+    var h = Math.floor(m / 60), resto = m % 60;
+    if (h < 24) return h + ' h' + (resto ? ' ' + resto + ' min' : '');
+    var d = Math.floor(h / 24), horas = h % 24;
+    if (d < 31) return d + (d === 1 ? ' día' : ' días') + (horas ? ' ' + horas + ' h' : '');
+    var meses = Math.round(d / 30);
+    return meses + (meses === 1 ? ' mes' : ' meses');
+  }
+
+  /* En qué está cada NOTAM ahora mismo, y cuánto falta para que cambie.
+     «pronto» es lo que cambia dentro de las dos horas siguientes: es lo que
+     hay que tener a la vista para no transmitir algo que ya no es cierto. */
+  var PRONTO = 120;                 /* minutos */
+
+  function estadoNotam(meta, ahora) {
+    var desde = meta.desde, hasta = meta.hasta;
+    if (desde && ahora < desde) {
+      var faltan = (desde - ahora) / 60000;
+      return {
+        clase: 'futuro', minutos: faltan, pronto: faltan <= PRONTO,
+        texto: 'empieza en ' + cuantoFalta(faltan)
+      };
+    }
+    if (hasta && ahora > hasta) {
+      return { clase: 'expirado', minutos: (ahora - hasta) / 60000, pronto: false,
+        texto: 'venció hace ' + cuantoFalta((ahora - hasta) / 60000) };
+    }
+    if (hasta) {
+      var quedan = (hasta - ahora) / 60000;
+      return {
+        clase: 'vigente', minutos: quedan, pronto: quedan <= PRONTO,
+        texto: 'vigente · termina en ' + cuantoFalta(quedan)
+      };
+    }
+    return { clase: 'vigente', minutos: null, pronto: false, texto: 'vigente · sin hora de término' };
+  }
+
+  /* Los grupos en que se parte la lista, en el orden en que importan */
+  var GRUPOS = [
+    { clave: 'futuro',   titulo: 'Todavía no empiezan', nota: 'el más próximo arriba' },
+    { clave: 'vigente',  titulo: 'Vigentes ahora',      nota: '' },
+    { clave: 'expirado', titulo: 'Vencidos',            nota: '' }
+  ];
+
   function renderNotams() {
     if (!notams.length) {
       el.notamList.innerHTML = '<span class="status">Sin NOTAM cargados.</span>';
       return;
     }
+    /* La lista tiene su propio desplazamiento: volver a dibujarla no debe
+       mandar al usuario otra vez al principio. */
+    var desplazado = el.notamList.scrollTop;
+
     var ahora = new Date();
     var soloVigentes = el.notamSoloVigentes.checked;
-    var ocultos = 0, marcados = 0;
+    var ocultos = 0, marcados = 0, porEmpezar = 0;
+    var cajones = { futuro: [], vigente: [], expirado: [] };
 
-    var html = notams.map(function (n, i) {
-      var estado = ATIS.fns.vigencia(n.meta, ahora);
+    notams.forEach(function (n, i) {
+      var est = estadoNotam(n.meta, ahora);
       if (n.include) marcados++;
-      if (soloVigentes && estado !== 'vigente' && !n.include) { ocultos++; return ''; }
+      if (soloVigentes && est.clase !== 'vigente' && !n.include) { ocultos++; return; }
+      if (est.clase === 'futuro' && est.pronto) porEmpezar++;
+      cajones[est.clase].push({ n: n, i: i, est: est });
+    });
 
+    /* Dentro de cada grupo, lo que cambia antes va primero */
+    cajones.futuro.sort(function (a, b) { return a.est.minutos - b.est.minutos; });
+    cajones.vigente.sort(function (a, b) {
+      if (a.est.minutos === null) return 1;
+      if (b.est.minutos === null) return -1;
+      return a.est.minutos - b.est.minutos;
+    });
+    cajones.expirado.sort(function (a, b) { return a.est.minutos - b.est.minutos; });
+
+    function fila(x) {
+      var n = x.n, i = x.i, est = x.est;
       var condicion = (n.es.plain || n.raw).replace(/\s+/g, ' ');
-      var badge = estado === 'expirado' ? '<span class="badge exp">vencido</span>'
-        : estado === 'futuro' ? '<span class="badge fut">futuro</span>' : '';
       var ajeno = n.meta.propio === false
         ? '<span class="badge fut">' + escapeHtml(n.meta.location) + '</span>' : '';
+      var rango = escapeHtml(fechaCorta(n.meta.desde)) +
+        (n.meta.hasta ? ' → ' + escapeHtml(fechaCorta(n.meta.hasta)) : '');
 
-      var fila = '<div class="notamrow ' + (n.include ? 'on' : 'off') + '">' +
+      var html = '<div class="notamrow ' + (n.include ? 'on' : 'off') +
+          ' e-' + est.clase + (est.pronto ? ' pronto' : '') + '">' +
         '<input type="checkbox" class="n-inc" data-n="' + i + '"' + (n.include ? ' checked' : '') +
           ' title="transmitir">' +
         '<span class="nid">' + escapeHtml(n.meta.id || ('#' + (i + 1))) + '</span>' +
         '<span class="ncond" title="' + escapeHtml(condicion) + '">' + escapeHtml(condicion) + '</span>' +
-        '<span class="nwhen">' + badge + ajeno + ' ' +
-          escapeHtml(fechaCorta(n.meta.desde)) + (n.meta.hasta ? ' → ' + escapeHtml(fechaCorta(n.meta.hasta)) : '') +
+        '<span class="nwhen">' +
+          '<span class="ncuando">' + ajeno + escapeHtml(est.texto) + '</span>' +
+          '<span class="nrango" title="horas UTC">' + rango + '</span>' +
         '</span>' +
         '<button class="nmore" data-more="' + i + '">' + (n.expanded ? 'ocultar' : 'ver') + '</button>' +
       '</div>';
 
       if (n.expanded) {
-        fila += '<div class="notamdetail">' +
+        html += '<div class="notamdetail">' +
           '<div>' + escapeHtml(n.es.summary || n.es.plain) + '</div>' +
           '<div class="en">' + escapeHtml(n.en.summary || n.en.plain) + '</div>' +
           '<div class="raw">' + escapeHtml(n.raw) + '</div>' +
           '<button class="mini n-del" data-n="' + i + '">quitar de la lista</button>' +
         '</div>';
       }
-      return fila;
+      return html;
+    }
+
+    var html = GRUPOS.map(function (g) {
+      var lista = cajones[g.clave];
+      if (!lista.length) return '';
+      return '<div class="ngrupo g-' + g.clave + '">' +
+          '<span class="ngtit">' + g.titulo + '</span>' +
+          '<span class="ngn">' + lista.length + '</span>' +
+          (g.nota ? '<span class="ngnota">' + g.nota + '</span>' : '') +
+        '</div>' + lista.map(fila).join('');
     }).join('');
 
     el.notamList.innerHTML =
       '<div class="notamcount">' + notams.length + ' cargados · ' + marcados + ' al aire' +
+      (porEmpezar ? ' · <b class="avisa">' + porEmpezar + ' empieza(n) dentro de 2 h</b>' : '') +
       (ocultos ? ' · ' + ocultos + ' ocultos por vigencia' : '') + '</div>' + html;
+
+    el.notamList.scrollTop = desplazado;
+  }
+
+  /* Las horas que faltan se mueven solas: la lista se refresca cada minuto
+     para que «empieza en 40 min» no se quede congelado. */
+  function relojNotams() {
+    global.setInterval(function () {
+      if (notams.length && !el.notamList.querySelector('.notamdetail')) renderNotams();
+    }, 60000);
   }
 
   /* Al aire va solo la condición, nunca el número ni las fechas */
@@ -6977,9 +7139,9 @@ input, select, textarea, .chips, .notamlist {
     status(el.vozNStatus, 'Descargando… son unos 170 MB, puede tardar varios minutos. ' +
       'Puede seguir trabajando mientras tanto.');
     el.vozNConsola.textContent = '';
-    fetch('/api/voz/instalar', {
+    fetch('/api/voz/instalar', conPase({
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
-    }).then(function (r) { return r.json(); })
+    })).then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error) throw new Error(d.error);
         if (d.yaEstaba) status(el.vozNStatus, 'La instalación ya estaba en marcha.');
@@ -7112,8 +7274,14 @@ input, select, textarea, .chips, .notamlist {
       cfg.headers = { 'Content-Type': 'application/json' };
       cfg.body = JSON.stringify(opciones);
     }
-    return fetch('/api/metar' + (opciones ? '' : (arguments[1] ? '?revisar=1' : '')), cfg)
-      .then(function (r) { return r.json(); })
+    return fetch('/api/metar' + (opciones ? '' : (arguments[1] ? '?revisar=1' : '')), conPase(cfg))
+      .then(function (r) {
+        return r.json().then(function (d) {
+          d.http = r.status;
+          if (r.status === 403 && d.admin) cerroSesionAdmin();
+          return d;
+        });
+      })
       .catch(function (e) { return { error: e.message }; });
   }
 
@@ -7380,10 +7548,29 @@ input, select, textarea, .chips, .notamlist {
     return /^https?:$/.test(location.protocol);
   }
 
+  /* Las rutas que cambian credenciales o fuentes van firmadas con el pase de
+     administración. Sin él el servidor contesta 403, y entonces hay que
+     decirlo en la pantalla en lugar de dar por bueno lo que no se guardó. */
   function pedirNotam(ruta, opciones) {
-    return fetch(ruta, opciones).then(function (r) {
-      return r.json().then(function (d) { d.http = r.status; return d; });
+    return fetch(ruta, conPase(opciones)).then(function (r) {
+      return r.json().then(function (d) {
+        d.http = r.status;
+        if (r.status === 403 && d.admin) cerroSesionAdmin();
+        return d;
+      });
     });
+  }
+
+  /* El servidor dice que el pase ya no vale: el candado se vuelve a poner en
+     la pantalla, porque si no, todo lo de esa página falla en silencio. Pasa
+     cuando se reinicia el servidor (los pases viven en su memoria) o cuando
+     se cumplen las ocho horas. */
+  function cerroSesionAdmin() {
+    if (!pase) return;
+    pase = '';
+    pintarAdmin();
+    status(el.admStatus, 'La sesión de administración se cerró: se reinició el servidor, ' +
+      'o pasaron las ocho horas. Vuelva a escribir la clave.', 'err');
   }
 
   function iniciarNotam() {
@@ -7595,7 +7782,19 @@ input, select, textarea, .chips, .notamlist {
     status(el.notamStatus, n.total + ' NOTAM agregado(s) de ' + notamPropuestos.fuente + ', ' +
       n.marcados + ' marcado(s) para transmitir' +
       (n.repetidos ? ' · ' + n.repetidos + ' ya estaban' : '') + '.', 'ok');
-    mostrarPagina('pageAtis');
+    /* Si ya se estaba en Operación, la pantalla se queda donde estaba: lo que
+       se acaba de cargar está justo ahí, no arriba. Si se venía de otra
+       página, se cambia y se lleva a la tarjeta de NOTAM, no al principio. */
+    var veniaDeOtra = el.pageAtis && el.pageAtis.hidden;
+    mostrarPagina('pageAtis', true);
+    if (veniaDeOtra && el.notamList) {
+      var tarjeta = document.getElementById('secNotam');
+      if (tarjeta && tarjeta.scrollIntoView) {
+        global.requestAnimationFrame(function () {
+          tarjeta.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        });
+      }
+    }
     notamPropuestos = null;
   }
 
@@ -7848,8 +8047,12 @@ input, select, textarea, .chips, .notamlist {
     { id: 'pageAdmin', tab: 'tabAdmin' }
   ];
 
-  function mostrarPagina(cual) {
+  /* «quieto» para cuando ya se está en esa página y no hay por qué moverla:
+     cargar NOTAM desde el aviso no tiene por qué mandar la pantalla al
+     principio y perder de vista la lista que se estaba mirando. */
+  function mostrarPagina(cual, quieto) {
     if (!PAGINAS.some(function (p) { return p.id === cual; })) cual = 'pageAtis';
+    var cambia = el[cual] && el[cual].hidden;
     PAGINAS.forEach(function (p) {
       var es = p.id === cual;
       if (el[p.id]) el[p.id].hidden = !es;
@@ -7864,7 +8067,8 @@ input, select, textarea, .chips, .notamlist {
     try {
       localStorage.setItem(PAGINA_KEY, cual === 'pageAdmin' ? 'pageAjustes' : cual);
     } catch (e) { /* ignorado */ }
-    global.scrollTo(0, 0);
+    /* Solo se sube al principio cuando de verdad se cambió de página */
+    if (cambia && !quieto) global.scrollTo(0, 0);
     if (cual === 'pageAdmin') pintarAdmin();
   }
 
@@ -7913,6 +8117,10 @@ input, select, textarea, .chips, .notamlist {
     if (pase) opciones.headers['X-ATIS-Admin'] = pase;
     return opciones;
   }
+
+  /* La voz neuronal vive en su propio archivo y también habla con rutas
+     protegidas: se le presta el pase por aquí. */
+  ATIS.conPase = conPase;
 
   function adminAbierto() { return !!pase; }
 
@@ -8493,6 +8701,7 @@ input, select, textarea, .chips, .notamlist {
       status(el.ntStatus, 'Guardando…');
       guardarNotam().then(function (d) {
         if (!d) return;
+        if (d.error) { status(el.ntStatus, 'No se guardó — ' + d.error, 'err'); return; }
         status(el.ntStatus, d.activo
           ? 'Guardado. Se revisará ' + d.estacion + ' cada ' + d.minutos + ' minutos.'
           : 'Guardado. La revisión automática está apagada.', 'ok');
@@ -8502,6 +8711,7 @@ input, select, textarea, .chips, .notamlist {
     on(el.ntActiva, 'change', function () {
       guardarNotam().then(function (d) {
         if (!d) return;
+        if (d.error) { status(el.ntStatus, 'No se guardó — ' + d.error, 'err'); return; }
         status(el.ntStatus, d.activo ? 'Vigilancia encendida.' : 'Vigilancia apagada.', 'ok');
       }).catch(function () { /* el estado lo dirá */ });
     });

@@ -1129,3 +1129,71 @@ input, select, textarea, .chips, .notamlist {
   scroll-margin-top: calc(var(--alto-topbar, 95px) + var(--alto-tabs, 52px) + 20px);
   scroll-margin-bottom: 220px;
 }
+
+/* ==========================================================================
+   La lista de NOTAM, leída de un vistazo
+   Tres grupos —los que todavía no empiezan, los vigentes y los vencidos— y en
+   cada renglón, en grande, lo que importa: cuánto falta para que cambie. El
+   rango exacto queda debajo, en pequeño, para consultarlo.
+   ========================================================================== */
+.ngrupo {
+  display: flex; align-items: center; gap: 8px;
+  margin: 14px 0 6px; padding-bottom: 5px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.ngrupo:first-of-type { margin-top: 4px; }
+.ngtit {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .14em;
+  color: var(--muted);
+}
+.ngn {
+  font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: var(--r-pill);
+  background: var(--surface-3); color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.ngnota { font-size: 10.5px; color: var(--muted); font-style: italic; }
+.g-futuro  .ngtit, .g-futuro  .ngn { color: var(--blue); }
+.g-vigente .ngtit, .g-vigente .ngn { color: var(--accent); }
+.g-futuro  .ngn { background: rgba(10, 86, 176, .10); }
+.g-vigente .ngn { background: var(--accent-weak); }
+
+/* El renglón: la columna de la derecha pasa a dos renglones */
+.notamrow .nwhen {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  line-height: 1.25; min-width: 150px;
+}
+.notamrow .ncuando {
+  font-size: 11.5px; font-weight: 650; color: var(--text-2); white-space: nowrap;
+}
+.notamrow .nrango {
+  font-size: 10px; color: var(--muted); white-space: nowrap; opacity: .85;
+}
+
+/* El estado se ve también en el renglón, sin tener que leer la hora */
+.notamrow.e-vigente  { border-left: 3px solid var(--accent); }
+.notamrow.e-futuro   { border-left: 3px solid var(--blue); }
+.notamrow.e-expirado { border-left: 3px solid var(--line); opacity: .62; }
+.notamrow.e-vigente  .ncuando { color: var(--accent); }
+.notamrow.e-futuro   .ncuando { color: var(--blue); }
+.notamrow.e-expirado .ncuando { color: var(--muted); font-weight: 500; }
+
+/* Lo que cambia dentro de las dos horas siguientes: eso es lo que hay que ver */
+.notamrow.pronto {
+  border-left-color: var(--amber);
+  box-shadow: inset 3px 0 0 var(--amber), 0 0 0 1px var(--amber-weak);
+}
+.notamrow.pronto .ncuando {
+  color: var(--amber); font-weight: 700;
+}
+.notamrow.pronto .ncuando::before {
+  content: "⏱ "; font-weight: 400;
+}
+.notamcount .avisa { color: var(--amber); }
+
+/* Con tres grupos, la lista necesita un poco más de alto antes de desplazarse */
+.notamlist { max-height: 440px; }
+
+@media (max-width: 900px) {
+  .notamrow { grid-template-columns: auto 1fr auto; row-gap: 4px; }
+  .notamrow .ncond { grid-column: 1 / -1; white-space: normal; }
+  .notamrow .nwhen { align-items: flex-start; }
+}

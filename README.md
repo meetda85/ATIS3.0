@@ -451,6 +451,17 @@ De la hoja del FNS toma además el número, el aeródromo y las fechas de vigenc
 los que ya vencieron o todavía no empiezan, avisa si el archivo es de otra estación y no
 duplica los que ya estaban cargados.
 
+### Cómo se lee la lista
+
+La lista va partida en tres grupos, en el orden en que importan en turno:
+**Todavía no empiezan** (el más próximo arriba), **Vigentes ahora** (el que termina antes,
+arriba) y **Vencidos**. Cada renglón dice en grande **cuánto falta** para que cambie —
+*empieza en 40 min*, *vigente · termina en 3 h 20*, *venció hace 5 h*— y debajo, en
+pequeño, el rango exacto en UTC, que es lo que hay que citar. Lo que entra o sale **dentro
+de las dos horas siguientes** se marca en ámbar con un reloj: es lo que no se puede pasar
+por alto al armar el ATIS de la hora. El contador de arriba lo repite: *2 empieza(n)
+dentro de 2 h*. El tiempo que falta se recalcula solo cada minuto, sin tocar nada.
+
 ## Estructura del mensaje
 
 Sigue el orden de la OACI: aeródromo e información, hora de la observación en UTC,

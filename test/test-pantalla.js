@@ -9,7 +9,9 @@
  * computadora de la torre.
  */
 const path = require('path');
+const fs = require('fs');
 const assert = require('assert');
+const { spawn } = require('child_process');
 
 const RAIZ = path.join(__dirname, '..');
 const PAGINA = 'file://' + path.join(RAIZ, 'index.html');
@@ -217,6 +219,207 @@ async function main() {
     assert.ok(!d.visible, 'el recuadro de verificación quedó visible: ' + JSON.stringify(d.lista));
     await p.close();
   });
+
+  /* ---------------- La lista de NOTAM ---------------- */
+  /* Un juego de NOTAM relativos a esta hora: uno que empieza en 40 minutos,
+     uno vigente que termina en 50, uno de mañana, uno vencido y uno largo. */
+  function notamDePrueba() {
+    const sello = (min) => {
+      const d = new Date(Date.now() + min * 60000), p2 = n => String(n).padStart(2, '0');
+      return String(d.getUTCFullYear()).slice(2) + p2(d.getUTCMonth() + 1) + p2(d.getUTCDate()) +
+        p2(d.getUTCHours()) + p2(d.getUTCMinutes());
+    };
+    const uno = (id, q, desde, hasta, texto) =>
+      id + ' NOTAMN\nQ) MMFR/' + q + '/IV/NBO/A/000/999/1926N09904W005\n' +
+      'A) MMMX B) ' + sello(desde) + ' C) ' + sello(hasta) + '\nE) ' + texto;
+    return [
+      uno('A0001/25', 'QMRLC', -600, 50, 'RWY 05R/23L CLSD DUE WIP'),
+      uno('A0002/25', 'QMXLC', 40, 600, 'TWY B CLSD'),
+      uno('A0003/25', 'QMXLC', 1500, 3000, 'TWY A4 CLSD BTN TWY A AND TWY B'),
+      uno('A0004/25', 'QLRAS', -5000, -300, 'RWY 05L PAPI U/S'),
+      uno('A0005/25', 'QMRLC', -2000, 9000, 'RWY 23R CLSD DUE MAINT')
+    ].join('\n\n');
+  }
+
+  async function conNotam(p) {
+    await p.fill('#notamRaw', notamDePrueba());
+    await p.uncheck('#notamSoloVigentes');
+    await p.click('#btnNotamAdd');
+    await p.waitForTimeout(400);
+  }
+
+  await prueba('los NOTAM se agrupan por lo que están haciendo', async () => {
+    const p = await abrir(navegador);
+    await conNotam(p);
+    const grupos = await p.$$eval('.ngrupo .ngtit', ns => ns.map(n => n.textContent));
+    assert.deepStrictEqual(grupos, ['Todavía no empiezan', 'Vigentes ahora', 'Vencidos'],
+      'los grupos no salieron en orden: ' + JSON.stringify(grupos));
+    await p.close();
+  });
+
+  await prueba('cada NOTAM dice cuánto falta, y el más próximo va arriba', async () => {
+    const p = await abrir(navegador);
+    await conNotam(p);
+    const filas = await p.$$eval('.notamrow', ns => ns.map(n => ({
+      id: n.querySelector('.nid').textContent,
+      cuando: n.querySelector('.ncuando').textContent,
+      rango: n.querySelector('.nrango').textContent,
+      pronto: n.classList.contains('pronto')
+    })));
+    /* El que empieza en 40 minutos va primero de todos */
+    assert.strictEqual(filas[0].id, 'A0002/25', 'arriba no quedó el que empieza antes');
+    assert.ok(/empieza en \d+ min/.test(filas[0].cuando), 'no dijo cuánto falta: ' + filas[0].cuando);
+    assert.ok(filas[0].pronto, 'no quedó marcado el que empieza dentro de 2 h');
+    /* El de mañana va después, y no se marca como próximo */
+    assert.strictEqual(filas[1].id, 'A0003/25');
+    assert.ok(!filas[1].pronto, 'marcó como próximo uno que es de mañana');
+    /* El vigente que termina pronto también se avisa */
+    const term = filas.find(f => f.id === 'A0001/25');
+    assert.ok(/vigente .* termina en/.test(term.cuando), 'no dijo cuándo termina: ' + term.cuando);
+    assert.ok(term.pronto, 'no avisó del que termina dentro de 2 h');
+    /* El vencido lo dice sin rodeos */
+    const vencido = filas.find(f => f.id === 'A0004/25');
+    assert.ok(/venció hace/.test(vencido.cuando), 'no dijo que estaba vencido: ' + vencido.cuando);
+    /* Y el rango exacto sigue a la vista en todos */
+    filas.forEach(f => assert.ok(/\d\d\/\d\d \d\d:\d\d/.test(f.rango),
+      'se perdió el rango exacto de ' + f.id));
+    await p.close();
+  });
+
+  /* ---------------- La pantalla no se mueve sola ---------------- */
+  await prueba('cargar o marcar NOTAM no sube la pantalla al principio', async () => {
+    const p = await abrir(navegador);
+    await conNotam(p);
+    await p.evaluate(() => document.getElementById('secNotam').scrollIntoView({ block: 'start' }));
+    await p.waitForTimeout(300);
+    const antes = await p.evaluate(() => Math.round(window.scrollY));
+    assert.ok(antes > 100, 'la prueba no llegó a desplazar la página');
+    /* Marcar y desmarcar vuelve a dibujar la lista entera */
+    await p.click('.notamrow .n-inc');
+    await p.waitForTimeout(300);
+    const despues = await p.evaluate(() => Math.round(window.scrollY));
+    assert.ok(Math.abs(despues - antes) < 20,
+      'la pantalla se movió de ' + antes + ' a ' + despues);
+    await p.close();
+  });
+
+  await prueba('volver a pulsar la pestaña en la que ya se está no mueve nada', async () => {
+    const p = await abrir(navegador);
+    await conNotam(p);
+    await p.evaluate(() => window.scrollTo(0, 800));
+    await p.waitForTimeout(250);
+    await p.click('#tabAtis');
+    await p.waitForTimeout(300);
+    const y = await p.evaluate(() => Math.round(window.scrollY));
+    assert.ok(y > 600, 'volver a la misma pestaña subió la pantalla a ' + y);
+    await p.close();
+  });
+
+  await prueba('la lista de NOTAM conserva su propio desplazamiento', async () => {
+    const p = await abrir(navegador);
+    await conNotam(p);
+    const movida = await p.evaluate(() => {
+      const l = document.getElementById('notamList');
+      l.scrollTop = 60;
+      return l.scrollTop;
+    });
+    if (!movida) { /* con pocos NOTAM puede no haber desplazamiento que conservar */
+      await p.close(); return;
+    }
+    await p.click('.notamrow .n-inc');
+    await p.waitForTimeout(300);
+    const queda = await p.evaluate(() => document.getElementById('notamList').scrollTop);
+    assert.strictEqual(queda, movida, 'la lista se fue al principio al redibujarse');
+    await p.close();
+  });
+
+  /* ---------------- Con el servidor de verdad ----------------
+     Lo de administración no se puede probar con file://: hace falta el
+     servidor, que es quien guarda la clave y firma el pase. Si esta
+     computadora ya tiene una clave puesta, la prueba se omite: no es cosa
+     suya andar borrando la clave de la torre. */
+  const ARCHIVO_CLAVE = path.join(RAIZ, 'servidor', 'admin.json');
+  if (fs.existsSync(ARCHIVO_CLAVE)) {
+    console.log('  --   administración: omitida (esta computadora ya tiene clave puesta)');
+  } else {
+    const PUERTO = 8800 + Math.floor(Math.random() * 120);
+    let servidor = spawn('node', [path.join(RAIZ, 'servidor', 'servidor.js'), '--puerto', String(PUERTO)],
+      { stdio: 'ignore' });
+    let servidor2 = null;
+    await new Promise(r => setTimeout(r, 1300));
+
+    await prueba('los botones de administración llevan el pase al servidor', async () => {
+      const p = await navegador.newPage({ viewport: { width: 1600, height: 1000 } });
+      const respuestas = [];
+      p.on('response', r => {
+        if (/\/api\/(notam|metar|voz)/.test(r.url())) {
+          respuestas.push({ estado: r.status(), metodo: r.request().method(), url: r.url() });
+        }
+      });
+      await p.goto('http://127.0.0.1:' + PUERTO + '/');
+      await p.waitForTimeout(900);
+      await p.click('#tabAdmin'); await p.waitForTimeout(400);
+      await p.fill('#admClave', '0348');
+      await p.click('#btnAdmEntrar'); await p.waitForTimeout(800);
+      assert.ok(await p.evaluate(() => !document.getElementById('admContenido').hidden),
+        'la clave de fábrica no abrió la administración');
+
+      /* Llaves inventadas: lo que importa no es que sirvan, sino que el
+         servidor las llegue a probar en lugar de contestar 403. */
+      await p.fill('#ntClientId', 'PRUEBA');
+      await p.fill('#ntClientSecret', 'PRUEBA');
+      await p.click('#btnNtLlaves'); await p.waitForTimeout(2500);
+      const llaves = await p.$eval('#ntLlavesStatus', e => e.textContent);
+      assert.ok(!/hace falta la clave/.test(llaves),
+        'Comprobar las llaves no mandó el pase: ' + llaves);
+
+      await p.click('#btnNtGuardar'); await p.waitForTimeout(1200);
+      const guardado = await p.$eval('#ntStatus', e => e.textContent);
+      assert.ok(/Guardado/.test(guardado), 'no se guardó: ' + guardado);
+
+      const negadas = respuestas.filter(r => r.estado === 403);
+      assert.deepStrictEqual(negadas, [],
+        'el servidor rechazó peticiones por falta de pase: ' +
+        negadas.map(r => r.metodo + ' ' + r.url).join(', '));
+      await p.close();
+    });
+
+    /* Y si el servidor se reinicia, los pases que tenía en memoria se pierden.
+       La pantalla no puede quedarse creyendo que sigue abierta: tiene que
+       volver a pedir la clave en lugar de fallar en silencio. */
+    await prueba('si el pase ya no vale, la pantalla vuelve a pedir la clave', async () => {
+      const p = await navegador.newPage({ viewport: { width: 1600, height: 1000 } });
+      await p.goto('http://127.0.0.1:' + PUERTO + '/');
+      await p.waitForTimeout(900);
+      await p.click('#tabAdmin'); await p.waitForTimeout(400);
+      await p.fill('#admClave', '0348');
+      await p.click('#btnAdmEntrar'); await p.waitForTimeout(800);
+      assert.ok(await p.evaluate(() => !document.getElementById('admContenido').hidden),
+        'no se llegó a abrir la administración');
+
+      /* El servidor se va y vuelve: misma clave, ningún pase vivo */
+      servidor.kill('SIGKILL');
+      await new Promise(r => setTimeout(r, 500));
+      servidor2 = spawn('node', [path.join(RAIZ, 'servidor', 'servidor.js'), '--puerto', String(PUERTO)],
+        { stdio: 'ignore' });
+      await new Promise(r => setTimeout(r, 1300));
+
+      await p.click('#btnNtGuardar'); await p.waitForTimeout(1200);
+      const cerrado = await p.evaluate(() => ({
+        candado: !document.getElementById('admEntrar').hidden,
+        contenido: document.getElementById('admContenido').hidden,
+        aviso: document.getElementById('admStatus').textContent
+      }));
+      assert.ok(cerrado.candado && cerrado.contenido,
+        'la pantalla siguió creyendo que la administración estaba abierta');
+      assert.ok(/vuelva a escribir la clave/i.test(cerrado.aviso),
+        'no se avisó de que la sesión se cerró: ' + JSON.stringify(cerrado.aviso));
+      await p.close();
+    });
+
+    if (servidor2) servidor2.kill('SIGKILL'); else servidor.kill('SIGKILL');
+    try { fs.unlinkSync(ARCHIVO_CLAVE); } catch (e) { /* no quedó nada */ }
+  }
 
   await prueba('la pantalla no tira ningún error de JavaScript', async () => {
     const p = await abrir(navegador);

@@ -7,11 +7,12 @@
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.9',
+    VERSION: '3.10',
     FECHA: '2026-10-15',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Pantalla sin huecos, la pista en uso ya no se borra con el METAR nuevo, '
-      + 'y «Ir a corregir» lleva campo por campo marcándolos en rojo'
+    NOVEDADES: 'Lista de NOTAM por grupos, con el tiempo que falta para que cada uno '
+      + 'entre o salga; la pantalla ya no se sube sola al cargarlos; y los botones de '
+      + 'administración vuelven a guardar de verdad'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;

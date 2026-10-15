@@ -55,6 +55,8 @@
 
   function pedir(ruta, opciones) {
     if (!conServidor || !global.fetch) return Promise.reject(new Error('sin servidor'));
+    /* Las rutas protegidas piden el pase de administración; lo guarda app.js */
+    if (ATIS.conPase) opciones = ATIS.conPase(opciones);
     return global.fetch(ruta, opciones).then(function (r) {
       if (!r.ok) throw new Error('el servidor contestó ' + r.status);
       return r.json();
