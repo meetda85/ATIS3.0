@@ -450,6 +450,43 @@ test('no inventa llaves donde no las hay', () => {
   assert.strictEqual(ATIS.llaves.completo(ATIS.llaves.deMatriz([['hola', 'mundo']])), false);
 });
 
+test('TXL CN se locuta, no se deletrea', () => {
+  /* Lo encontro la torre: «TXL CN CLSD» se oia «te equis ele, ce ene cerrada».
+     TXL no estaba en el diccionario, asi que el sintetizador lo deletreaba. */
+  const es = ATIS.notam.parse('E) TXL CN CLSD', 'es');
+  const en = ATIS.notam.parse('E) TXL CN CLSD', 'en');
+  assert.strictEqual(es.plain, 'calle de acceso CN cerrada');
+  assert.strictEqual(en.plain, 'taxilane CN closed');
+  assert.strictEqual(ATIS.script.paraLocutar(es.plain, 'es'), 'calle de acceso Charli November cerrada');
+  assert.strictEqual(ATIS.script.paraLocutar(en.plain, 'en'), 'taxilane Charlie November closed');
+  /* Y una calle de acceso no es una calle de rodaje: se dicen distinto */
+  assert.ok(ATIS.notam.parse('E) TWY CN CLSD', 'es').plain.indexOf('calle de rodaje') === 0);
+});
+
+test('no queda ninguna sigla sin traducir en los NOTAM reales', () => {
+  /* La prueba de fondo: si manana falta otra abreviatura como TXL, el
+     sintetizador la deletreara y esto lo cacha antes que la torre. Solo se
+     admiten los indicativos OACI, que en radio si se dicen letra por letra. */
+  const permitidas = /^(MM[A-Z]{2}|K[A-Z]{3}|[A-Z]{3}\d*)$/;
+  const encontradas = {};
+  ['fnsNotams_MMMX.xls', 'fnsNotams_MMMX_59.xls'].forEach(function (archivo) {
+    const buf = fs.readFileSync(path.join(__dirname, 'fixtures', archivo));
+    const libro = context.XLSX.read(buf, { type: 'buffer' });
+    const hoja = libro.Sheets[libro.SheetNames[0]];
+    const filas = context.XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
+    ATIS.fns.fromMatrix(filas).records.forEach(function (r) {
+      ['es', 'en'].forEach(function (lang) {
+        const dicho = ATIS.script.paraLocutar(ATIS.notam.parse(r.raw, lang).plain, lang);
+        (dicho.match(/\b[A-Z]{2,}\b/g) || []).forEach(function (t) {
+          if (!permitidas.test(t)) encontradas[t] = dicho.slice(0, 90);
+        });
+      });
+    });
+  });
+  assert.deepStrictEqual(Object.keys(encontradas), [],
+    'quedaron siglas que se van a deletrear: ' + JSON.stringify(encontradas, null, 1));
+});
+
 console.log('\nHorario de los NOTAM');
 test('el campo D) dice a que horas surte efecto', () => {
   /* 7 de noviembre de 2026 es sabado */

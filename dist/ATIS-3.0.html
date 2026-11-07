@@ -2190,12 +2190,12 @@ input, select, textarea, .chips, .notamlist {
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.13',
+    VERSION: '3.14',
     FECHA: '2026-11-07',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Los NOTAM se agrupan por lo que están haciendo AHORA: el campo D) ya se '
-      + 'lee, así que uno con horario «DLY 0630-1200» deja de aparecer como vigente a las '
-      + '17:25. Y las llaves de la FAA se cargan de un archivo, sin teclear nada'
+    NOVEDADES: 'TXL y otras abreviaturas que faltaban ya no se deletrean: «TXL CN CLSD» '
+      + 'se locuta «calle de acceso Charli November cerrada». Una prueba revisa los 60 '
+      + 'NOTAM reales del FNS para que no vuelva a quedarse ninguna sigla sin traducir'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;
@@ -2381,6 +2381,11 @@ input, select, textarea, .chips, .notamlist {
     TKOF: { es: 'despegue', en: 'take-off' },
     TWR: { es: 'torre de control', en: 'control tower' },
     TWY: { es: 'calle de rodaje', en: 'taxiway' },
+    TWYS: { es: 'calles de rodaje', en: 'taxiways' },
+    /* Una calle de acceso no es una calle de rodaje: lleva al puesto de
+       estacionamiento. Se dice distinto a propósito. */
+    TXL: { es: 'calle de acceso', en: 'taxilane' },
+    TXLS: { es: 'calles de acceso', en: 'taxilanes' },
     UFN: { es: 'hasta nuevo aviso', en: 'until further notice' },
     UNL: { es: 'ilimitado', en: 'unlimited' },
     'U/S': { es: 'fuera de servicio', en: 'unserviceable' },
@@ -2388,7 +2393,24 @@ input, select, textarea, .chips, .notamlist {
     WDI: { es: 'indicador de direccion del viento', en: 'wind direction indicator' },
     WIE: { es: 'con efecto inmediato', en: 'with immediate effect' },
     WIP: { es: 'trabajos en curso', en: 'work in progress' },
-    WI: { es: 'dentro de', en: 'within' }
+    WI: { es: 'dentro de', en: 'within' },
+    /* Las que faltaban y se oían deletreadas en el ATIS */
+    PRKG: { es: 'estacionamiento', en: 'parking' },
+    RAMP: { es: 'plataforma', en: 'ramp' },
+    GATE: { es: 'puerta', en: 'gate' },
+    VASI: { es: 'indicador de trayectoria de aproximacion visual', en: 'visual approach slope indicator' },
+    RTHL: { es: 'luces de umbral de pista', en: 'runway threshold lights' },
+    RTIL: { es: 'luces identificadoras de umbral de pista', en: 'runway threshold identification lights' },
+    LOC: { es: 'localizador', en: 'localizer' },
+    CONST: { es: 'construccion', en: 'construction' },
+    EQPT: { es: 'equipo', en: 'equipment' },
+    CRANE: { es: 'grua', en: 'crane' },
+    UNAVBL: { es: 'no disponible', en: 'unavailable' },
+    SKED: { es: 'horario', en: 'schedule' },
+    DLY: { es: 'diario', en: 'daily' },
+    H24: { es: 'las 24 horas', en: 'H24' },
+    TLOF: { es: 'area de toma de contacto y de elevacion inicial', en: 'touchdown and lift-off area' },
+    FATO: { es: 'area de aproximacion final y de despegue', en: 'final approach and take-off area' }
   };
 
   /* Frases completas de los NOTAM (se sustituyen antes que las palabras sueltas) */
@@ -2418,6 +2440,11 @@ input, select, textarea, .chips, .notamlist {
      es decir, a lo que no tradujeron ni las frases ni las contracciones. */
   var PALABRAS_ES = {
     AND: 'y', OR: 'o', NOT: 'no', ONLY: 'solamente', ALSO: 'también',
+    /* Preposiciones que quedaban en mayúsculas y el sintetizador deletreaba:
+       «operando IN frecuencia» se oía «operando i ene frecuencia». */
+    IN: 'en', ON: 'en', AT: 'en', TO: 'a', BY: 'por', PER: 'por',
+    THRU: 'hasta', INTO: 'a', ONTO: 'a', OVER: 'sobre', UNDER: 'bajo',
+    BETWEEN: 'entre', DURING: 'durante', EXCEPT: 'excepto', NEAR: 'cerca de',
     FOR: 'para', WITH: 'con', WITHOUT: 'sin', FROM: 'desde', UNTIL: 'hasta',
     ALL: 'todas', ANY: 'cualquier', EACH: 'cada', OTHER: 'otro',
     USEFUL: 'utilizable', USABLE: 'utilizable', UNUSABLE: 'inutilizable',
@@ -4369,8 +4396,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
 
   /* Palabras que van seguidas de un designador con letra */
-  var CLAVES_DESIGNADOR = '(?:calles? de rodaje|taxiways?|pistas?|runways?|umbral(?:es)?|' +
-    'thresholds?|plataformas?|aprons?|categor[íi]a|category)';
+  var CLAVES_DESIGNADOR = '(?:calles? de rodaje|taxiways?|calles? de acceso|taxilanes?|' +
+    'pistas?|runways?|umbral(?:es)?|thresholds?|plataformas?|aprons?|' +
+    'puertas?|gates?|posici[óo]n(?:es)? de estacionamiento|stands?|' +
+    'categor[íi]a|category)';
   var TOKEN_DESIGNADOR = '(?:[A-Z]\\d{1,2}|[A-Z]{1,3})';
   var SEPARADOR = '(?:,|[yY]|[aA][nN][dD])';
   /* La palabra clave se busca SIN distinguir mayúsculas: en el guion viene en

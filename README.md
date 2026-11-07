@@ -575,6 +575,15 @@ y los designadores de letra con dígitos, para que la «y» de una enumeración 
 «Yanki». Los tipos de aeronave se leen como en radio: *B747-8* → «Boeing siete cuatro siete
 ocho». En pantalla el texto se conserva tal como viene en el NOTAM.
 
+Las palabras clave son *calle de rodaje*, *calle de acceso*, *pista*, *umbral*,
+*plataforma*, *puerta*, *posición de estacionamiento* y *categoría*, con sus equivalentes
+en inglés. Si una abreviatura de la OACI no está en el diccionario, el designador que la
+sigue no se reconoce y **el sintetizador lo deletrea**: `TXL CN CLSD` se oía «te equis ele,
+ce ene cerrada» en lugar de «calle de acceso Charli November cerrada». Por eso hay una
+prueba que locuta los **60 NOTAM reales** de las descargas del FNS y falla si queda
+cualquier sigla sin traducir; los únicos que se admiten en mayúsculas son los indicativos
+OACI, que en radio sí se dicen letra por letra.
+
 La palabra clave se reconoce **venga como venga**: en minúsculas («calle de rodaje D»), con
 mayúscula inicial («Calle de rodaje D», que es como empieza el primer renglón del guion) o
 toda en mayúsculas («CALLE DE RODAJE D», que es como se escribe en *Información adicional*).

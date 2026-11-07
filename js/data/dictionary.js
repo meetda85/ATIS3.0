@@ -171,6 +171,11 @@
     TKOF: { es: 'despegue', en: 'take-off' },
     TWR: { es: 'torre de control', en: 'control tower' },
     TWY: { es: 'calle de rodaje', en: 'taxiway' },
+    TWYS: { es: 'calles de rodaje', en: 'taxiways' },
+    /* Una calle de acceso no es una calle de rodaje: lleva al puesto de
+       estacionamiento. Se dice distinto a propósito. */
+    TXL: { es: 'calle de acceso', en: 'taxilane' },
+    TXLS: { es: 'calles de acceso', en: 'taxilanes' },
     UFN: { es: 'hasta nuevo aviso', en: 'until further notice' },
     UNL: { es: 'ilimitado', en: 'unlimited' },
     'U/S': { es: 'fuera de servicio', en: 'unserviceable' },
@@ -178,7 +183,24 @@
     WDI: { es: 'indicador de direccion del viento', en: 'wind direction indicator' },
     WIE: { es: 'con efecto inmediato', en: 'with immediate effect' },
     WIP: { es: 'trabajos en curso', en: 'work in progress' },
-    WI: { es: 'dentro de', en: 'within' }
+    WI: { es: 'dentro de', en: 'within' },
+    /* Las que faltaban y se oían deletreadas en el ATIS */
+    PRKG: { es: 'estacionamiento', en: 'parking' },
+    RAMP: { es: 'plataforma', en: 'ramp' },
+    GATE: { es: 'puerta', en: 'gate' },
+    VASI: { es: 'indicador de trayectoria de aproximacion visual', en: 'visual approach slope indicator' },
+    RTHL: { es: 'luces de umbral de pista', en: 'runway threshold lights' },
+    RTIL: { es: 'luces identificadoras de umbral de pista', en: 'runway threshold identification lights' },
+    LOC: { es: 'localizador', en: 'localizer' },
+    CONST: { es: 'construccion', en: 'construction' },
+    EQPT: { es: 'equipo', en: 'equipment' },
+    CRANE: { es: 'grua', en: 'crane' },
+    UNAVBL: { es: 'no disponible', en: 'unavailable' },
+    SKED: { es: 'horario', en: 'schedule' },
+    DLY: { es: 'diario', en: 'daily' },
+    H24: { es: 'las 24 horas', en: 'H24' },
+    TLOF: { es: 'area de toma de contacto y de elevacion inicial', en: 'touchdown and lift-off area' },
+    FATO: { es: 'area de aproximacion final y de despegue', en: 'final approach and take-off area' }
   };
 
   /* Frases completas de los NOTAM (se sustituyen antes que las palabras sueltas) */
@@ -208,6 +230,11 @@
      es decir, a lo que no tradujeron ni las frases ni las contracciones. */
   var PALABRAS_ES = {
     AND: 'y', OR: 'o', NOT: 'no', ONLY: 'solamente', ALSO: 'también',
+    /* Preposiciones que quedaban en mayúsculas y el sintetizador deletreaba:
+       «operando IN frecuencia» se oía «operando i ene frecuencia». */
+    IN: 'en', ON: 'en', AT: 'en', TO: 'a', BY: 'por', PER: 'por',
+    THRU: 'hasta', INTO: 'a', ONTO: 'a', OVER: 'sobre', UNDER: 'bajo',
+    BETWEEN: 'entre', DURING: 'durante', EXCEPT: 'excepto', NEAR: 'cerca de',
     FOR: 'para', WITH: 'con', WITHOUT: 'sin', FROM: 'desde', UNTIL: 'hasta',
     ALL: 'todas', ANY: 'cualquier', EACH: 'cada', OTHER: 'otro',
     USEFUL: 'utilizable', USABLE: 'utilizable', UNUSABLE: 'inutilizable',

@@ -7,12 +7,12 @@
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.13',
+    VERSION: '3.14',
     FECHA: '2026-11-07',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Los NOTAM se agrupan por lo que están haciendo AHORA: el campo D) ya se '
-      + 'lee, así que uno con horario «DLY 0630-1200» deja de aparecer como vigente a las '
-      + '17:25. Y las llaves de la FAA se cargan de un archivo, sin teclear nada'
+    NOVEDADES: 'TXL y otras abreviaturas que faltaban ya no se deletrean: «TXL CN CLSD» '
+      + 'se locuta «calle de acceso Charli November cerrada». Una prueba revisa los 60 '
+      + 'NOTAM reales del FNS para que no vuelva a quedarse ninguna sigla sin traducir'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;

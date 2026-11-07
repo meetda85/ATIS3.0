@@ -203,8 +203,10 @@
   }
 
   /* Palabras que van seguidas de un designador con letra */
-  var CLAVES_DESIGNADOR = '(?:calles? de rodaje|taxiways?|pistas?|runways?|umbral(?:es)?|' +
-    'thresholds?|plataformas?|aprons?|categor[íi]a|category)';
+  var CLAVES_DESIGNADOR = '(?:calles? de rodaje|taxiways?|calles? de acceso|taxilanes?|' +
+    'pistas?|runways?|umbral(?:es)?|thresholds?|plataformas?|aprons?|' +
+    'puertas?|gates?|posici[óo]n(?:es)? de estacionamiento|stands?|' +
+    'categor[íi]a|category)';
   var TOKEN_DESIGNADOR = '(?:[A-Z]\\d{1,2}|[A-Z]{1,3})';
   var SEPARADOR = '(?:,|[yY]|[aA][nN][dD])';
   /* La palabra clave se busca SIN distinguir mayúsculas: en el guion viene en
