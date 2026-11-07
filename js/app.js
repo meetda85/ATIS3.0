@@ -49,7 +49,7 @@
       'saludBadge', 'saludLista', 'btnSaludCopy', 'saludStatus',
       'vigBadge', 'vigActiva', 'vigUrl', 'vigEstacion', 'vigMinutos', 'btnVigAhora',
       'vigStatus', 'vigUltimo', 'avisoMetar', 'avisoMetarTexto', 'btnUsarMetar', 'btnIgnorarMetar',
-      'btnProbarRed', 'redPrueba', 'verBadge',
+      'btnProbarRed', 'btnRedCopy', 'redPrueba', 'verBadge',
       'modalMetar', 'modalMetarHora', 'modalMetarSub', 'modalMetarCrudo', 'modalMetarCambios',
       'modalMetarSi', 'modalMetarNo', 'metarSonido',
       'ntBadge', 'ntActiva', 'ntEstacion', 'ntMinutos', 'ntCarpeta', 'btnNtCarpeta', 'ntArchivos',
@@ -2146,12 +2146,40 @@
         });
         el.redPrueba.innerHTML = filas.join('') +
           '<p class="help" style="margin-top:8px">' + escapeHtml(d.resumen || '') + '</p>';
+        /* Se guarda en texto plano: así se puede pegar en un correo cuando
+           hay que pedirle algo a sistemas, o mandarlo para que lo vean. */
+        ultimaPruebaRed = textoDeLaPrueba(d);
+        if (el.btnRedCopy) el.btnRedCopy.hidden = false;
       })
       .catch(function (e) {
         el.btnProbarRed.disabled = false;
         status(el.vigStatus, 'No se pudo hacer la prueba: ' + e.message, 'err');
         el.redPrueba.innerHTML = '<span class="status err">' + escapeHtml(e.message) + '</span>';
       });
+  }
+
+  /* El diagnóstico en texto, con la versión y la dirección configurada: así
+     quien lo reciba sabe qué programa lo hizo y contra qué dirección. */
+  var ultimaPruebaRed = '';
+
+  function textoDeLaPrueba(d) {
+    var hoy = new Date().toISOString().replace('T', ' ').slice(0, 16);
+    var lineas = [
+      'ATIS 3.0 — prueba de conexión',
+      'Versión ' + (ATIS.VERSION || '?') + ' · ' + hoy + ' UTC',
+      'Estación: ' + (el.vigEstacion.value || el.station.value || ''),
+      'Dirección de la fuente: ' + (el.vigUrl.value || '(la de omisión)'),
+      ''
+    ];
+    (d.pruebas || []).forEach(function (p) {
+      lineas.push((p.ok ? '  OK    ' : '  FALLA ') + p.nombre + ' — ' +
+        (p.ok ? p.ms + ' ms' : (p.error || 'falló')));
+      if (p.url) lineas.push('        ' + p.url);
+      if (p.para) lineas.push('        ' + p.para);
+    });
+    lineas.push('');
+    lineas.push(d.resumen || '');
+    return lineas.join('\n');
   }
 
   /* ================================================================== *
@@ -3361,6 +3389,11 @@
       on(el[id], 'change', guardarVigilancia);
     });
     on(el.btnProbarRed, 'click', probarRed);
+    on(el.btnRedCopy, 'click', function () {
+      if (!ultimaPruebaRed) return;
+      if (navigator.clipboard) navigator.clipboard.writeText(ultimaPruebaRed);
+      status(el.vigStatus, 'Diagnóstico copiado: ya se puede pegar en un correo.', 'ok');
+    });
 
     on(el.btnVigAhora, 'click', function () {
       status(el.vigStatus, 'Revisando la fuente…');

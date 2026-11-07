@@ -614,6 +614,47 @@ async function main() {
       await p.close();
     });
 
+    await prueba('el diagnóstico de conexión se puede copiar en texto', async () => {
+      const p = await navegador.newPage({ viewport: { width: 1600, height: 1000 } });
+      /* La prueba de verdad tarda casi un minuto y sale a internet: aquí se
+         le da una respuesta de mentira para comprobar lo que hace la pantalla. */
+      await p.route('**/api/red', (ruta) => ruta.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          internet: true,
+          pruebas: [
+            { nombre: 'Internet', url: 'https://www.google.com/generate_204', ok: true, ms: 120,
+              para: 'una dirección cualquiera' },
+            { nombre: 'CAPMA', url: 'https://capma.seneam.gob.mx:444/api/v1/sigimet/bdma/public/samxs/MMMX',
+              ok: false, ms: 20000, error: 'el sitio no respondió en 20 s',
+              para: 'la fuente operativa del METAR. Sale por el puerto 444' },
+            { nombre: 'NOAA', url: 'https://aviationweather.gov/', ok: true, ms: 310, para: 'el respaldo' }
+          ],
+          resumen: 'Sí hay internet, pero no se alcanza CAPMA.'
+        })
+      }));
+      await p.goto('http://127.0.0.1:' + PUERTO + '/');
+      await p.waitForTimeout(800);
+      await p.click('#tabAdmin'); await p.waitForTimeout(300);
+      await p.fill('#admClave', '0348');
+      await p.click('#btnAdmEntrar'); await p.waitForTimeout(700);
+      await p.click('#btnProbarRed'); await p.waitForTimeout(700);
+
+      assert.ok(!(await p.$eval('#btnRedCopy', e => e.hidden)), 'no apareció el botón de copiar');
+      const texto = await p.evaluate(() => {
+        let copiado = '';
+        navigator.clipboard.writeText = (t) => { copiado = t; return Promise.resolve(); };
+        document.getElementById('btnRedCopy').click();
+        return copiado;
+      });
+      assert.ok(/ATIS 3\.0 — prueba de conexión/.test(texto), 'el texto no lleva encabezado: ' + texto);
+      assert.ok(/Versión \d/.test(texto), 'no dice la versión: ' + texto);
+      assert.ok(/FALLA CAPMA/.test(texto), 'no dice cuál falló: ' + texto);
+      assert.ok(/puerto 444/.test(texto), 'no explica lo del puerto: ' + texto);
+      assert.ok(/OK    NOAA/.test(texto), 'no dice cuál sí respondió: ' + texto);
+      await p.close();
+    });
+
     /* Y si el servidor se reinicia, los pases que tenía en memoria se pierden.
        La pantalla no puede quedarse creyendo que sigue abierta: tiene que
        volver a pedir la clave en lugar de fallar en silencio. */

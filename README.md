@@ -181,6 +181,11 @@ prueba, una por una, las direcciones que el ATIS necesita: una cualquiera de int
 CAPMA, el NOAA, y las dos de donde se bajan las voces. Dice cuál responde, en cuántos
 milisegundos, y cuál no, con el motivo.
 
+El botón **Copiar el diagnóstico**, al lado, lo deja en texto plano —con la versión
+instalada, la dirección configurada, qué respondió y en cuántos milisegundos, y qué no y
+por qué— para pegarlo en un correo a sistemas o a quien dé soporte, sin tener que
+transcribir nada de la pantalla.
+
 Con eso se distingue de una vez lo que antes era un mismo error para todo:
 
 | Lo que sale | Qué significa |

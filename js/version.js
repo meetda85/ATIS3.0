@@ -7,12 +7,12 @@
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.14',
+    VERSION: '3.15',
     FECHA: '2026-11-07',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'TXL y otras abreviaturas que faltaban ya no se deletrean: «TXL CN CLSD» '
-      + 'se locuta «calle de acceso Charli November cerrada». Una prueba revisa los 60 '
-      + 'NOTAM reales del FNS para que no vuelva a quedarse ninguna sigla sin traducir'
+    NOVEDADES: 'Botón para copiar el diagnóstico de conexión: dice la versión, la '
+      + 'dirección configurada y qué responde y qué no, para pegarlo en un correo cuando '
+      + 'el METAR no llega'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;
