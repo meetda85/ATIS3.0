@@ -297,6 +297,24 @@ cuáles entran y deja seleccionado el que sirve.
 nunca lo recibe de vuelta — solo se le dice si está puesto y los cuatro primeros y últimos
 caracteres del `client_id`.
 
+#### Cargar las llaves de un archivo
+
+Teclear a mano dos cadenas de cincuenta caracteres es pedir un error de dedo, y aquí un
+error de dedo se ve como «las llaves no sirven». El botón **Cargar llaves de un archivo**,
+en *Administración → NOTAM automáticos*, las lee de donde ya vienen:
+
+- la **hoja de cálculo que mandó la FAA** (`.xlsx`, `.xls`), con sus rótulos `KEY` y
+  `SECRET` al lado o encima de los valores;
+- el **`notam.json`** de otra computadora, de donde toma también el ambiente;
+- un **texto** o un `.csv` con `client_id` y `client_secret`, separados por dos puntos,
+  igual, coma, tabulador o simplemente espacios — sirve hasta el correo pegado tal cual.
+
+El archivo **lo lee la pantalla y no sale de esa computadora**. Al leerlo llena los dos
+recuadros, deja puesto el ambiente si venía, y comprueba las llaves solo; queda pulsar
+*Guardar*. Del `client_id` enseña un trozo para reconocerlo; el secreto no se enseña nunca.
+Si la hoja de la FAA viene protegida con contraseña, lo dice y pide abrirla en Excel y
+guardarla sin contraseña, o copiar las dos llaves a un archivo de texto.
+
 ### Lo que no se transmite
 
 El NMS devuelve también los **NOTAMC**, que no son información sino el aviso de que otro
@@ -476,9 +494,36 @@ duplica los que ya estaban cargados.
 
 ### Cómo se lee la lista
 
-La lista va partida en tres grupos, en el orden en que importan en turno:
-**Todavía no empiezan** (el más próximo arriba), **Vigentes ahora** (el que termina antes,
-arriba) y **Vencidos**.
+La lista va partida por **lo que cada NOTAM está haciendo ahora mismo**, que es la única
+pregunta que importa al armar el ATIS. Cada grupo aparece solo si tiene algo:
+
+| Grupo | Qué quiere decir |
+|---|---|
+| **Activos ahora** | está surtiendo efecto: esto es lo que va al aire |
+| **Vigentes, pero fuera de su horario** | está dentro de sus fechas, pero su campo `D)` dice que a esta hora no; dice a qué hora vuelve |
+| **Con horario que hay que leer** | tiene un `D)` que el programa no sabe interpretar (`SR-SS`, fechas sueltas); lo decide quien está en la posición |
+| **Todavía no empiezan** | el más próximo arriba |
+| **Vencidos** | ya pasaron |
+
+La palabra **vigente** se quitó a propósito de los grupos. Un NOTAM puede estar vigente y
+no estar surtiendo efecto, y confundir las dos cosas es poner al aire una pista cerrada que
+está abierta. Lo que manda es **activo ahora**.
+
+### El campo D), el que se pasaba por alto
+
+`B)` y `C)` dicen entre qué días vale el NOTAM. `D)` dice **a qué horas**, y hasta la
+versión 3.12 no se leía: un `D) DLY 0630-1200` a las 17:25 UTC salía como «vigente» con
+toda tranquilidad. Ahora se interpreta:
+
+- `DLY 0630-1200`, `0600-1200`, `H24`
+- por días de la semana: `MON-FRI 0600-1400`, `SAT SUN 1200-1800`
+- varios tramos: `DLY 0600-1200 1400-1800`
+- y los que cruzan la medianoche: `DLY 2200-0600`
+
+Lo que **no** entiende —`SR-SS`, fechas dentro del `D)`, excepciones— no lo adivina: lo
+aparta en su propio grupo con el texto a la vista. El horario se ve en el renglón, sin
+desplegar nada, y si un NOTAM marcado para transmitir no está activo, la verificación
+previa lo dice antes de salir al aire.
 
 Cada renglón lleva las **dos horas en grande**, en su propio recuadro, con su rótulo
 *Desde* y *Hasta* y el día debajo dicho como se dice en la torre —**HOY**, **MAÑANA**,
@@ -568,7 +613,8 @@ js/data/airports.js   aeródromos, pistas y nivel de transición (editable)
 js/lib/numbers.js     locución de números, alfabeto OACI y designadores de pista
 js/metar.js           decodificador METAR
 js/notam.js           decodificador y traductor de NOTAM
-js/fns.js             lectura de la descarga del FNS
+js/fns.js             descarga del FNS, vigencia y horario del campo D)
+js/llaves.js          lee las llaves de la FAA de una hoja, un .json o un texto
 js/enlace.js          sincronización con el servidor (control remoto)
 js/vendor/            librería para leer hojas de cálculo (SheetJS, licencia Apache 2.0)
 js/atis.js            modelo de observación y generación del guion ES/EN

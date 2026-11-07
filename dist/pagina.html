@@ -1188,16 +1188,21 @@ input, select, textarea, .chips, .notamlist {
 }
 .ngnota { font-size: 11px; color: var(--muted); font-style: italic; }
 .g-futuro  .ngtit, .g-futuro  .ngn { color: var(--blue); }
-.g-vigente .ngtit, .g-vigente .ngn { color: var(--accent); }
+.g-activo  .ngtit, .g-activo  .ngn { color: var(--accent); }
+.g-dormido .ngtit, .g-dormido .ngn,
+.g-revisar .ngtit, .g-revisar .ngn { color: var(--amber); }
 .g-futuro  .ngn { background: rgba(10, 86, 176, .12); }
-.g-vigente .ngn { background: var(--accent-weak); }
+.g-activo  .ngn { background: var(--accent-weak); }
+.g-dormido .ngn, .g-revisar .ngn { background: var(--amber-weak); }
 .g-futuro  { border-bottom-color: var(--blue); }
-.g-vigente { border-bottom-color: var(--accent); }
+.g-activo  { border-bottom-color: var(--accent); }
+.g-dormido, .g-revisar { border-bottom-color: var(--amber); }
+.g-dormido .ngnota, .g-revisar .ngnota { color: var(--amber); font-style: normal; font-weight: 600; }
 
 /* ---- El renglón ---- */
 .notamrow {
-  grid-template-columns: auto 92px minmax(0, 1fr) auto auto auto;
-  gap: 14px; padding: 9px 14px; font-size: 14px;
+  grid-template-columns: auto 92px minmax(0, 1fr) auto auto auto auto;
+  gap: 12px; padding: 9px 14px; font-size: 14px;
 }
 .notamrow + .notamrow { margin-top: 6px; }
 .notamrow .nid { font-size: 12.5px; }
@@ -1243,13 +1248,40 @@ input, select, textarea, .chips, .notamlist {
 }
 
 /* El estado se ve también en el renglón, sin tener que leer la hora */
-.notamrow.e-vigente  { border-left: 4px solid var(--accent); }
+.notamrow.e-activo   { border-left: 4px solid var(--accent); }
+.notamrow.e-dormido  { border-left: 4px solid var(--amber); }
+.notamrow.e-revisar  { border-left: 4px solid var(--amber); border-style: dashed; }
 .notamrow.e-futuro   { border-left: 4px solid var(--blue); }
 .notamrow.e-expirado { border-left: 4px solid var(--line); opacity: .6; }
-.notamrow.e-vigente  .ncuando { color: var(--accent); }
+.notamrow.e-activo   .ncuando { color: var(--accent); }
+.notamrow.e-dormido  .ncuando,
+.notamrow.e-revisar  .ncuando { color: var(--amber); }
 .notamrow.e-futuro   .ncuando { color: var(--blue); }
 .notamrow.e-expirado .ncuando { color: var(--muted); font-weight: 600; }
 .notamrow.e-expirado .nhhora { color: var(--muted); }
+
+/* Un NOTAM que está dentro de sus fechas pero hoy no le toca no puede
+   parecerse a uno activo: las horas se apagan y el horario se enciende. */
+.notamrow.e-dormido .nhhora, .notamrow.e-revisar .nhhora { color: var(--muted); }
+.notamrow.e-dormido .nhoras, .notamrow.e-revisar .nhoras { opacity: .72; }
+
+/* El campo D), a la vista en el renglón */
+.nhorario {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 96px; line-height: 1.15;
+  padding: 2px 10px; border-radius: 9px;
+  background: var(--surface-2); border: 1px dashed var(--line);
+}
+.nhorario b {
+  font-size: 13px; font-weight: 700; color: var(--text-2);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.notamrow.e-activo  .nhorario { border-color: var(--accent); background: var(--accent-weak); }
+.notamrow.e-activo  .nhorario b { color: var(--accent); }
+.notamrow.e-dormido .nhorario,
+.notamrow.e-revisar .nhorario { border-color: var(--amber); background: var(--amber-weak); }
+.notamrow.e-dormido .nhorario b,
+.notamrow.e-revisar .nhorario b { color: var(--amber); }
 
 /* Lo que cambia dentro de las dos horas siguientes: eso es lo que hay que ver */
 .notamrow.pronto {
@@ -1261,6 +1293,7 @@ input, select, textarea, .chips, .notamlist {
 .notamrow.pronto .nhoras { border-color: var(--amber); background: var(--amber-weak); }
 .notamcount { font-size: 12.5px; }
 .notamcount .avisa { color: var(--amber); }
+.notamcount .grave { color: var(--red); }
 
 /* Con tres grupos, la lista necesita un poco más de alto antes de desplazarse */
 .notamlist { max-height: 460px; }
@@ -1530,7 +1563,7 @@ input, select, textarea, .chips, .notamlist {
       <button id="btnNotamAtis" class="small ghost">Solo pista y rodaje</button>
       <button id="btnNotamCopy" class="small ghost">Copiar los marcados</button>
       <label class="checkline"><input type="checkbox" id="notamSoloVigentes" checked>
-        <span>Ocultar los que no están vigentes ahora</span></label>
+        <span>Ocultar los que no están activos ahora</span></label>
     </div>
     <div id="notamList" class="notamlist"></div>
   </section>
@@ -1900,7 +1933,26 @@ input, select, textarea, .chips, .notamlist {
       <p class="help">
         <b>El ambiente importa</b>: unas credenciales de preproducci&oacute;n no entran a
         producci&oacute;n, y al rev&eacute;s tampoco. Si no sabe cu&aacute;l le dieron, pulse
-        <i>Comprobar las llaves</i> y el programa las prueba en los tres y le dice.
+        <i>Comprobar las llaves</i>: el programa las prueba en los tres y deja puesto el
+        que sirva.
+      </p>
+      <div class="row buttons">
+        <button id="btnNtArchivo" class="small primary"
+                title="Lee las llaves de la hoja de la FAA, del notam.json o de un texto">
+          Cargar llaves de un archivo
+        </button>
+        <input type="file" id="ntArchivo" hidden
+               accept=".xlsx,.xls,.csv,.json,.txt,.text">
+        <span id="ntArchivoStatus" class="status"></span>
+      </div>
+      <p class="help">
+        As&iacute; no hay que teclear nada: se escoge el archivo donde ya vienen las llaves
+        &mdash;la <b>hoja de c&aacute;lculo que mand&oacute; la FAA</b>, el <b>notam.json</b> de otra
+        computadora, o un <b>texto</b> con <i>client_id</i> y <i>client_secret</i>&mdash; y el
+        programa las reconoce solo y llena los dos recuadros. El archivo no sale de esta
+        computadora: lo lee la pantalla. Si la hoja de la FAA viene protegida con
+        contrase&ntilde;a, &aacute;brala en Excel y gu&aacute;rdela sin contrase&ntilde;a, o copie las dos
+        llaves a un archivo de texto.
       </p>
       <div class="grid3">
         <label class="field"><span>client_id (KEY)</span>
@@ -2131,12 +2183,12 @@ input, select, textarea, .chips, .notamlist {
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.12',
+    VERSION: '3.13',
     FECHA: '2026-11-07',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Los designadores se locutan con el alfabeto fonético siempre, también '
-      + 'cuando la palabra clave va con mayúscula: antes el primer renglón del guion '
-      + 'decía «D» y el resto «Delta»'
+    NOVEDADES: 'Los NOTAM se agrupan por lo que están haciendo AHORA: el campo D) ya se '
+      + 'lee, así que uno con horario «DLY 0630-1200» deja de aparecer como vigente a las '
+      + '17:25. Y las llaves de la FAA se cargan de un archivo, sin teclear nada'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;
@@ -3585,6 +3637,143 @@ input, select, textarea, .chips, .notamlist {
     return 'vigente';
   }
 
+  /* ================================================================== *
+   * El campo D) del NOTAM: el horario
+   *
+   * Un NOTAM puede estar dentro de sus fechas (B y C) y aun así NO estar
+   * surtiendo efecto ahora mismo, porque el campo D) le pone un horario:
+   * «DLY 0630-1200» quiere decir todos los días de 06:30 a 12:00 UTC, y a
+   * las 17:25 ese NOTAM no está activo. Darlo por vigente y ponerlo al aire
+   * sería anunciar una pista cerrada que está abierta.
+   *
+   * Se interpretan las formas corrientes y nada más. Lo que no se entiende
+   * se dice que no se entendió —nunca se adivina—, y entonces lo decide
+   * quien está en la posición, con el texto del horario a la vista.
+   * ================================================================== */
+  var DIAS = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6,
+               DOM: 0, LUN: 1, MAR: 2, MIE: 3, JUE: 4, VIE: 5, SAB: 6 };
+  var ORDEN_DIAS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+  function minutosDe(hhmm) {
+    var h = +hhmm.slice(0, 2), m = +hhmm.slice(2);
+    if (h > 24 || m > 59) return null;
+    return h * 60 + m;
+  }
+
+  function comoHora(minutos) {
+    var m = ((minutos % 1440) + 1440) % 1440;
+    return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2);
+  }
+
+  /* Lee el campo D). Devuelve qué días aplica y en qué tramos, o entendido:false */
+  function leerHorario(texto) {
+    var t = String(texto || '').toUpperCase().replace(/\s+/g, ' ').trim();
+    if (!t) return { texto: '', hay: false, entendido: true, siempre: true, dias: null, tramos: [] };
+    if (/\bH24\b/.test(t) && !/\d{4}-\d{4}/.test(t)) {
+      return { texto: t, hay: true, entendido: true, siempre: true, dias: null, tramos: [] };
+    }
+
+    var dias = [], tramos = [], entendido = true;
+    /* Se va consumiendo lo que se reconoce; si sobra algo, no se entendió */
+    var resto = t;
+    resto = resto.replace(/\b(\d{4})-(\d{4})\b/g, function (todo, a, b) {
+      var i = minutosDe(a), f = minutosDe(b);
+      if (i === null || f === null) { entendido = false; return ''; }
+      tramos.push({ inicio: i, fin: f });
+      return ' ';
+    });
+    resto = resto.replace(/\b([A-Z]{3})-([A-Z]{3})\b/g, function (todo, a, b) {
+      if (!(a in DIAS) || !(b in DIAS)) { entendido = false; return ''; }
+      var i = DIAS[a], f = DIAS[b];
+      for (var d = i; ; d = (d + 1) % 7) { dias.push(d); if (d === f) break; }
+      return ' ';
+    });
+    resto = resto.replace(/\b([A-Z]{3})\b/g, function (todo, d) {
+      if (d === 'DLY' || d === 'DAY') return ' ';
+      if (d in DIAS) { dias.push(DIAS[d]); return ' '; }
+      return todo;
+    });
+    resto = resto.replace(/\bDAILY\b/g, ' ').replace(/[\s,;.]+/g, ' ').trim();
+
+    /* Si queda cualquier cosa —fechas, SR-SS, EXC, notas— no se entendió */
+    if (resto) entendido = false;
+    if (!tramos.length) entendido = false;
+
+    return {
+      texto: t, hay: true, entendido: entendido, siempre: false,
+      dias: dias.length ? dias : null, tramos: tramos
+    };
+  }
+
+  /* Las ventanas de un día concreto, en fechas de verdad. Un tramo que cruza
+     la medianoche (2200-0600) termina al día siguiente. */
+  function ventanasDe(lectura, base) {
+    var dia = base.getUTCDay();
+    if (lectura.dias && lectura.dias.indexOf(dia) < 0) return [];
+    var cero = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate());
+    return lectura.tramos.map(function (tr) {
+      var fin = tr.fin > tr.inicio ? tr.fin : tr.fin + 1440;   /* cruza la medianoche */
+      return { inicio: new Date(cero + tr.inicio * 60000), fin: new Date(cero + fin * 60000),
+               rotulo: comoHora(tr.inicio) + ' a ' + comoHora(tr.fin) };
+    });
+  }
+
+  /**
+   * ¿Está surtiendo efecto el horario ahora mismo?
+   * @param {string} texto  el campo D) tal cual
+   * @param {Date}   ahora
+   * @returns {{hay, entendido, activo, hasta, vuelve, rotulo, texto}}
+   */
+  function horario(texto, ahora) {
+    ahora = ahora || new Date();
+    var l = leerHorario(texto);
+    if (!l.hay) return { hay: false, entendido: true, activo: true, texto: '' };
+    if (l.siempre) return { hay: true, entendido: true, activo: true, texto: l.texto, rotulo: 'todo el día' };
+    if (!l.entendido) return { hay: true, entendido: false, activo: null, texto: l.texto };
+
+    /* De ayer a ocho días: alcanza para cualquier horario semanal */
+    var todas = [];
+    for (var d = -1; d <= 8; d++) {
+      var base = new Date(ahora.getTime() + d * 86400000);
+      ventanasDe(l, base).forEach(function (v) { todas.push(v); });
+    }
+    todas.sort(function (a, b) { return a.inicio - b.inicio; });
+
+    var dentro = null, siguiente = null;
+    todas.forEach(function (v) {
+      if (!dentro && ahora >= v.inicio && ahora < v.fin) dentro = v;
+      if (!siguiente && v.inicio > ahora) siguiente = v;
+    });
+
+    var tramo = l.tramos.length === 1
+      ? comoHora(l.tramos[0].inicio) + ' a ' + comoHora(l.tramos[0].fin)
+      : l.tramos.map(function (t) { return comoHora(t.inicio) + '-' + comoHora(t.fin); }).join(' y ');
+
+    return {
+      hay: true, entendido: true, activo: !!dentro, texto: l.texto, rotulo: tramo,
+      hasta: dentro ? dentro.fin : null,
+      vuelve: dentro ? null : (siguiente ? siguiente.inicio : null)
+    };
+  }
+
+  /**
+   * En qué está el NOTAM ahora mismo, contando fechas Y horario:
+   *   futuro    - todavía no empieza (antes de B)
+   *   expirado  - ya venció (después de C)
+   *   activo    - dentro de B..C y dentro de su horario: esto va al aire
+   *   dormido   - dentro de B..C pero fuera de su horario de hoy
+   *   revisar   - dentro de B..C y con un horario que el programa no entiende
+   */
+  function estado(registro, ahora) {
+    ahora = ahora || new Date();
+    var v = vigencia(registro, ahora);
+    if (v !== 'vigente') return v;
+    var h = horario(registro && registro.horario, ahora);
+    if (!h.hay) return 'activo';
+    if (!h.entendido) return 'revisar';
+    return h.activo ? 'activo' : 'dormido';
+  }
+
   var COLUMNAS = [
     ['location', /^location/i],
     ['id', /notam\s*#|notam\s*number|^notam$/i],
@@ -3712,9 +3901,233 @@ input, select, textarea, .chips, .notamlist {
     fromText: fromText,
     parseFecha: parseFecha,
     vigencia: vigencia,
+    horario: horario,
+    leerHorario: leerHorario,
+    estado: estado,
     esMateriaAtis: esMateriaAtis
   };
 })(this);
+
+</script>
+<script>
+/* js/llaves.js */
+/* ATIS 3.0 — Lectura de las llaves de la FAA desde un archivo
+ *
+ * Teclear a mano un client_id y un client_secret de cincuenta y tantos
+ * caracteres es pedir un error de dedo, y un error de dedo aquí se ve como
+ * «las llaves no sirven». Así que se leen del archivo donde ya vienen:
+ *
+ *   - la hoja de cálculo que manda la FAA por correo (KEY y SECRET),
+ *   - el notam.json del propio programa,
+ *   - o un texto cualquiera con «client_id: …» y «client_secret: …».
+ *
+ * Todo pasa en la computadora: el archivo lo lee la pantalla, y el secreto
+ * solo viaja al servidor de aquí al guardar, como siempre.
+ *
+ * Este archivo lo cargan la pantalla y las pruebas, así que no toca el DOM.
+ */
+(function (global) {
+  'use strict';
+
+  /* Un valor de verdad: las llaves de la FAA son cadenas largas de letras y
+     números. Esto descarta rótulos, celdas vacías y notas al margen. */
+  var RE_VALOR = /^[A-Za-z0-9._~-]{16,200}$/;
+
+  var ROTULOS = {
+    id: /^(client[_\s-]?id|clientid|key|api[_\s-]?key|llave|usuario|consumer[_\s-]?key)$/,
+    secreto: /^(client[_\s-]?secret|clientsecret|secret|api[_\s-]?secret|secreto|contrase[nñ]a|consumer[_\s-]?secret)$/,
+    ambiente: /^(ambiente|environment|entorno|env)$/
+  };
+
+  var AMBIENTES = {
+    prod: /^(prod|produccion|producci[oó]n|production|live)$/,
+    staging: /^(staging|preproduccion|preproducci[oó]n|preprod|stage)$/,
+    fit: /^(fit|pruebas|test|testing)$/
+  };
+
+  function normalizar(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/\s+/g, ' ').trim().toLowerCase()
+      .replace(/[:=]+$/, '').trim();
+  }
+
+  function queRotulo(celda) {
+    var t = normalizar(celda);
+    if (!t || t.length > 30) return '';
+    for (var k in ROTULOS) {
+      if (Object.prototype.hasOwnProperty.call(ROTULOS, k) && ROTULOS[k].test(t)) return k;
+    }
+    return '';
+  }
+
+  function queAmbiente(valor) {
+    var t = normalizar(valor);
+    for (var k in AMBIENTES) {
+      if (Object.prototype.hasOwnProperty.call(AMBIENTES, k) && AMBIENTES[k].test(t)) return k;
+    }
+    return '';
+  }
+
+  function vacio() {
+    return { clientId: '', clientSecret: '', ambiente: '', fuente: '', aviso: '' };
+  }
+
+  function completo(r) { return !!(r && r.clientId && r.clientSecret); }
+
+  /* ----------------------------------------------------------- JSON -- */
+  /* Vale el notam.json del programa y cualquier otro JSON donde estén: se
+     recorre entero buscando las claves, sin exigir una forma concreta. */
+  function deObjeto(obj, r) {
+    r = r || vacio();
+    if (!obj || typeof obj !== 'object') return r;
+    Object.keys(obj).forEach(function (k) {
+      var v = obj[k];
+      if (v && typeof v === 'object') { deObjeto(v, r); return; }
+      if (typeof v !== 'string' && typeof v !== 'number') return;
+      var texto = String(v).trim();
+      var cual = queRotulo(k);
+      if (cual === 'ambiente' && !r.ambiente) r.ambiente = queAmbiente(texto);
+      if (!RE_VALOR.test(texto)) return;
+      if (cual === 'id' && !r.clientId) r.clientId = texto;
+      if (cual === 'secreto' && !r.clientSecret) r.clientSecret = texto;
+    });
+    return r;
+  }
+
+  /* ----------------------------------------------------------- texto -- */
+  /* Un renglón por dato, separados por dos puntos, igual, coma, punto y coma,
+     tabulador o simplemente espacios: así sirve igual el archivo de llaves que
+     manda el programa que uno escrito a mano o pegado del correo. */
+  function deTexto(texto) {
+    var crudo = String(texto || '');
+    var limpio = crudo.replace(/^﻿/, '').trim();
+
+    if (limpio.charAt(0) === '{' || limpio.charAt(0) === '[') {
+      try {
+        var r = deObjeto(JSON.parse(limpio));
+        if (completo(r)) { r.fuente = 'json'; return r; }
+      } catch (e) { /* no era JSON del todo; se sigue por renglones */ }
+    }
+
+    var res = vacio();
+    var renglones = crudo.split(/\r?\n/);
+    var encabezado = null;
+
+    renglones.forEach(function (linea) {
+      var l = linea.replace(/^[\s>*#-]+/, '').trim();
+      if (!l) return;
+
+      /* CSV: primero el encabezado de rótulos y después la fila de valores.
+         Va antes que el par suelto porque «KEY,SECRET» son dos rótulos, no un
+         rótulo con su valor. */
+      var celdas = (l.indexOf(',') > 0 || l.indexOf('\t') > 0)
+        ? l.split(/[,\t]/).map(function (c) { return c.trim().replace(/^"|"$/g, ''); })
+        : null;
+      if (celdas && celdas.length >= 2) {
+        var rotulos = celdas.map(queRotulo);
+        if (rotulos.filter(Boolean).length >= 2) { encabezado = rotulos; return; }
+        if (encabezado && encabezado.length >= 2) {
+          celdas.forEach(function (c, i) {
+            var cual = encabezado[i];
+            if (cual === 'ambiente' && !res.ambiente) res.ambiente = queAmbiente(c);
+            if (!RE_VALOR.test(c)) return;
+            if (cual === 'id' && !res.clientId) res.clientId = c;
+            if (cual === 'secreto' && !res.clientSecret) res.clientSecret = c;
+          });
+          return;
+        }
+      }
+
+      /* rótulo y valor en el mismo renglón */
+      var m = /^([A-Za-z_ .()À-ſ-]{2,30}?)\s*[:=,;\t]\s*(.+)$/.exec(l) ||
+              /^([A-Za-z_ .()À-ſ-]{2,30}?)\s{2,}(\S.*)$/.exec(l);
+      if (m) {
+        var cual = queRotulo(m[1]);
+        var valor = m[2].trim().replace(/^["']|["',;]+$/g, '').trim();
+        if (cual === 'ambiente' && !res.ambiente) res.ambiente = queAmbiente(valor);
+        if (cual === 'id' && !res.clientId && RE_VALOR.test(valor)) res.clientId = valor;
+        if (cual === 'secreto' && !res.clientSecret && RE_VALOR.test(valor)) res.clientSecret = valor;
+        return;
+      }
+
+      /* rótulo solo, con el valor en el renglón siguiente */
+      var solo = queRotulo(l);
+      if (solo) { encabezado = [solo]; return; }
+      if (encabezado && encabezado.length === 1 && RE_VALOR.test(l)) {
+        if (encabezado[0] === 'id' && !res.clientId) res.clientId = l;
+        if (encabezado[0] === 'secreto' && !res.clientSecret) res.clientSecret = l;
+        encabezado = null;
+      }
+    });
+
+    if (completo(res)) res.fuente = 'texto';
+    return res;
+  }
+
+  /* ------------------------------------------------- hoja de cálculo -- */
+  /* La hoja de la FAA trae el rótulo y el valor en celdas vecinas, a veces en
+     la misma fila y a veces con el rótulo encima. Se admiten las dos. */
+  function deMatriz(filas) {
+    var res = vacio();
+    if (!filas || !filas.length) return res;
+
+    function poner(cual, valor) {
+      var v = String(valor === null || valor === undefined ? '' : valor).trim();
+      if (cual === 'ambiente') { if (!res.ambiente) res.ambiente = queAmbiente(v); return; }
+      if (!RE_VALOR.test(v)) return;
+      if (cual === 'id' && !res.clientId) res.clientId = v;
+      if (cual === 'secreto' && !res.clientSecret) res.clientSecret = v;
+    }
+
+    filas.forEach(function (fila, y) {
+      (fila || []).forEach(function (celda, x) {
+        var cual = queRotulo(celda);
+        if (!cual) return;
+        /* a la derecha, saltando celdas vacías */
+        for (var i = x + 1; i < (fila || []).length; i++) {
+          if (String(fila[i] || '').trim()) { poner(cual, fila[i]); break; }
+        }
+        /* o debajo */
+        for (var j = y + 1; j < filas.length && j <= y + 2; j++) {
+          var abajo = filas[j] && filas[j][x];
+          if (String(abajo || '').trim()) { poner(cual, abajo); break; }
+        }
+      });
+    });
+
+    if (completo(res)) { res.fuente = 'hoja'; return res; }
+
+    /* Sin rótulos que reconocer: si en toda la hoja hay exactamente dos
+       cadenas con pinta de llave, son esas, en el orden en que vienen. Se
+       avisa, para que alguien les eche un ojo antes de guardar. */
+    var sueltos = [];
+    filas.forEach(function (fila) {
+      (fila || []).forEach(function (celda) {
+        var v = String(celda === null || celda === undefined ? '' : celda).trim();
+        if (RE_VALOR.test(v) && !queRotulo(v) && sueltos.indexOf(v) < 0) sueltos.push(v);
+      });
+    });
+    if (sueltos.length === 2) {
+      /* el secreto de la FAA es el más largo de los dos */
+      var a = sueltos[0], b = sueltos[1];
+      res.clientId = a.length <= b.length ? a : b;
+      res.clientSecret = a.length <= b.length ? b : a;
+      res.fuente = 'hoja';
+      res.aviso = 'La hoja no traía rótulos: se tomaron las dos cadenas con pinta de llave. ' +
+        'Compruébelas antes de guardar.';
+    }
+    return res;
+  }
+
+  var API = {
+    deTexto: deTexto, deMatriz: deMatriz, deObjeto: deObjeto,
+    queRotulo: queRotulo, queAmbiente: queAmbiente, completo: completo, RE_VALOR: RE_VALOR
+  };
+
+  var ATIS = global.ATIS = global.ATIS || {};
+  ATIS.llaves = API;
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
 
 </script>
 <script>
@@ -5674,6 +6087,7 @@ input, select, textarea, .chips, .notamlist {
       'ntBadge', 'ntActiva', 'ntEstacion', 'ntMinutos', 'ntCarpeta', 'btnNtCarpeta', 'ntArchivos',
       'ntClientId', 'ntClientSecret', 'btnNtAhora', 'btnNtGuardar', 'ntStatus', 'ntUltimo',
       'ntAmbiente', 'btnNtLlaves', 'ntLlavesStatus', 'ntAmbientes',
+      'btnNtArchivo', 'ntArchivo', 'ntArchivoStatus',
       'modalNotam', 'modalNotamHora', 'modalNotamSub', 'modalNotamLista',
       'modalNotamSi', 'modalNotamNo',
       'pendiente', 'pendienteTexto', 'btnAplicarYa',
@@ -6070,6 +6484,8 @@ input, select, textarea, .chips, .notamlist {
           desde: reg.desde || null,
           hasta: reg.hasta || null,
           codigoQ: codigoQ,
+          /* El campo D): sin él no se puede saber si está surtiendo efecto */
+          horario: reg.horario || es.schedule || '',
           propio: propio
         }
       });
@@ -6198,6 +6614,14 @@ input, select, textarea, .chips, .notamlist {
      hay que tener a la vista para no transmitir algo que ya no es cierto. */
   var PRONTO = 120;                 /* minutos */
 
+  function hora(d) {
+    return ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
+  }
+
+  /* En qué está cada NOTAM ahora mismo. Las fechas B) y C) dicen entre qué
+     días vale; el campo D) dice a qué horas. Un NOTAM puede estar dentro de
+     sus fechas y aun así NO surtir efecto —«DLY 0630-1200» a las 17:25 no—,
+     y ponerlo al aire sería anunciar una pista cerrada que está abierta. */
   function estadoNotam(meta, ahora) {
     var desde = meta.desde, hasta = meta.hasta;
     if (desde && ahora < desde) {
@@ -6211,20 +6635,54 @@ input, select, textarea, .chips, .notamlist {
       return { clase: 'expirado', minutos: (ahora - hasta) / 60000, pronto: false,
         texto: 'venció hace ' + cuantoFalta((ahora - hasta) / 60000) };
     }
-    if (hasta) {
-      var quedan = (hasta - ahora) / 60000;
+
+    var h = ATIS.fns.horario(meta.horario, ahora);
+
+    /* Horario que el programa no sabe leer: no se adivina. Lo decide quien
+       está en la posición, con el texto del horario a la vista. */
+    if (h.hay && !h.entendido) {
+      return { clase: 'revisar', minutos: 0, pronto: false, horario: h,
+        texto: 'horario: ' + h.texto };
+    }
+
+    /* Dentro de las fechas, pero hoy no le toca */
+    if (h.hay && !h.activo) {
+      var paraVolver = h.vuelve ? (h.vuelve - ahora) / 60000 : null;
       return {
-        clase: 'vigente', minutos: quedan, pronto: quedan <= PRONTO,
-        texto: 'termina en ' + cuantoFalta(quedan)
+        clase: 'dormido', minutos: paraVolver === null ? 1e9 : paraVolver,
+        pronto: paraVolver !== null && paraVolver <= PRONTO, horario: h,
+        texto: h.vuelve ? 'vuelve a las ' + hora(h.vuelve) + ' · en ' + cuantoFalta(paraVolver)
+          : 'fuera de su horario'
       };
     }
-    return { clase: 'vigente', minutos: null, pronto: false, texto: 'al aire, sin hora de término' };
+
+    /* Activo ahora: esto sí va al aire. Termina cuando acabe su tramo de hoy
+       o cuando venza el NOTAM, lo que pase antes. */
+    var finTramo = (h.hay && h.hasta) ? h.hasta : null;
+    var fin = hasta && (!finTramo || hasta < finTramo) ? hasta : finTramo;
+    if (!fin) {
+      return { clase: 'activo', minutos: null, pronto: false, horario: h,
+        texto: 'al aire, sin hora de término' };
+    }
+    var quedan = (fin - ahora) / 60000;
+    return {
+      clase: 'activo', minutos: quedan, pronto: quedan <= PRONTO, horario: h,
+      texto: (finTramo && fin === finTramo ? 'sale del aire a las ' + hora(fin) + ' · en ' : 'termina en ') +
+        cuantoFalta(quedan)
+    };
   }
 
   /* Los grupos en que se parte la lista, en el orden en que importan */
+  /* «Vigente» confundía: un NOTAM puede estar vigente y no estar surtiendo
+     efecto. Los grupos dicen lo único que importa al armar el ATIS: qué va
+     al aire ahora y qué no. Cada uno aparece solo si tiene algo. */
   var GRUPOS = [
+    { clave: 'activo',   titulo: 'Activos ahora',  nota: 'esto es lo que va al aire' },
+    { clave: 'dormido',  titulo: 'Vigentes, pero fuera de su horario',
+      nota: 'ahora NO están surtiendo efecto' },
+    { clave: 'revisar',  titulo: 'Con horario que hay que leer',
+      nota: 'el programa no lo interpreta; decida usted' },
     { clave: 'futuro',   titulo: 'Todavía no empiezan', nota: 'el más próximo arriba' },
-    { clave: 'vigente',  titulo: 'Vigentes ahora',      nota: '' },
     { clave: 'expirado', titulo: 'Vencidos',            nota: '' }
   ];
 
@@ -6238,26 +6696,33 @@ input, select, textarea, .chips, .notamlist {
     var desplazado = el.notamList.scrollTop;
 
     var ahora = new Date();
-    var soloVigentes = el.notamSoloVigentes.checked;
-    var ocultos = 0, marcados = 0, porEmpezar = 0;
-    var cajones = { futuro: [], vigente: [], expirado: [] };
+    var soloActivos = el.notamSoloVigentes.checked;
+    var ocultos = 0, marcados = 0, porEmpezar = 0, marcadosDormidos = 0;
+    var cajones = { activo: [], dormido: [], revisar: [], futuro: [], expirado: [] };
 
     notams.forEach(function (n, i) {
       var est = estadoNotam(n.meta, ahora);
-      if (n.include) marcados++;
-      if (soloVigentes && est.clase !== 'vigente' && !n.include) { ocultos++; return; }
-      if (est.clase === 'futuro' && est.pronto) porEmpezar++;
+      if (n.include) {
+        marcados++;
+        if (est.clase !== 'activo') marcadosDormidos++;
+      }
+      /* Lo que el programa no sabe leer no se esconde nunca: si se ocultara,
+         nadie se enteraría de que hay que mirarlo. */
+      if (soloActivos && est.clase !== 'activo' && est.clase !== 'revisar' && !n.include) {
+        ocultos++; return;
+      }
+      if ((est.clase === 'futuro' || est.clase === 'dormido') && est.pronto) porEmpezar++;
       cajones[est.clase].push({ n: n, i: i, est: est });
     });
 
     /* Dentro de cada grupo, lo que cambia antes va primero */
-    cajones.futuro.sort(function (a, b) { return a.est.minutos - b.est.minutos; });
-    cajones.vigente.sort(function (a, b) {
-      if (a.est.minutos === null) return 1;
-      if (b.est.minutos === null) return -1;
-      return a.est.minutos - b.est.minutos;
+    Object.keys(cajones).forEach(function (k) {
+      cajones[k].sort(function (a, b) {
+        if (a.est.minutos === null) return 1;
+        if (b.est.minutos === null) return -1;
+        return a.est.minutos - b.est.minutos;
+      });
     });
-    cajones.expirado.sort(function (a, b) { return a.est.minutos - b.est.minutos; });
 
     /* Un extremo del rango: la hora en grande, el día debajo */
     function extremo(rotulo, partes) {
@@ -6288,6 +6753,13 @@ input, select, textarea, .chips, .notamlist {
           '<span class="nhsep">&rarr;</span>' +
           extremo('Hasta', fechaPartes(n.meta.hasta, ahora)) +
         '</span>' +
+        /* El campo D) a la vista: es lo que decide si va al aire o no */
+        (n.meta.horario
+          ? '<span class="nhorario" title="campo D) del NOTAM: a qué horas surte efecto">' +
+              '<span class="nhrot">Horario</span>' +
+              '<b>' + escapeHtml(est.horario && est.horario.rotulo
+                ? est.horario.rotulo : n.meta.horario) + '</b></span>'
+          : '') +
         '<span class="nwhen">' +
           '<span class="ncuando">' + ajeno + escapeHtml(est.texto) + '</span>' +
         '</span>' +
@@ -6316,9 +6788,12 @@ input, select, textarea, .chips, .notamlist {
     }).join('');
 
     el.notamList.innerHTML =
-      '<div class="notamcount">' + notams.length + ' cargados · ' + marcados + ' al aire' +
-      (porEmpezar ? ' · <b class="avisa">' + porEmpezar + ' empieza(n) dentro de 2 h</b>' : '') +
-      (ocultos ? ' · ' + ocultos + ' ocultos por vigencia' : '') + '</div>' + html;
+      '<div class="notamcount">' + notams.length + ' cargados · ' + marcados + ' marcados' +
+      (marcadosDormidos
+        ? ' · <b class="grave">' + marcadosDormidos + ' marcado(s) NO están activos ahora</b>'
+        : (marcados ? ' · todos activos' : '')) +
+      (porEmpezar ? ' · <b class="avisa">' + porEmpezar + ' cambia(n) dentro de 2 h</b>' : '') +
+      (ocultos ? ' · ' + ocultos + ' ocultos' : '') + '</div>' + html;
 
     /* Devolver la lista a donde estaba. Se pide una medida antes de colocarla
        para que el navegador ya tenga calculado el alto del contenido nuevo. */
@@ -6575,10 +7050,27 @@ input, select, textarea, .chips, .notamlist {
       adv('La observación tiene ' + edad + ' minutos: conviene actualizar el METAR.', 'metarRaw');
     }
 
-    var vencidos = notams.filter(function (n) {
-      return n.include && ATIS.fns.vigencia(n.meta, new Date()) !== 'vigente';
-    }).length;
-    if (vencidos) adv(vencidos + ' NOTAM marcado(s) para transmitir están fuera de vigencia.', 'notamList', true);
+    /* Marcado para transmitir pero no activo ahora: o ya venció, o todavía no
+       empieza, o su campo D) dice que a esta hora no surte efecto. Cualquiera
+       de los tres pone al aire algo que no es cierto. */
+    var ahoraMismo = new Date();
+    var inactivos = notams.filter(function (n) {
+      return n.include && ATIS.fns.estado(n.meta, ahoraMismo) !== 'activo';
+    });
+    if (inactivos.length) {
+      var porque = {};
+      inactivos.forEach(function (n) { porque[ATIS.fns.estado(n.meta, ahoraMismo)] = true; });
+      var motivos = [];
+      if (porque.dormido) motivos.push('fuera de su horario');
+      if (porque.expirado) motivos.push('vencidos');
+      if (porque.futuro) motivos.push('todavía no empiezan');
+      if (porque.revisar) motivos.push('con un horario que hay que leer');
+      /* Aviso, no error: detiene el primer intento y obliga a pulsar
+         «Transmitir de todos modos», que es un acto deliberado. Bloquearlo
+         del todo dejaría sin ATIS a quien sepa lo que está haciendo. */
+      adv(inactivos.length + ' NOTAM marcado(s) para transmitir no están activos ahora (' +
+        motivos.join(', ') + ').', 'notamList', true);
+    }
 
     return avisos;
   }
@@ -7877,6 +8369,88 @@ input, select, textarea, .chips, .notamlist {
 
   function cerrarAvisoNotam() { if (el.modalNotam) el.modalNotam.hidden = true; }
 
+  /* ================================================================== *
+   * Las llaves de la FAA, leídas de un archivo
+   *
+   * Teclear a mano dos cadenas de cincuenta caracteres es pedir un error de
+   * dedo, y aquí un error de dedo se ve como «las llaves no sirven». Se leen
+   * del archivo donde ya vienen: la hoja que manda la FAA, el notam.json de
+   * otra computadora, o un texto con los dos valores. El archivo lo lee la
+   * pantalla y no sale de esta computadora.
+   * ================================================================== */
+  function recorta(v) {
+    var t = String(v || '');
+    return t.length > 14 ? t.slice(0, 8) + '…' + t.slice(-4) : t;
+  }
+
+  function llavesDeHoja(datos) {
+    if (typeof global.XLSX === 'undefined') {
+      throw new Error('no se cargó el lector de hojas de cálculo');
+    }
+    var libro = global.XLSX.read(new Uint8Array(datos), { type: 'array' });
+    var hallado = null;
+    libro.SheetNames.some(function (nombre) {
+      var filas = global.XLSX.utils.sheet_to_json(libro.Sheets[nombre],
+        { header: 1, raw: false, defval: '' });
+      var r = ATIS.llaves.deMatriz(filas);
+      if (ATIS.llaves.completo(r)) { hallado = r; return true; }
+      return false;
+    });
+    return hallado || ATIS.llaves.deMatriz([]);
+  }
+
+  function importarLlaves(file) {
+    if (!file) return;
+    if (!file.size) {
+      status(el.ntArchivoStatus, 'Ese archivo está vacío.', 'err');
+      return;
+    }
+    var esHoja = /\.(xlsx|xlsm|xlsb|xls)$/i.test(file.name);
+    var sello = file.name + ' (' + tamanoLegible(file.size) + ')';
+    var lector = new FileReader();
+    status(el.ntArchivoStatus, 'Leyendo ' + sello + '…');
+
+    lector.onerror = function () {
+      status(el.ntArchivoStatus, 'No se pudo leer el archivo.', 'err');
+    };
+    lector.onload = function (e) {
+      var r;
+      try {
+        r = esHoja ? llavesDeHoja(e.target.result) : ATIS.llaves.deTexto(String(e.target.result));
+      } catch (err) {
+        var protegida = /password|encrypt|cfb|compound/i.test(err.message || '');
+        status(el.ntArchivoStatus, protegida
+          ? 'Esa hoja viene protegida con contraseña. Ábrala en Excel, guárdela sin ' +
+            'contraseña y vuelva a cargarla; o copie las dos llaves a un archivo de texto.'
+          : 'No se pudo leer ' + sello + ': ' + err.message, 'err');
+        return;
+      }
+
+      if (!ATIS.llaves.completo(r)) {
+        status(el.ntArchivoStatus, 'En ' + file.name + ' no vienen las dos llaves. ' +
+          'El programa busca «client_id» y «client_secret», o «KEY» y «SECRET», ' +
+          'en una hoja de cálculo, un .json o un texto.', 'err');
+        return;
+      }
+
+      el.ntClientId.value = r.clientId;
+      el.ntClientSecret.value = r.clientSecret;
+      if (r.ambiente) selectIfPresent(el.ntAmbiente, r.ambiente);
+      /* El secreto no se enseña ni a medias; del client_id basta un trozo
+         para reconocer que es el que debe ser. */
+      status(el.ntArchivoStatus, 'Llaves leídas de ' + file.name + ' · client_id ' +
+        recorta(r.clientId) + ' · secreto de ' + r.clientSecret.length + ' caracteres' +
+        (r.ambiente ? ' · ambiente ' + r.ambiente : '') +
+        (r.aviso ? ' · ' + r.aviso : ''), r.aviso ? '' : 'ok');
+
+      /* Y se comprueban solas, que es lo siguiente que haría uno */
+      if (ntDisponible() && el.btnNtLlaves) el.btnNtLlaves.click();
+    };
+
+    if (esHoja) lector.readAsArrayBuffer(file);
+    else lector.readAsText(file);
+  }
+
   /* El botón de la tarjeta de NOTAM: los trae ahora mismo, sin ir a Ajustes.
      Usa la estación que está arriba en la pantalla, que es la que importa. */
   function bajarNotamFAA() {
@@ -8463,7 +9037,7 @@ input, select, textarea, .chips, .notamlist {
           raw: n.raw, include: n.include,
           meta: {
             id: n.meta.id, location: n.meta.location, codigoQ: n.meta.codigoQ,
-            propio: n.meta.propio,
+            propio: n.meta.propio, horario: n.meta.horario || '',
             desde: n.meta.desde ? n.meta.desde.toISOString() : null,
             hasta: n.meta.hasta ? n.meta.hasta.toISOString() : null
           }
@@ -8563,6 +9137,7 @@ input, select, textarea, .chips, .notamlist {
           id: m.id || es.id || '', location: m.location || es.location || '',
           codigoQ: m.codigoQ || (es.q ? es.q.code : ''),
           propio: m.propio !== false,
+          horario: m.horario || es.schedule || '',
           desde: m.desde ? new Date(m.desde) : null,
           hasta: m.hasta ? new Date(m.hasta) : null
         }
@@ -8902,6 +9477,12 @@ input, select, textarea, .chips, .notamlist {
         el.btnNtAhora.disabled = false;
         status(el.ntStatus, 'No se pudo: ' + e.message, 'err');
       });
+    });
+
+    on(el.btnNtArchivo, 'click', function () { el.ntArchivo.click(); });
+    on(el.ntArchivo, 'change', function () {
+      importarLlaves(el.ntArchivo.files[0]);
+      el.ntArchivo.value = '';
     });
 
     on(el.btnNtLlaves, 'click', function () {

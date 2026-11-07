@@ -7,12 +7,12 @@
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.12',
+    VERSION: '3.13',
     FECHA: '2026-11-07',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Los designadores se locutan con el alfabeto fonético siempre, también '
-      + 'cuando la palabra clave va con mayúscula: antes el primer renglón del guion '
-      + 'decía «D» y el resto «Delta»'
+    NOVEDADES: 'Los NOTAM se agrupan por lo que están haciendo AHORA: el campo D) ya se '
+      + 'lee, así que uno con horario «DLY 0630-1200» deja de aparecer como vigente a las '
+      + '17:25. Y las llaves de la FAA se cargan de un archivo, sin teclear nada'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;

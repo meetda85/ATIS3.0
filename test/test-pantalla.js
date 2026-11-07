@@ -10,6 +10,7 @@
  */
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const assert = require('assert');
 const { spawn } = require('child_process');
 
@@ -271,7 +272,7 @@ async function main() {
     const p = await abrir(navegador);
     await conNotam(p);
     const grupos = await p.$$eval('.ngrupo .ngtit', ns => ns.map(n => n.textContent));
-    assert.deepStrictEqual(grupos, ['Todavía no empiezan', 'Vigentes ahora', 'Vencidos'],
+    assert.deepStrictEqual(grupos, ['Activos ahora', 'Todavía no empiezan', 'Vencidos'],
       'los grupos no salieron en orden: ' + JSON.stringify(grupos));
     await p.close();
   });
@@ -290,13 +291,15 @@ async function main() {
         pronto: n.classList.contains('pronto')
       };
     }));
-    /* El que empieza en 40 minutos va primero de todos */
-    assert.strictEqual(filas[0].id, 'A0002/25', 'arriba no quedó el que empieza antes');
-    assert.ok(/empieza en \d+ min/.test(filas[0].cuando), 'no dijo cuánto falta: ' + filas[0].cuando);
-    assert.ok(filas[0].pronto, 'no quedó marcado el que empieza dentro de 2 h');
+    /* Dentro de los que todavía no empiezan, el más próximo va arriba */
+    const porEmpezar = filas.filter(f => /empieza en/.test(f.cuando));
+    assert.strictEqual(porEmpezar[0].id, 'A0002/25', 'arriba no quedó el que empieza antes');
+    assert.ok(/empieza en \d+ min/.test(porEmpezar[0].cuando),
+      'no dijo cuánto falta: ' + porEmpezar[0].cuando);
+    assert.ok(porEmpezar[0].pronto, 'no quedó marcado el que empieza dentro de 2 h');
     /* El de mañana va después, y no se marca como próximo */
-    assert.strictEqual(filas[1].id, 'A0003/25');
-    assert.ok(!filas[1].pronto, 'marcó como próximo uno que es de mañana');
+    assert.strictEqual(porEmpezar[1].id, 'A0003/25');
+    assert.ok(!porEmpezar[1].pronto, 'marcó como próximo uno que es de mañana');
     /* El vigente que termina pronto también se avisa */
     const term = filas.find(f => f.id === 'A0001/25');
     assert.ok(/termina en/.test(term.cuando), 'no dijo cuándo termina: ' + term.cuando);
@@ -366,6 +369,135 @@ async function main() {
     await p.waitForTimeout(300);
     const queda = await p.evaluate(() => document.getElementById('notamList').scrollTop);
     assert.strictEqual(queda, movida, 'la lista se fue al principio al redibujarse');
+    await p.close();
+  });
+
+  /* ---------------- Las llaves de la FAA, desde un archivo ---------------- */
+  await prueba('carga las llaves de un archivo y llena los dos recuadros', async () => {
+    /* Valores de mentira: las de verdad no entran en una prueba */
+    const ID = 'EjemploDeLlaveFalsa0000000000000000000000000000AB';
+    const SEC = 'EjemploDeSecretoFalso00000000000000000000000000000000000000000CD';
+    const archivo = path.join(os.tmpdir(), 'llaves-prueba-' + process.pid + '.txt');
+    fs.writeFileSync(archivo, 'ambiente: produccion\nclient_id: ' + ID + '\nclient_secret: ' + SEC + '\n');
+    try {
+      const p = await abrir(navegador);
+      /* La tarjeta vive detrás del candado; sin servidor no se puede entrar,
+         así que para la prueba se destapa y se usa el mismo botón de siempre. */
+      await p.evaluate(() => {
+        document.getElementById('pageAdmin').hidden = false;
+        document.getElementById('admContenido').hidden = false;
+      });
+      await p.setInputFiles('#ntArchivo', archivo);
+      await p.waitForTimeout(400);
+      const d = await p.evaluate(() => ({
+        id: document.getElementById('ntClientId').value,
+        secreto: document.getElementById('ntClientSecret').value,
+        aviso: document.getElementById('ntArchivoStatus').textContent
+      }));
+      assert.strictEqual(d.id, ID, 'no llenó el client_id');
+      assert.strictEqual(d.secreto, SEC, 'no llenó el client_secret');
+      assert.ok(/client_id/.test(d.aviso), 'no dijo qué leyó: ' + d.aviso);
+      assert.ok(d.aviso.indexOf(SEC) < 0, 'enseñó el secreto en pantalla: ' + d.aviso);
+      await p.close();
+    } finally { try { fs.unlinkSync(archivo); } catch (e) { /* ya no está */ } }
+  });
+
+  await prueba('un archivo sin llaves lo dice, no se inventa nada', async () => {
+    const archivo = path.join(os.tmpdir(), 'nada-' + process.pid + '.txt');
+    fs.writeFileSync(archivo, 'Buen dia, adjunto el oficio para su revision.\n');
+    try {
+      const p = await abrir(navegador);
+      await p.evaluate(() => {
+        document.getElementById('pageAdmin').hidden = false;
+        document.getElementById('admContenido').hidden = false;
+      });
+      await p.setInputFiles('#ntArchivo', archivo);
+      await p.waitForTimeout(400);
+      const d = await p.evaluate(() => ({
+        id: document.getElementById('ntClientId').value,
+        aviso: document.getElementById('ntArchivoStatus').textContent
+      }));
+      assert.strictEqual(d.id, '', 'puso algo en el client_id');
+      assert.ok(/no vienen las dos llaves/.test(d.aviso), 'no avisó: ' + d.aviso);
+      await p.close();
+    } finally { try { fs.unlinkSync(archivo); } catch (e) { /* ya no está */ } }
+  });
+
+  /* ---------------- El horario del NOTAM (campo D) ---------------- */
+  /* Un NOTAM puede estar dentro de sus fechas y NO estar surtiendo efecto. */
+  await prueba('separa los activos ahora de los que están fuera de su horario', async () => {
+    const p = await abrir(navegador);
+    const ahora = new Date();
+    const hh = ahora.getUTCHours();
+    const dosDigitos = (n) => String(((n % 24) + 24) % 24).padStart(2, '0');
+    const dentro = dosDigitos(hh - 1) + '00-' + dosDigitos(hh + 1) + '00';
+    const fuera = dosDigitos(hh + 3) + '00-' + dosDigitos(hh + 5) + '00';
+    const sello = (min) => {
+      const d = new Date(Date.now() + min * 60000), q = (n) => String(n).padStart(2, '0');
+      return String(d.getUTCFullYear()).slice(2) + q(d.getUTCMonth() + 1) + q(d.getUTCDate()) +
+        q(d.getUTCHours()) + q(d.getUTCMinutes());
+    };
+    const uno = (id, d, texto) => id + ' NOTAMN\nQ) MMFR/QMXLC/IV/M/A/000/999/1926N09904W002\n' +
+      'A) MMMX B) ' + sello(-2000) + ' C) ' + sello(2000) + '\n' + (d ? 'D) ' + d + '\n' : '') +
+      'E) ' + texto;
+
+    await p.fill('#notamRaw', [
+      uno('B4023/26', 'DLY ' + fuera, 'TWY D BTN RWY 23L AND TWY D4 CLSD'),
+      uno('B4024/26', 'DLY ' + dentro, 'RWY 05R CLSD DUE WIP'),
+      uno('B4025/26', '', 'RWY 23R CLSD DUE MAINT'),
+      uno('B4026/26', 'SR-SS', 'TWY B LGT U/S')
+    ].join('\n\n'));
+    await p.uncheck('#notamSoloVigentes');
+    await p.click('#btnNotamAdd');
+    await p.waitForTimeout(500);
+
+    const grupos = await p.$$eval('.ngrupo .ngtit', ns => ns.map(n => n.textContent));
+    assert.ok(grupos.indexOf('Activos ahora') >= 0, 'falta el grupo de los activos');
+    assert.ok(grupos.indexOf('Vigentes, pero fuera de su horario') >= 0,
+      'no separó los que están fuera de horario: ' + JSON.stringify(grupos));
+    assert.ok(grupos.indexOf('Con horario que hay que leer') >= 0,
+      'no apartó el horario que no sabe leer: ' + JSON.stringify(grupos));
+    assert.ok(grupos.indexOf('Vigentes ahora') < 0, 'quedó la palabra «vigente» a secas');
+
+    const filas = await p.$$eval('.notamrow', ns => ns.map(n => ({
+      id: n.querySelector('.nid').textContent,
+      clase: n.className,
+      horario: n.querySelector('.nhorario') ? n.querySelector('.nhorario b').textContent : '',
+      cuando: n.querySelector('.ncuando').textContent
+    })));
+    const de = (id) => filas.find(f => f.id === id);
+    assert.ok(/e-dormido/.test(de('B4023/26').clase), 'el de horario vencido salió como activo');
+    assert.ok(/vuelve a las/.test(de('B4023/26').cuando), 'no dice cuándo vuelve: ' + de('B4023/26').cuando);
+    assert.ok(/e-activo/.test(de('B4024/26').clase), 'el que sí está en horario no salió activo');
+    assert.ok(/e-activo/.test(de('B4025/26').clase), 'el que no tiene horario debe estar activo');
+    assert.ok(/e-revisar/.test(de('B4026/26').clase), 'SR-SS no se puede dar por bueno');
+    /* Y el horario se ve en el renglón, sin tener que desplegar nada */
+    assert.ok(de('B4023/26').horario, 'el horario no se ve en el renglón');
+    await p.close();
+  });
+
+  await prueba('avisa antes de transmitir si hay marcados que no están activos', async () => {
+    const p = await abrir(navegador);
+    const hh = new Date().getUTCHours();
+    const dosDigitos = (n) => String(((n % 24) + 24) % 24).padStart(2, '0');
+    const sello = (min) => {
+      const d = new Date(Date.now() + min * 60000), q = (n) => String(n).padStart(2, '0');
+      return String(d.getUTCFullYear()).slice(2) + q(d.getUTCMonth() + 1) + q(d.getUTCDate()) +
+        q(d.getUTCHours()) + q(d.getUTCMinutes());
+    };
+    await p.fill('#notamRaw', 'B4023/26 NOTAMN\nQ) MMFR/QMXLC/IV/M/A/000/999/1926N09904W002\n' +
+      'A) MMMX B) ' + sello(-2000) + ' C) ' + sello(2000) + '\n' +
+      'D) DLY ' + dosDigitos(hh + 3) + '00-' + dosDigitos(hh + 5) + '00\n' +
+      'E) TWY D BTN RWY 23L AND TWY D4 CLSD');
+    await p.click('#btnNotamAdd');
+    await p.waitForTimeout(400);
+    const marcado = await p.$eval('.notamrow .n-inc', e => e.checked);
+    assert.ok(marcado, 'la prueba necesita que quede marcado para transmitir');
+    await p.click('#btnPlay');
+    await p.waitForTimeout(400);
+    const avisos = await p.$$eval('#preflightLista li', ns => ns.map(n => n.textContent));
+    assert.ok(avisos.some(t => /no están activos ahora/.test(t)),
+      'no avisó de que va a transmitir un NOTAM que no surte efecto: ' + JSON.stringify(avisos));
     await p.close();
   });
 

@@ -55,6 +55,7 @@
       'ntBadge', 'ntActiva', 'ntEstacion', 'ntMinutos', 'ntCarpeta', 'btnNtCarpeta', 'ntArchivos',
       'ntClientId', 'ntClientSecret', 'btnNtAhora', 'btnNtGuardar', 'ntStatus', 'ntUltimo',
       'ntAmbiente', 'btnNtLlaves', 'ntLlavesStatus', 'ntAmbientes',
+      'btnNtArchivo', 'ntArchivo', 'ntArchivoStatus',
       'modalNotam', 'modalNotamHora', 'modalNotamSub', 'modalNotamLista',
       'modalNotamSi', 'modalNotamNo',
       'pendiente', 'pendienteTexto', 'btnAplicarYa',
@@ -451,6 +452,8 @@
           desde: reg.desde || null,
           hasta: reg.hasta || null,
           codigoQ: codigoQ,
+          /* El campo D): sin él no se puede saber si está surtiendo efecto */
+          horario: reg.horario || es.schedule || '',
           propio: propio
         }
       });
@@ -579,6 +582,14 @@
      hay que tener a la vista para no transmitir algo que ya no es cierto. */
   var PRONTO = 120;                 /* minutos */
 
+  function hora(d) {
+    return ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
+  }
+
+  /* En qué está cada NOTAM ahora mismo. Las fechas B) y C) dicen entre qué
+     días vale; el campo D) dice a qué horas. Un NOTAM puede estar dentro de
+     sus fechas y aun así NO surtir efecto —«DLY 0630-1200» a las 17:25 no—,
+     y ponerlo al aire sería anunciar una pista cerrada que está abierta. */
   function estadoNotam(meta, ahora) {
     var desde = meta.desde, hasta = meta.hasta;
     if (desde && ahora < desde) {
@@ -592,20 +603,54 @@
       return { clase: 'expirado', minutos: (ahora - hasta) / 60000, pronto: false,
         texto: 'venció hace ' + cuantoFalta((ahora - hasta) / 60000) };
     }
-    if (hasta) {
-      var quedan = (hasta - ahora) / 60000;
+
+    var h = ATIS.fns.horario(meta.horario, ahora);
+
+    /* Horario que el programa no sabe leer: no se adivina. Lo decide quien
+       está en la posición, con el texto del horario a la vista. */
+    if (h.hay && !h.entendido) {
+      return { clase: 'revisar', minutos: 0, pronto: false, horario: h,
+        texto: 'horario: ' + h.texto };
+    }
+
+    /* Dentro de las fechas, pero hoy no le toca */
+    if (h.hay && !h.activo) {
+      var paraVolver = h.vuelve ? (h.vuelve - ahora) / 60000 : null;
       return {
-        clase: 'vigente', minutos: quedan, pronto: quedan <= PRONTO,
-        texto: 'termina en ' + cuantoFalta(quedan)
+        clase: 'dormido', minutos: paraVolver === null ? 1e9 : paraVolver,
+        pronto: paraVolver !== null && paraVolver <= PRONTO, horario: h,
+        texto: h.vuelve ? 'vuelve a las ' + hora(h.vuelve) + ' · en ' + cuantoFalta(paraVolver)
+          : 'fuera de su horario'
       };
     }
-    return { clase: 'vigente', minutos: null, pronto: false, texto: 'al aire, sin hora de término' };
+
+    /* Activo ahora: esto sí va al aire. Termina cuando acabe su tramo de hoy
+       o cuando venza el NOTAM, lo que pase antes. */
+    var finTramo = (h.hay && h.hasta) ? h.hasta : null;
+    var fin = hasta && (!finTramo || hasta < finTramo) ? hasta : finTramo;
+    if (!fin) {
+      return { clase: 'activo', minutos: null, pronto: false, horario: h,
+        texto: 'al aire, sin hora de término' };
+    }
+    var quedan = (fin - ahora) / 60000;
+    return {
+      clase: 'activo', minutos: quedan, pronto: quedan <= PRONTO, horario: h,
+      texto: (finTramo && fin === finTramo ? 'sale del aire a las ' + hora(fin) + ' · en ' : 'termina en ') +
+        cuantoFalta(quedan)
+    };
   }
 
   /* Los grupos en que se parte la lista, en el orden en que importan */
+  /* «Vigente» confundía: un NOTAM puede estar vigente y no estar surtiendo
+     efecto. Los grupos dicen lo único que importa al armar el ATIS: qué va
+     al aire ahora y qué no. Cada uno aparece solo si tiene algo. */
   var GRUPOS = [
+    { clave: 'activo',   titulo: 'Activos ahora',  nota: 'esto es lo que va al aire' },
+    { clave: 'dormido',  titulo: 'Vigentes, pero fuera de su horario',
+      nota: 'ahora NO están surtiendo efecto' },
+    { clave: 'revisar',  titulo: 'Con horario que hay que leer',
+      nota: 'el programa no lo interpreta; decida usted' },
     { clave: 'futuro',   titulo: 'Todavía no empiezan', nota: 'el más próximo arriba' },
-    { clave: 'vigente',  titulo: 'Vigentes ahora',      nota: '' },
     { clave: 'expirado', titulo: 'Vencidos',            nota: '' }
   ];
 
@@ -619,26 +664,33 @@
     var desplazado = el.notamList.scrollTop;
 
     var ahora = new Date();
-    var soloVigentes = el.notamSoloVigentes.checked;
-    var ocultos = 0, marcados = 0, porEmpezar = 0;
-    var cajones = { futuro: [], vigente: [], expirado: [] };
+    var soloActivos = el.notamSoloVigentes.checked;
+    var ocultos = 0, marcados = 0, porEmpezar = 0, marcadosDormidos = 0;
+    var cajones = { activo: [], dormido: [], revisar: [], futuro: [], expirado: [] };
 
     notams.forEach(function (n, i) {
       var est = estadoNotam(n.meta, ahora);
-      if (n.include) marcados++;
-      if (soloVigentes && est.clase !== 'vigente' && !n.include) { ocultos++; return; }
-      if (est.clase === 'futuro' && est.pronto) porEmpezar++;
+      if (n.include) {
+        marcados++;
+        if (est.clase !== 'activo') marcadosDormidos++;
+      }
+      /* Lo que el programa no sabe leer no se esconde nunca: si se ocultara,
+         nadie se enteraría de que hay que mirarlo. */
+      if (soloActivos && est.clase !== 'activo' && est.clase !== 'revisar' && !n.include) {
+        ocultos++; return;
+      }
+      if ((est.clase === 'futuro' || est.clase === 'dormido') && est.pronto) porEmpezar++;
       cajones[est.clase].push({ n: n, i: i, est: est });
     });
 
     /* Dentro de cada grupo, lo que cambia antes va primero */
-    cajones.futuro.sort(function (a, b) { return a.est.minutos - b.est.minutos; });
-    cajones.vigente.sort(function (a, b) {
-      if (a.est.minutos === null) return 1;
-      if (b.est.minutos === null) return -1;
-      return a.est.minutos - b.est.minutos;
+    Object.keys(cajones).forEach(function (k) {
+      cajones[k].sort(function (a, b) {
+        if (a.est.minutos === null) return 1;
+        if (b.est.minutos === null) return -1;
+        return a.est.minutos - b.est.minutos;
+      });
     });
-    cajones.expirado.sort(function (a, b) { return a.est.minutos - b.est.minutos; });
 
     /* Un extremo del rango: la hora en grande, el día debajo */
     function extremo(rotulo, partes) {
@@ -669,6 +721,13 @@
           '<span class="nhsep">&rarr;</span>' +
           extremo('Hasta', fechaPartes(n.meta.hasta, ahora)) +
         '</span>' +
+        /* El campo D) a la vista: es lo que decide si va al aire o no */
+        (n.meta.horario
+          ? '<span class="nhorario" title="campo D) del NOTAM: a qué horas surte efecto">' +
+              '<span class="nhrot">Horario</span>' +
+              '<b>' + escapeHtml(est.horario && est.horario.rotulo
+                ? est.horario.rotulo : n.meta.horario) + '</b></span>'
+          : '') +
         '<span class="nwhen">' +
           '<span class="ncuando">' + ajeno + escapeHtml(est.texto) + '</span>' +
         '</span>' +
@@ -697,9 +756,12 @@
     }).join('');
 
     el.notamList.innerHTML =
-      '<div class="notamcount">' + notams.length + ' cargados · ' + marcados + ' al aire' +
-      (porEmpezar ? ' · <b class="avisa">' + porEmpezar + ' empieza(n) dentro de 2 h</b>' : '') +
-      (ocultos ? ' · ' + ocultos + ' ocultos por vigencia' : '') + '</div>' + html;
+      '<div class="notamcount">' + notams.length + ' cargados · ' + marcados + ' marcados' +
+      (marcadosDormidos
+        ? ' · <b class="grave">' + marcadosDormidos + ' marcado(s) NO están activos ahora</b>'
+        : (marcados ? ' · todos activos' : '')) +
+      (porEmpezar ? ' · <b class="avisa">' + porEmpezar + ' cambia(n) dentro de 2 h</b>' : '') +
+      (ocultos ? ' · ' + ocultos + ' ocultos' : '') + '</div>' + html;
 
     /* Devolver la lista a donde estaba. Se pide una medida antes de colocarla
        para que el navegador ya tenga calculado el alto del contenido nuevo. */
@@ -956,10 +1018,27 @@
       adv('La observación tiene ' + edad + ' minutos: conviene actualizar el METAR.', 'metarRaw');
     }
 
-    var vencidos = notams.filter(function (n) {
-      return n.include && ATIS.fns.vigencia(n.meta, new Date()) !== 'vigente';
-    }).length;
-    if (vencidos) adv(vencidos + ' NOTAM marcado(s) para transmitir están fuera de vigencia.', 'notamList', true);
+    /* Marcado para transmitir pero no activo ahora: o ya venció, o todavía no
+       empieza, o su campo D) dice que a esta hora no surte efecto. Cualquiera
+       de los tres pone al aire algo que no es cierto. */
+    var ahoraMismo = new Date();
+    var inactivos = notams.filter(function (n) {
+      return n.include && ATIS.fns.estado(n.meta, ahoraMismo) !== 'activo';
+    });
+    if (inactivos.length) {
+      var porque = {};
+      inactivos.forEach(function (n) { porque[ATIS.fns.estado(n.meta, ahoraMismo)] = true; });
+      var motivos = [];
+      if (porque.dormido) motivos.push('fuera de su horario');
+      if (porque.expirado) motivos.push('vencidos');
+      if (porque.futuro) motivos.push('todavía no empiezan');
+      if (porque.revisar) motivos.push('con un horario que hay que leer');
+      /* Aviso, no error: detiene el primer intento y obliga a pulsar
+         «Transmitir de todos modos», que es un acto deliberado. Bloquearlo
+         del todo dejaría sin ATIS a quien sepa lo que está haciendo. */
+      adv(inactivos.length + ' NOTAM marcado(s) para transmitir no están activos ahora (' +
+        motivos.join(', ') + ').', 'notamList', true);
+    }
 
     return avisos;
   }
@@ -2258,6 +2337,88 @@
 
   function cerrarAvisoNotam() { if (el.modalNotam) el.modalNotam.hidden = true; }
 
+  /* ================================================================== *
+   * Las llaves de la FAA, leídas de un archivo
+   *
+   * Teclear a mano dos cadenas de cincuenta caracteres es pedir un error de
+   * dedo, y aquí un error de dedo se ve como «las llaves no sirven». Se leen
+   * del archivo donde ya vienen: la hoja que manda la FAA, el notam.json de
+   * otra computadora, o un texto con los dos valores. El archivo lo lee la
+   * pantalla y no sale de esta computadora.
+   * ================================================================== */
+  function recorta(v) {
+    var t = String(v || '');
+    return t.length > 14 ? t.slice(0, 8) + '…' + t.slice(-4) : t;
+  }
+
+  function llavesDeHoja(datos) {
+    if (typeof global.XLSX === 'undefined') {
+      throw new Error('no se cargó el lector de hojas de cálculo');
+    }
+    var libro = global.XLSX.read(new Uint8Array(datos), { type: 'array' });
+    var hallado = null;
+    libro.SheetNames.some(function (nombre) {
+      var filas = global.XLSX.utils.sheet_to_json(libro.Sheets[nombre],
+        { header: 1, raw: false, defval: '' });
+      var r = ATIS.llaves.deMatriz(filas);
+      if (ATIS.llaves.completo(r)) { hallado = r; return true; }
+      return false;
+    });
+    return hallado || ATIS.llaves.deMatriz([]);
+  }
+
+  function importarLlaves(file) {
+    if (!file) return;
+    if (!file.size) {
+      status(el.ntArchivoStatus, 'Ese archivo está vacío.', 'err');
+      return;
+    }
+    var esHoja = /\.(xlsx|xlsm|xlsb|xls)$/i.test(file.name);
+    var sello = file.name + ' (' + tamanoLegible(file.size) + ')';
+    var lector = new FileReader();
+    status(el.ntArchivoStatus, 'Leyendo ' + sello + '…');
+
+    lector.onerror = function () {
+      status(el.ntArchivoStatus, 'No se pudo leer el archivo.', 'err');
+    };
+    lector.onload = function (e) {
+      var r;
+      try {
+        r = esHoja ? llavesDeHoja(e.target.result) : ATIS.llaves.deTexto(String(e.target.result));
+      } catch (err) {
+        var protegida = /password|encrypt|cfb|compound/i.test(err.message || '');
+        status(el.ntArchivoStatus, protegida
+          ? 'Esa hoja viene protegida con contraseña. Ábrala en Excel, guárdela sin ' +
+            'contraseña y vuelva a cargarla; o copie las dos llaves a un archivo de texto.'
+          : 'No se pudo leer ' + sello + ': ' + err.message, 'err');
+        return;
+      }
+
+      if (!ATIS.llaves.completo(r)) {
+        status(el.ntArchivoStatus, 'En ' + file.name + ' no vienen las dos llaves. ' +
+          'El programa busca «client_id» y «client_secret», o «KEY» y «SECRET», ' +
+          'en una hoja de cálculo, un .json o un texto.', 'err');
+        return;
+      }
+
+      el.ntClientId.value = r.clientId;
+      el.ntClientSecret.value = r.clientSecret;
+      if (r.ambiente) selectIfPresent(el.ntAmbiente, r.ambiente);
+      /* El secreto no se enseña ni a medias; del client_id basta un trozo
+         para reconocer que es el que debe ser. */
+      status(el.ntArchivoStatus, 'Llaves leídas de ' + file.name + ' · client_id ' +
+        recorta(r.clientId) + ' · secreto de ' + r.clientSecret.length + ' caracteres' +
+        (r.ambiente ? ' · ambiente ' + r.ambiente : '') +
+        (r.aviso ? ' · ' + r.aviso : ''), r.aviso ? '' : 'ok');
+
+      /* Y se comprueban solas, que es lo siguiente que haría uno */
+      if (ntDisponible() && el.btnNtLlaves) el.btnNtLlaves.click();
+    };
+
+    if (esHoja) lector.readAsArrayBuffer(file);
+    else lector.readAsText(file);
+  }
+
   /* El botón de la tarjeta de NOTAM: los trae ahora mismo, sin ir a Ajustes.
      Usa la estación que está arriba en la pantalla, que es la que importa. */
   function bajarNotamFAA() {
@@ -2844,7 +3005,7 @@
           raw: n.raw, include: n.include,
           meta: {
             id: n.meta.id, location: n.meta.location, codigoQ: n.meta.codigoQ,
-            propio: n.meta.propio,
+            propio: n.meta.propio, horario: n.meta.horario || '',
             desde: n.meta.desde ? n.meta.desde.toISOString() : null,
             hasta: n.meta.hasta ? n.meta.hasta.toISOString() : null
           }
@@ -2944,6 +3105,7 @@
           id: m.id || es.id || '', location: m.location || es.location || '',
           codigoQ: m.codigoQ || (es.q ? es.q.code : ''),
           propio: m.propio !== false,
+          horario: m.horario || es.schedule || '',
           desde: m.desde ? new Date(m.desde) : null,
           hasta: m.hasta ? new Date(m.hasta) : null
         }
@@ -3283,6 +3445,12 @@
         el.btnNtAhora.disabled = false;
         status(el.ntStatus, 'No se pudo: ' + e.message, 'err');
       });
+    });
+
+    on(el.btnNtArchivo, 'click', function () { el.ntArchivo.click(); });
+    on(el.ntArchivo, 'change', function () {
+      importarLlaves(el.ntArchivo.files[0]);
+      el.ntArchivo.value = '';
     });
 
     on(el.btnNtLlaves, 'click', function () {

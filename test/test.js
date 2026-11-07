@@ -7,7 +7,7 @@ const assert = require('assert');
 const root = path.join(__dirname, '..');
 const context = vm.createContext({ console });
 ['js/data/dictionary.js', 'js/data/airports.js', 'js/lib/numbers.js',
- 'js/metar.js', 'js/notam.js', 'js/fns.js', 'js/atis.js',
+ 'js/metar.js', 'js/notam.js', 'js/fns.js', 'js/llaves.js', 'js/atis.js',
  'js/vendor/xlsx.full.min.js'].forEach(function (f) {
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), context, { filename: f });
 });
@@ -386,6 +386,132 @@ test('vigencia respecto de la hora actual', () => {
   assert.strictEqual(ATIS.fns.vigencia(reg, new Date('2026-09-23T00:00:00Z')), 'vigente');
   assert.strictEqual(ATIS.fns.vigencia(reg, new Date('2026-09-22T00:00:00Z')), 'futuro');
   assert.strictEqual(ATIS.fns.vigencia(reg, new Date('2026-10-01T00:00:00Z')), 'expirado');
+});
+
+console.log('\nLlaves de la FAA desde un archivo');
+/* Valores de mentira, de la misma forma que los de verdad. Las credenciales
+   reales no entran al repositorio ni en una prueba. */
+const LLAVE_ID = 'EjemploDeLlaveFalsa0000000000000000000000000000AB';
+const LLAVE_SEC = 'EjemploDeSecretoFalso00000000000000000000000000000000000000000CD';
+
+test('las reconoce en un texto, venga como venga', () => {
+  const casos = {
+    'dos puntos': 'client_id: ' + LLAVE_ID + '\nclient_secret: ' + LLAVE_SEC,
+    'igual': 'CLIENT_ID = ' + LLAVE_ID + '\nCLIENT_SECRET = ' + LLAVE_SEC,
+    'KEY y SECRET': 'Key: ' + LLAVE_ID + '\nSecret: ' + LLAVE_SEC,
+    'solo espacios': '  client_id       ' + LLAVE_ID + '\n  client_secret   ' + LLAVE_SEC,
+    'rotulo arriba': 'CLIENT_ID\n' + LLAVE_ID + '\nCLIENT_SECRET\n' + LLAVE_SEC,
+    'csv': 'KEY,SECRET\n' + LLAVE_ID + ',' + LLAVE_SEC,
+    'correo pegado': 'Buen dia,\n\nKey: ' + LLAVE_ID + '\nSecret = ' + LLAVE_SEC + '\n\nSaludos'
+  };
+  Object.keys(casos).forEach(function (k) {
+    const r = ATIS.llaves.deTexto(casos[k]);
+    assert.strictEqual(r.clientId, LLAVE_ID, 'client_id en «' + k + '»');
+    assert.strictEqual(r.clientSecret, LLAVE_SEC, 'client_secret en «' + k + '»');
+  });
+});
+
+test('lee el notam.json del propio programa, con su ambiente', () => {
+  const r = ATIS.llaves.deTexto(JSON.stringify({
+    activo: true, estacion: 'MMMX', ambiente: 'prod',
+    llaves: { clientId: LLAVE_ID, clientSecret: LLAVE_SEC }
+  }));
+  assert.strictEqual(r.clientId, LLAVE_ID);
+  assert.strictEqual(r.clientSecret, LLAVE_SEC);
+  assert.strictEqual(r.ambiente, 'prod');
+  /* y entiende como se diga el ambiente */
+  assert.strictEqual(ATIS.llaves.deTexto('ambiente: preproduccion\nkey: ' + LLAVE_ID +
+    '\nsecret: ' + LLAVE_SEC).ambiente, 'staging');
+});
+
+test('lee la hoja de la FAA, con los rotulos al lado o encima', () => {
+  const alLado = [['Onboarding NMS', ''], ['KEY', LLAVE_ID], ['SECRET', LLAVE_SEC]];
+  const encima = [['KEY', 'SECRET'], [LLAVE_ID, LLAVE_SEC]];
+  [alLado, encima].forEach(function (filas, i) {
+    const r = ATIS.llaves.deMatriz(filas);
+    assert.strictEqual(r.clientId, LLAVE_ID, 'client_id en la hoja ' + i);
+    assert.strictEqual(r.clientSecret, LLAVE_SEC, 'client_secret en la hoja ' + i);
+  });
+});
+
+test('sin rotulos toma las dos cadenas con pinta de llave, y lo avisa', () => {
+  const r = ATIS.llaves.deMatriz([['Credenciales'], [LLAVE_ID], [LLAVE_SEC]]);
+  assert.strictEqual(r.clientId, LLAVE_ID);
+  assert.strictEqual(r.clientSecret, LLAVE_SEC);
+  assert.ok(r.aviso, 'tiene que avisar de que las tomo sin rotulo');
+});
+
+test('no inventa llaves donde no las hay', () => {
+  ['Buenos dias, adjunto el documento.', '', 'cliente: Juan\nfecha: hoy',
+   'client_id: corto'].forEach(function (t) {
+    assert.strictEqual(ATIS.llaves.completo(ATIS.llaves.deTexto(t)), false,
+      'invento llaves en: ' + JSON.stringify(t));
+  });
+  assert.strictEqual(ATIS.llaves.completo(ATIS.llaves.deMatriz([['hola', 'mundo']])), false);
+});
+
+console.log('\nHorario de los NOTAM');
+test('el campo D) dice a que horas surte efecto', () => {
+  /* 7 de noviembre de 2026 es sabado */
+  const sabado1725 = new Date('2026-11-07T17:25:00Z');
+  const sabado0800 = new Date('2026-11-07T08:00:00Z');
+  const h = (t, cuando) => ATIS.fns.horario(t, cuando || sabado1725);
+
+  /* El caso que reporto la torre: vigente por fechas, pero a esta hora no */
+  assert.strictEqual(h('DLY 0630-1200').entendido, true);
+  assert.strictEqual(h('DLY 0630-1200').activo, false, 'a las 17:25 no le toca');
+  assert.strictEqual(h('DLY 0630-1200', sabado0800).activo, true, 'a las 08:00 si');
+  assert.strictEqual(h('DLY 0630-1200').rotulo, '06:30 a 12:00');
+
+  /* Sin campo D) no hay horario que valga: vale siempre */
+  assert.strictEqual(h('').hay, false);
+  assert.strictEqual(h('').activo, true);
+  assert.strictEqual(h('H24').activo, true);
+
+  /* Dias de la semana */
+  assert.strictEqual(h('MON-FRI 0600-1400').activo, false, 'el sabado no es MON-FRI');
+  assert.strictEqual(h('SAT SUN 1200-1800').activo, true);
+  assert.strictEqual(h('MON-FRI 0600-1400', new Date('2026-11-09T07:00:00Z')).activo, true);
+
+  /* Varios tramos, y uno que cruza la medianoche */
+  assert.strictEqual(h('DLY 0600-1200 1400-1800').activo, true);
+  assert.strictEqual(h('DLY 2200-0600').activo, false);
+  assert.strictEqual(h('DLY 2200-0600', new Date('2026-11-07T23:00:00Z')).activo, true);
+  assert.strictEqual(h('DLY 2200-0600', new Date('2026-11-07T02:00:00Z')).activo, true,
+    'el tramo de anoche sigue corriendo de madrugada');
+
+  /* Lo que no se entiende NO se adivina */
+  assert.strictEqual(h('SR-SS').entendido, false);
+  assert.strictEqual(h('SR-SS').activo, null);
+  assert.strictEqual(h('NOV 06 0630-1200').entendido, false);
+  assert.strictEqual(h('DLY 0630-1200 EXC HOL').entendido, false);
+
+  /* Y dice cuando vuelve, para poder avisarlo en pantalla */
+  const v = h('DLY 0630-1200');
+  assert.ok(v.vuelve && v.vuelve.toISOString().indexOf('2026-11-08T06:30') === 0,
+    'no dijo cuando vuelve: ' + (v.vuelve && v.vuelve.toISOString()));
+});
+
+test('el estado cuenta las fechas Y el horario', () => {
+  const sabado1725 = new Date('2026-11-07T17:25:00Z');
+  const base = { desde: new Date('2026-11-06T06:30:00Z'), hasta: new Date('2026-11-08T12:00:00Z') };
+
+  /* Dentro de las fechas y sin horario: activo */
+  assert.strictEqual(ATIS.fns.estado(base, sabado1725), 'activo');
+
+  /* Dentro de las fechas pero fuera del horario de hoy: NO va al aire */
+  const conD = Object.assign({}, base, { horario: 'DLY 0630-1200' });
+  assert.strictEqual(ATIS.fns.estado(conD, sabado1725), 'dormido');
+  assert.strictEqual(ATIS.fns.estado(conD, new Date('2026-11-07T08:00:00Z')), 'activo');
+
+  /* Un horario que no se entiende se marca para que lo lea una persona */
+  assert.strictEqual(ATIS.fns.estado(Object.assign({}, base, { horario: 'SR-SS' }), sabado1725), 'revisar');
+
+  /* Las fechas siguen mandando por encima del horario */
+  const futuro = { desde: new Date('2026-12-01T00:00:00Z'), horario: 'H24' };
+  assert.strictEqual(ATIS.fns.estado(futuro, sabado1725), 'futuro');
+  const viejo = { hasta: new Date('2026-10-01T00:00:00Z'), horario: 'H24' };
+  assert.strictEqual(ATIS.fns.estado(viejo, sabado1725), 'expirado');
 });
 
 test('traduce al espanol el texto en ingles del NOTAM', () => {

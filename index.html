@@ -262,7 +262,7 @@
       <button id="btnNotamAtis" class="small ghost">Solo pista y rodaje</button>
       <button id="btnNotamCopy" class="small ghost">Copiar los marcados</button>
       <label class="checkline"><input type="checkbox" id="notamSoloVigentes" checked>
-        <span>Ocultar los que no están vigentes ahora</span></label>
+        <span>Ocultar los que no están activos ahora</span></label>
     </div>
     <div id="notamList" class="notamlist"></div>
   </section>
@@ -632,7 +632,26 @@
       <p class="help">
         <b>El ambiente importa</b>: unas credenciales de preproducci&oacute;n no entran a
         producci&oacute;n, y al rev&eacute;s tampoco. Si no sabe cu&aacute;l le dieron, pulse
-        <i>Comprobar las llaves</i> y el programa las prueba en los tres y le dice.
+        <i>Comprobar las llaves</i>: el programa las prueba en los tres y deja puesto el
+        que sirva.
+      </p>
+      <div class="row buttons">
+        <button id="btnNtArchivo" class="small primary"
+                title="Lee las llaves de la hoja de la FAA, del notam.json o de un texto">
+          Cargar llaves de un archivo
+        </button>
+        <input type="file" id="ntArchivo" hidden
+               accept=".xlsx,.xls,.csv,.json,.txt,.text">
+        <span id="ntArchivoStatus" class="status"></span>
+      </div>
+      <p class="help">
+        As&iacute; no hay que teclear nada: se escoge el archivo donde ya vienen las llaves
+        &mdash;la <b>hoja de c&aacute;lculo que mand&oacute; la FAA</b>, el <b>notam.json</b> de otra
+        computadora, o un <b>texto</b> con <i>client_id</i> y <i>client_secret</i>&mdash; y el
+        programa las reconoce solo y llena los dos recuadros. El archivo no sale de esta
+        computadora: lo lee la pantalla. Si la hoja de la FAA viene protegida con
+        contrase&ntilde;a, &aacute;brala en Excel y gu&aacute;rdela sin contrase&ntilde;a, o copie las dos
+        llaves a un archivo de texto.
       </p>
       <div class="grid3">
         <label class="field"><span>client_id (KEY)</span>
@@ -861,6 +880,7 @@
 <script src="js/metar.js"></script>
 <script src="js/notam.js"></script>
 <script src="js/fns.js"></script>
+<script src="js/llaves.js"></script>
 <script src="js/atis.js"></script>
 <script src="js/speech.js"></script>
 <script src="js/voz-neural.js"></script>

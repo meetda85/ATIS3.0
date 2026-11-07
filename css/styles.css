@@ -1186,16 +1186,21 @@ input, select, textarea, .chips, .notamlist {
 }
 .ngnota { font-size: 11px; color: var(--muted); font-style: italic; }
 .g-futuro  .ngtit, .g-futuro  .ngn { color: var(--blue); }
-.g-vigente .ngtit, .g-vigente .ngn { color: var(--accent); }
+.g-activo  .ngtit, .g-activo  .ngn { color: var(--accent); }
+.g-dormido .ngtit, .g-dormido .ngn,
+.g-revisar .ngtit, .g-revisar .ngn { color: var(--amber); }
 .g-futuro  .ngn { background: rgba(10, 86, 176, .12); }
-.g-vigente .ngn { background: var(--accent-weak); }
+.g-activo  .ngn { background: var(--accent-weak); }
+.g-dormido .ngn, .g-revisar .ngn { background: var(--amber-weak); }
 .g-futuro  { border-bottom-color: var(--blue); }
-.g-vigente { border-bottom-color: var(--accent); }
+.g-activo  { border-bottom-color: var(--accent); }
+.g-dormido, .g-revisar { border-bottom-color: var(--amber); }
+.g-dormido .ngnota, .g-revisar .ngnota { color: var(--amber); font-style: normal; font-weight: 600; }
 
 /* ---- El renglón ---- */
 .notamrow {
-  grid-template-columns: auto 92px minmax(0, 1fr) auto auto auto;
-  gap: 14px; padding: 9px 14px; font-size: 14px;
+  grid-template-columns: auto 92px minmax(0, 1fr) auto auto auto auto;
+  gap: 12px; padding: 9px 14px; font-size: 14px;
 }
 .notamrow + .notamrow { margin-top: 6px; }
 .notamrow .nid { font-size: 12.5px; }
@@ -1241,13 +1246,40 @@ input, select, textarea, .chips, .notamlist {
 }
 
 /* El estado se ve también en el renglón, sin tener que leer la hora */
-.notamrow.e-vigente  { border-left: 4px solid var(--accent); }
+.notamrow.e-activo   { border-left: 4px solid var(--accent); }
+.notamrow.e-dormido  { border-left: 4px solid var(--amber); }
+.notamrow.e-revisar  { border-left: 4px solid var(--amber); border-style: dashed; }
 .notamrow.e-futuro   { border-left: 4px solid var(--blue); }
 .notamrow.e-expirado { border-left: 4px solid var(--line); opacity: .6; }
-.notamrow.e-vigente  .ncuando { color: var(--accent); }
+.notamrow.e-activo   .ncuando { color: var(--accent); }
+.notamrow.e-dormido  .ncuando,
+.notamrow.e-revisar  .ncuando { color: var(--amber); }
 .notamrow.e-futuro   .ncuando { color: var(--blue); }
 .notamrow.e-expirado .ncuando { color: var(--muted); font-weight: 600; }
 .notamrow.e-expirado .nhhora { color: var(--muted); }
+
+/* Un NOTAM que está dentro de sus fechas pero hoy no le toca no puede
+   parecerse a uno activo: las horas se apagan y el horario se enciende. */
+.notamrow.e-dormido .nhhora, .notamrow.e-revisar .nhhora { color: var(--muted); }
+.notamrow.e-dormido .nhoras, .notamrow.e-revisar .nhoras { opacity: .72; }
+
+/* El campo D), a la vista en el renglón */
+.nhorario {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 96px; line-height: 1.15;
+  padding: 2px 10px; border-radius: 9px;
+  background: var(--surface-2); border: 1px dashed var(--line);
+}
+.nhorario b {
+  font-size: 13px; font-weight: 700; color: var(--text-2);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.notamrow.e-activo  .nhorario { border-color: var(--accent); background: var(--accent-weak); }
+.notamrow.e-activo  .nhorario b { color: var(--accent); }
+.notamrow.e-dormido .nhorario,
+.notamrow.e-revisar .nhorario { border-color: var(--amber); background: var(--amber-weak); }
+.notamrow.e-dormido .nhorario b,
+.notamrow.e-revisar .nhorario b { color: var(--amber); }
 
 /* Lo que cambia dentro de las dos horas siguientes: eso es lo que hay que ver */
 .notamrow.pronto {
@@ -1259,6 +1291,7 @@ input, select, textarea, .chips, .notamlist {
 .notamrow.pronto .nhoras { border-color: var(--amber); background: var(--amber-weak); }
 .notamcount { font-size: 12.5px; }
 .notamcount .avisa { color: var(--amber); }
+.notamcount .grave { color: var(--red); }
 
 /* Con tres grupos, la lista necesita un poco más de alto antes de desplazarse */
 .notamlist { max-height: 460px; }
