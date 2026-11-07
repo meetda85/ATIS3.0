@@ -59,6 +59,16 @@
       /* "Boeing 747-8 aeronave" -> "Boeing 747-8" */
       out = out.replace(/\b((?:Boeing|Airbus)\s+[\w-]+|[AB]\d{3}[\w-]*)\s+aeronaves?\b/g, '$1');
       out = out.replace(/\s{2,}/g, ' ').trim();
+    } else {
+      /* En inglés no hay nada que traducir, pero las palabras corrientes que
+         el NOTAM trae en mayúsculas —AND, ONLY, CLOSED— quedaban gritando en
+         medio de una frase en minúsculas: «runway 05 right AND taxiway D
+         closed». Se bajan las que son palabra común; las siglas que no están
+         en la lista se quedan como están, que para eso son siglas. */
+      out = out.replace(/\b([A-Z]{2,})\b/g, function (match) {
+        return Object.prototype.hasOwnProperty.call(D.PALABRAS_ES, match)
+          ? match.toLowerCase() : match;
+      });
     }
 
     /* Designadores de pista sueltos: 05R -> 05 derecha */

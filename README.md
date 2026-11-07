@@ -530,6 +530,12 @@ y los designadores de letra con dígitos, para que la «y» de una enumeración 
 «Yanki». Los tipos de aeronave se leen como en radio: *B747-8* → «Boeing siete cuatro siete
 ocho». En pantalla el texto se conserva tal como viene en el NOTAM.
 
+La palabra clave se reconoce **venga como venga**: en minúsculas («calle de rodaje D»), con
+mayúscula inicial («Calle de rodaje D», que es como empieza el primer renglón del guion) o
+toda en mayúsculas («CALLE DE RODAJE D», que es como se escribe en *Información adicional*).
+Las tres dicen «Delta». El designador, en cambio, tiene que ir en mayúsculas: así *taxiway
+is closed* no convierte el «is» en nada.
+
 ## Qué versión está instalada
 
 Arriba a la izquierda, junto al nombre, está el número de versión (`v3.3`). Al pasarle el

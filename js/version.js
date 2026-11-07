@@ -7,12 +7,12 @@
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.11',
+    VERSION: '3.12',
     FECHA: '2026-11-07',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Horas de los NOTAM en grande, la pantalla ya no se va sola al guion '
-      + 'mientras se transmite, las tarjetas sin huecos, y el METAR otra vez del CAPMA, '
-      + 'que se mudó de dirección'
+    NOVEDADES: 'Los designadores se locutan con el alfabeto fonético siempre, también '
+      + 'cuando la palabra clave va con mayúscula: antes el primer renglón del guion '
+      + 'decía «D» y el resto «Delta»'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;

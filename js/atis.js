@@ -207,8 +207,16 @@
     'thresholds?|plataformas?|aprons?|categor[íi]a|category)';
   var TOKEN_DESIGNADOR = '(?:[A-Z]\\d{1,2}|[A-Z]{1,3})';
   var SEPARADOR = '(?:,|[yY]|[aA][nN][dD])';
+  /* La palabra clave se busca SIN distinguir mayúsculas: en el guion viene en
+     minúsculas («calle de rodaje D»), en los resúmenes con mayúscula inicial
+     («Calle de rodaje D») y en Información adicional se escribe toda en
+     mayúsculas («CALLE DE RODAJE D»). Antes solo se reconocía la primera
+     forma, así que en una misma frase una decía «Delta» y la otra se quedaba
+     en «D».
+     El designador, en cambio, tiene que venir en mayúsculas, y por eso se
+     comprueba abajo: si no, «taxiway is closed» tomaría «is» por designador. */
   var RE_DESIGNADOR = new RegExp('\\b(' + CLAVES_DESIGNADOR + ')\\s+(' + TOKEN_DESIGNADOR +
-    '(?:\\s*' + SEPARADOR + '\\s*' + TOKEN_DESIGNADOR + ')*)', 'g');
+    '\\b(?:\\s*' + SEPARADOR + '\\s*' + TOKEN_DESIGNADOR + '\\b)*)', 'gi');
 
   /* "calle de rodaje A4 y B" -> "calle de rodaje Alfa cuatro y Bravo".
      Solo toca las letras que siguen a una de las palabras clave, para no
@@ -216,7 +224,10 @@
   function foneticoDesignadores(text, lang) {
     return String(text || '').replace(RE_DESIGNADOR, function (todo, clave, lista) {
       var primero = true;
-      var convertida = lista.replace(/[A-Z]\d{1,2}|[A-Z]{1,3}/g, function (tok) {
+      var convertida = lista.replace(/[A-Za-z]\d{1,2}|[A-Za-z]{1,3}/g, function (tok) {
+        /* Un designador va en mayúsculas. Lo que no, es una palabra que se
+           coló detrás de la clave («taxiway is closed») y se deja igual. */
+        if (!/^[A-Z](?:[A-Z]{0,2}|\d{1,2})$/.test(tok)) return tok;
         /* "Y" y "AND" separan la enumeración... salvo que sean el designador
            mismo: la calle de rodaje Y se lee Yanki, no "y". */
         if (!primero && /^(?:AND|Y)$/.test(tok)) return tok;

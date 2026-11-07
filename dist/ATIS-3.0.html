@@ -2138,12 +2138,12 @@ input, select, textarea, .chips, .notamlist {
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.11',
+    VERSION: '3.12',
     FECHA: '2026-11-07',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Horas de los NOTAM en grande, la pantalla ya no se va sola al guion '
-      + 'mientras se transmite, las tarjetas sin huecos, y el METAR otra vez del CAPMA, '
-      + 'que se mudó de dirección'
+    NOVEDADES: 'Los designadores se locutan con el alfabeto fonético siempre, también '
+      + 'cuando la palabra clave va con mayúscula: antes el primer renglón del guion '
+      + 'decía «D» y el resto «Delta»'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;
@@ -3405,6 +3405,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       /* "Boeing 747-8 aeronave" -> "Boeing 747-8" */
       out = out.replace(/\b((?:Boeing|Airbus)\s+[\w-]+|[AB]\d{3}[\w-]*)\s+aeronaves?\b/g, '$1');
       out = out.replace(/\s{2,}/g, ' ').trim();
+    } else {
+      /* En inglés no hay nada que traducir, pero las palabras corrientes que
+         el NOTAM trae en mayúsculas —AND, ONLY, CLOSED— quedaban gritando en
+         medio de una frase en minúsculas: «runway 05 right AND taxiway D
+         closed». Se bajan las que son palabra común; las siglas que no están
+         en la lista se quedan como están, que para eso son siglas. */
+      out = out.replace(/\b([A-Z]{2,})\b/g, function (match) {
+        return Object.prototype.hasOwnProperty.call(D.PALABRAS_ES, match)
+          ? match.toLowerCase() : match;
+      });
     }
 
     /* Designadores de pista sueltos: 05R -> 05 derecha */
@@ -3950,8 +3960,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     'thresholds?|plataformas?|aprons?|categor[íi]a|category)';
   var TOKEN_DESIGNADOR = '(?:[A-Z]\\d{1,2}|[A-Z]{1,3})';
   var SEPARADOR = '(?:,|[yY]|[aA][nN][dD])';
+  /* La palabra clave se busca SIN distinguir mayúsculas: en el guion viene en
+     minúsculas («calle de rodaje D»), en los resúmenes con mayúscula inicial
+     («Calle de rodaje D») y en Información adicional se escribe toda en
+     mayúsculas («CALLE DE RODAJE D»). Antes solo se reconocía la primera
+     forma, así que en una misma frase una decía «Delta» y la otra se quedaba
+     en «D».
+     El designador, en cambio, tiene que venir en mayúsculas, y por eso se
+     comprueba abajo: si no, «taxiway is closed» tomaría «is» por designador. */
   var RE_DESIGNADOR = new RegExp('\\b(' + CLAVES_DESIGNADOR + ')\\s+(' + TOKEN_DESIGNADOR +
-    '(?:\\s*' + SEPARADOR + '\\s*' + TOKEN_DESIGNADOR + ')*)', 'g');
+    '\\b(?:\\s*' + SEPARADOR + '\\s*' + TOKEN_DESIGNADOR + '\\b)*)', 'gi');
 
   /* "calle de rodaje A4 y B" -> "calle de rodaje Alfa cuatro y Bravo".
      Solo toca las letras que siguen a una de las palabras clave, para no
@@ -3959,7 +3977,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function foneticoDesignadores(text, lang) {
     return String(text || '').replace(RE_DESIGNADOR, function (todo, clave, lista) {
       var primero = true;
-      var convertida = lista.replace(/[A-Z]\d{1,2}|[A-Z]{1,3}/g, function (tok) {
+      var convertida = lista.replace(/[A-Za-z]\d{1,2}|[A-Za-z]{1,3}/g, function (tok) {
+        /* Un designador va en mayúsculas. Lo que no, es una palabra que se
+           coló detrás de la clave («taxiway is closed») y se deja igual. */
+        if (!/^[A-Z](?:[A-Z]{0,2}|\d{1,2})$/.test(tok)) return tok;
         /* "Y" y "AND" separan la enumeración... salvo que sean el designador
            mismo: la calle de rodaje Y se lee Yanki, no "y". */
         if (!primero && /^(?:AND|Y)$/.test(tok)) return tok;

@@ -114,7 +114,13 @@ test('NOTAM estructurado ICAO', () => {
 
 test('NOTAM en texto libre', () => {
   const n = ATIS.notam.parse('TWY B AND H CLSD BTN TWY H1 AND TWY D', 'en');
-  assert.ok(/taxiway B AND H closed between/.test(n.plain), n.plain);
+  /* En ingles las palabras corrientes bajan a minusculas: el NOTAM viene todo
+     en mayusculas, pero en pantalla tiene que leerse como una frase */
+  assert.ok(/taxiway B and H closed between/.test(n.plain), n.plain);
+  assert.ok(!/\bAND\b/.test(n.plain), 'quedo un AND gritando: ' + n.plain);
+  /* Los indicativos que no son palabra comun se quedan como estan */
+  const s2 = ATIS.notam.parse('E) VOR MEX U/S', 'en');
+  assert.ok(/MEX/.test(s2.plain), 'se perdio el indicativo: ' + s2.plain);
 });
 
 console.log('\nGuion ATIS');
@@ -235,7 +241,40 @@ test('los designadores se locutan con el alfabeto fonetico', () => {
   /* Ingles: AND en mayusculas no debe cortar la enumeracion */
   const en = ATIS.notam.parse('E) TWYS B9, C2 AND B8 CLSD', 'en');
   assert.strictEqual(ATIS.script.paraLocutar(en.plain, 'en'),
-    'taxiways Bravo niner, Charlie two And Bravo eight closed');
+    'taxiways Bravo niner, Charlie two and Bravo eight closed');
+
+  /* La palabra clave puede venir de cualquier forma: en el guion va en
+     minusculas, en los resumenes con mayuscula inicial, y en Informacion
+     adicional se escribe toda en mayusculas. Las tres tienen que decir Delta.
+     Antes solo servia la primera, y en una misma frase una decia Delta y la
+     otra se quedaba en D. */
+  [
+    ['es', 'calle de rodaje D cerrada'],
+    ['es', 'Calle de rodaje D cerrada'],
+    ['es', 'CALLE DE RODAJE D CERRADA'],
+    ['en', 'taxiway D closed'],
+    ['en', 'Taxiway D closed'],
+    ['en', 'TAXIWAY D CLOSED']
+  ].forEach(function (c) {
+    const dicho = ATIS.script.paraLocutar(c[1], c[0]);
+    assert.ok(/Delta/.test(dicho), 'no se locuto el designador: ' + c[1] + ' -> ' + dicho);
+    assert.ok(!/\bD\b/.test(dicho), 'quedo la letra suelta: ' + c[1] + ' -> ' + dicho);
+  });
+
+  /* Y en una misma frase, las dos igual */
+  assert.strictEqual(
+    ATIS.script.paraLocutar('Taxiway D closed between runway 05 right and taxiway D', 'en'),
+    'Taxiway Delta closed between runway zero five right and taxiway Delta');
+
+  /* Lo demas no se toca: una palabra detras de la clave no es un designador */
+  assert.strictEqual(ATIS.script.paraLocutar('taxiway is closed', 'en'), 'taxiway is closed');
+  assert.strictEqual(ATIS.script.paraLocutar('Taxiway Delta closed', 'en'), 'Taxiway Delta closed');
+  assert.strictEqual(ATIS.script.paraLocutar('la pista en uso es la 05 derecha', 'es'),
+    'la pista en uso es la cero cinco derecha');
+
+  /* Las otras claves tambien, en cualquier forma */
+  assert.ok(/Alfa/.test(ATIS.script.paraLocutar('Plataforma A cerrada', 'es')));
+  assert.ok(/Bravo/.test(ATIS.script.paraLocutar('Threshold B displaced', 'en')));
 });
 
 test('la pista sin lado anuncia las dos de esa direccion', () => {
