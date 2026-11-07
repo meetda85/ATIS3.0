@@ -300,6 +300,38 @@ main {
   .banda { grid-template-columns: 1fr; }
   .banda > #secInfo, .banda > #secViento, .banda > #secCielo { grid-area: auto; }
 }
+
+/* ---- Segunda banda: lo que se escribe a mano, en dos columnas ----
+   Información adicional y Texto libre ocupaban un renglón cada una y las dos
+   se quedaban a medio llenar. Juntas caben en uno solo. */
+.banda2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 16px;
+}
+@media (max-width: 1180px) { .banda2 { grid-template-columns: 1fr; } }
+
+/* Las dos tarjetas terminan parejas, y en lugar de dejar un hueco al final
+   de la más corta, lo que crece es el espacio para escribir. */
+.banda2 > .card { display: flex; flex-direction: column; }
+.banda2 > .card > .grid2 { flex: 1 1 auto; }
+.banda2 > .card > .grid2 > .field { margin-bottom: 0; }
+.banda2 > .card > .grid2 textarea { flex: 1 1 auto; min-height: 104px; }
+
+/* ---- Ayuda que se despliega ----
+   La explicación completa sigue ahí, pero no ocupa media tarjeta todos los
+   días: se abre cuando hace falta. */
+details.ayuda { margin: 4px 0 10px; }
+details.ayuda > summary {
+  cursor: pointer; width: fit-content;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .04em;
+  color: var(--muted); padding: 3px 2px;
+}
+details.ayuda > summary:hover { color: var(--accent); }
+details.ayuda > summary::marker { color: var(--muted); }
+details.ayuda[open] > summary { color: var(--text-2); margin-bottom: 2px; }
+details.ayuda .help:last-child { margin-bottom: 0; }
 @media (max-width: 960px) {
   .page { grid-template-columns: 1fr; }
   main { padding: 0 16px 210px; }
@@ -1139,71 +1171,113 @@ input, select, textarea, .chips, .notamlist {
 }
 
 /* ==========================================================================
-   La lista de NOTAM, leída de un vistazo
-   Tres grupos —los que todavía no empiezan, los vigentes y los vencidos— y en
-   cada renglón, en grande, lo que importa: cuánto falta para que cambie. El
-   rango exacto queda debajo, en pequeño, para consultarlo.
+   La lista de NOTAM
+   Pensada para la pantalla de la torre, que es vieja y de poco contraste:
+   las horas de inicio y de fin van grandes, en columnas fijas y con su
+   rótulo; el día se dice HOY, MAÑANA o AYER en vez de hacer cuentas con la
+   fecha. Arriba, tres grupos: lo que no ha empezado, lo que está al aire y
+   lo vencido. Todo en UTC, que es la hora del ATIS.
    ========================================================================== */
 .ngrupo {
-  display: flex; align-items: center; gap: 8px;
-  margin: 14px 0 6px; padding-bottom: 5px;
-  border-bottom: 1px solid var(--line-soft);
+  display: flex; align-items: center; gap: 9px;
+  margin: 16px 0 7px; padding-bottom: 6px;
+  border-bottom: 2px solid var(--line);
 }
 .ngrupo:first-of-type { margin-top: 4px; }
 .ngtit {
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .14em;
-  color: var(--muted);
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--text-2);
 }
 .ngn {
-  font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: var(--r-pill);
-  background: var(--surface-3); color: var(--muted); font-variant-numeric: tabular-nums;
+  font-size: 11.5px; font-weight: 800; padding: 2px 9px; border-radius: var(--r-pill);
+  background: var(--surface-3); color: var(--text-2); font-variant-numeric: tabular-nums;
 }
-.ngnota { font-size: 10.5px; color: var(--muted); font-style: italic; }
+.ngnota { font-size: 11px; color: var(--muted); font-style: italic; }
 .g-futuro  .ngtit, .g-futuro  .ngn { color: var(--blue); }
 .g-vigente .ngtit, .g-vigente .ngn { color: var(--accent); }
-.g-futuro  .ngn { background: rgba(10, 86, 176, .10); }
+.g-futuro  .ngn { background: rgba(10, 86, 176, .12); }
 .g-vigente .ngn { background: var(--accent-weak); }
+.g-futuro  { border-bottom-color: var(--blue); }
+.g-vigente { border-bottom-color: var(--accent); }
 
-/* El renglón: la columna de la derecha pasa a dos renglones */
+/* ---- El renglón ---- */
+.notamrow {
+  grid-template-columns: auto 92px minmax(0, 1fr) auto auto auto;
+  gap: 14px; padding: 9px 14px; font-size: 14px;
+}
+.notamrow + .notamrow { margin-top: 6px; }
+.notamrow .nid { font-size: 12.5px; }
+.notamrow .ncond { font-size: 14px; }
+
+/* ---- Las horas: lo que hay que leer de lejos ---- */
+.nhoras {
+  display: flex; align-items: stretch; gap: 10px;
+  padding: 2px 12px; border-radius: 9px;
+  background: var(--surface); border: 1px solid var(--line-soft);
+}
+.nh {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 64px; line-height: 1.1;
+}
+.nhrot {
+  font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted);
+}
+.nhhora {
+  font-family: var(--ui-display);
+  font-size: 20px; font-weight: 700; letter-spacing: .01em;
+  color: var(--text); font-variant-numeric: tabular-nums;
+}
+.nhdia {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  color: var(--muted); white-space: nowrap;
+}
+.nh.cerca .nhdia { color: var(--text-2); }
+.nh.vacio .nhhora { color: var(--muted); font-weight: 500; }
+.nhsep {
+  align-self: center; color: var(--muted); font-size: 15px; padding-bottom: 2px;
+}
+
+/* ---- Qué le falta para cambiar ---- */
 .notamrow .nwhen {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
-  line-height: 1.25; min-width: 150px;
+  display: flex; align-items: center; justify-content: flex-end;
+  min-width: 132px;
 }
 .notamrow .ncuando {
-  font-size: 11.5px; font-weight: 650; color: var(--text-2); white-space: nowrap;
-}
-.notamrow .nrango {
-  font-size: 10px; color: var(--muted); white-space: nowrap; opacity: .85;
+  font-size: 12.5px; font-weight: 700; color: var(--text-2);
+  white-space: nowrap; text-align: right;
 }
 
 /* El estado se ve también en el renglón, sin tener que leer la hora */
-.notamrow.e-vigente  { border-left: 3px solid var(--accent); }
-.notamrow.e-futuro   { border-left: 3px solid var(--blue); }
-.notamrow.e-expirado { border-left: 3px solid var(--line); opacity: .62; }
+.notamrow.e-vigente  { border-left: 4px solid var(--accent); }
+.notamrow.e-futuro   { border-left: 4px solid var(--blue); }
+.notamrow.e-expirado { border-left: 4px solid var(--line); opacity: .6; }
 .notamrow.e-vigente  .ncuando { color: var(--accent); }
 .notamrow.e-futuro   .ncuando { color: var(--blue); }
-.notamrow.e-expirado .ncuando { color: var(--muted); font-weight: 500; }
+.notamrow.e-expirado .ncuando { color: var(--muted); font-weight: 600; }
+.notamrow.e-expirado .nhhora { color: var(--muted); }
 
 /* Lo que cambia dentro de las dos horas siguientes: eso es lo que hay que ver */
 .notamrow.pronto {
   border-left-color: var(--amber);
-  box-shadow: inset 3px 0 0 var(--amber), 0 0 0 1px var(--amber-weak);
+  box-shadow: inset 4px 0 0 var(--amber), 0 0 0 1px var(--amber-weak);
 }
-.notamrow.pronto .ncuando {
-  color: var(--amber); font-weight: 700;
-}
-.notamrow.pronto .ncuando::before {
-  content: "⏱ "; font-weight: 400;
-}
+.notamrow.pronto .ncuando { color: var(--amber); font-weight: 800; }
+.notamrow.pronto .ncuando::before { content: "\23F1  "; font-weight: 400; }
+.notamrow.pronto .nhoras { border-color: var(--amber); background: var(--amber-weak); }
+.notamcount { font-size: 12.5px; }
 .notamcount .avisa { color: var(--amber); }
 
 /* Con tres grupos, la lista necesita un poco más de alto antes de desplazarse */
-.notamlist { max-height: 440px; }
+.notamlist { max-height: 460px; }
 
-@media (max-width: 900px) {
-  .notamrow { grid-template-columns: auto 1fr auto; row-gap: 4px; }
-  .notamrow .ncond { grid-column: 1 / -1; white-space: normal; }
-  .notamrow .nwhen { align-items: flex-start; }
+/* En pantallas angostas el renglón se parte en dos pisos, pero las horas
+   siguen siendo lo más grande. */
+@media (max-width: 1100px) {
+  .notamrow { grid-template-columns: auto 92px minmax(0, 1fr) auto; row-gap: 8px; }
+  .notamrow .ncond { grid-column: 2 / -1; white-space: normal; }
+  .notamrow .nhoras { grid-column: 2 / 4; justify-self: start; }
+  .notamrow .nwhen { justify-content: flex-start; min-width: 0; }
 }
 
 </style>
@@ -1439,21 +1513,24 @@ input, select, textarea, .chips, .notamlist {
       <button id="btnNotamClear" class="ghost">Vaciar lista</button>
       <span id="notamStatus" class="status"></span>
     </div>
-    <p class="help">
-      <b>Bajar de la FAA</b> los trae solo, sin archivos: del servicio NMS si est&aacute;n
-      puestas las llaves, o del &uacute;ltimo Excel de la carpeta vigilada. Se configura una vez
-      en <i>Ajustes &rarr; NOTAM autom&aacute;ticos</i>, y usa la estaci&oacute;n que est&eacute; arriba.
-      Muestra lo que encontr&oacute; y usted decide si lo carga.
-    </p>
-    <p class="help">
-      Tambi&eacute;n se puede cargar la hoja de cálculo tal como se descarga del FNS
-      (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla, o arrastrarla a este recuadro.
-      No hace falta tener Excel instalado: el programa lee el archivo por su cuenta. Quedan marcados para transmitir
-      solo los de pista, rodaje, iluminación y radioayudas; las posiciones de
-      estacionamiento y las frecuencias se cargan pero no salen al aire.
-      Al aire va únicamente la condición, un renglón por NOTAM: las fechas de vigencia
-      quedan a la vista en esta lista, no se locutan.
-    </p>
+    <details class="ayuda">
+      <summary>C&oacute;mo se cargan y qu&eacute; sale al aire</summary>
+      <p class="help">
+        <b>Bajar de la FAA</b> los trae solo, sin archivos: del servicio NMS si est&aacute;n
+        puestas las llaves, o del &uacute;ltimo Excel de la carpeta vigilada. Se configura una vez
+        en <i>Administraci&oacute;n &rarr; NOTAM autom&aacute;ticos</i>, y usa la estaci&oacute;n que est&eacute;
+        arriba. Muestra lo que encontr&oacute; y usted decide si lo carga.
+      </p>
+      <p class="help">
+        Tambi&eacute;n se puede cargar la hoja de cálculo tal como se descarga del FNS
+        (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla, o arrastrarla a este recuadro.
+        No hace falta tener Excel instalado: el programa lee el archivo por su cuenta. Quedan
+        marcados para transmitir solo los de pista, rodaje, iluminación y radioayudas; las
+        posiciones de estacionamiento y las frecuencias se cargan pero no salen al aire.
+        Al aire va únicamente la condición, un renglón por NOTAM: las horas de vigencia
+        quedan a la vista en esta lista, no se locutan.
+      </p>
+    </details>
     <div class="row buttons">
       <button id="btnNotamAll" class="small ghost">Marcar todos</button>
       <button id="btnNotamNone" class="small ghost">Desmarcar todos</button>
@@ -1465,8 +1542,11 @@ input, select, textarea, .chips, .notamlist {
     <div id="notamList" class="notamlist"></div>
   </section>
 
+  <!-- Lo que se escribe a mano, en dos columnas: cabe en un solo renglón -->
+  <div class="banda2 span2">
+
   <!-- ============ INFORMACIÓN ADICIONAL ============ -->
-  <section class="card span2" id="secAdic">
+  <section class="card" id="secAdic">
     <h2><span class="num">6</span>Información adicional</h2>
     <div class="grid2">
       <label class="field"><span>Español (una idea por línea)</span>
@@ -1483,7 +1563,7 @@ input, select, textarea, .chips, .notamlist {
   </section>
 
   <!-- ============ TEXTO LIBRE ============ -->
-  <section class="card span2" id="cardLibre">
+  <section class="card" id="cardLibre">
     <h2><span class="num">7</span>Texto libre</h2>
     <label class="checkline grande">
       <input type="checkbox" id="libreActivo">
@@ -1507,6 +1587,8 @@ input, select, textarea, .chips, .notamlist {
       cinco derecha, Alfa cuatro, uno uno ocho punto cuatro siete cinco.
     </p>
   </section>
+
+  </div><!-- /banda2 -->
 
   <!-- ============ GUION ============ -->
   <section class="card span2" id="secGuion">
@@ -1736,13 +1818,22 @@ input, select, textarea, .chips, .notamlist {
         m&aacute;s de retraso. Abajo se ve de cu&aacute;l de las dos sali&oacute;. As&iacute;, que una
         fuente se caiga no deja al ATIS sin METAR.
       </p>
+      <p class="help">
+        El CAPMA se mud&oacute; a <b>capma.seneam.gob.mx</b>, y el METAR ya no est&aacute; en la
+        p&aacute;gina: lo entrega su propio servicio, que es la direcci&oacute;n de aqu&iacute; abajo
+        (a la que el programa le pega el indicador de la estaci&oacute;n). Ese servicio
+        sale por el <b>puerto 444</b>; si en esta red solo dejan salir por el 443,
+        no se alcanza aunque haya internet, y entonces el ATIS se queda con el NOAA.
+        El bot&oacute;n <i>Probar la conexi&oacute;n</i> lo dice con todas sus letras.
+      </p>
       <label class="checkline grande">
         <input type="checkbox" id="vigActiva">
         <span><b>Revisar el METAR automáticamente</b></span>
       </label>
       <div class="grid3">
         <label class="field"><span>Dirección de la fuente</span>
-          <input id="vigUrl" spellcheck="false" value="http://capma.mx/reportemetar/elegir_samx_3.php">
+          <input id="vigUrl" spellcheck="false"
+                 value="https://capma.seneam.gob.mx:444/api/v1/sigimet/bdma/public/samxs/">
         </label>
         <label class="field"><span>Estación</span>
           <input id="vigEstacion" maxlength="4" value="MMMX">
@@ -2047,12 +2138,12 @@ input, select, textarea, .chips, .notamlist {
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.10',
-    FECHA: '2026-10-15',
+    VERSION: '3.11',
+    FECHA: '2026-11-07',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Lista de NOTAM por grupos, con el tiempo que falta para que cada uno '
-      + 'entre o salga; la pantalla ya no se sube sola al cargarlos; y los botones de '
-      + 'administración vuelven a guardar de verdad'
+    NOVEDADES: 'Horas de los NOTAM en grande, la pantalla ya no se va sola al guion '
+      + 'mientras se transmite, las tarjetas sin huecos, y el METAR otra vez del CAPMA, '
+      + 'que se mudó de dirección'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;
@@ -6077,6 +6168,23 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     renderNotams(); render();
   }
 
+  /* La hora y el día, partidos, para poder poner la hora en grande y el día
+     en pequeño debajo. El día se dice como se dice en la torre: HOY, MAÑANA,
+     AYER, y si no, el día y el mes. Todo en UTC, que es la hora del ATIS. */
+  var MESES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
+               'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+
+  function fechaPartes(d, ahora) {
+    if (!d) return null;
+    var hora = ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
+    var hoy = Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate());
+    var suyo = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    var dias = Math.round((suyo - hoy) / 86400000);
+    var dia = dias === 0 ? 'HOY' : dias === 1 ? 'MAÑANA' : dias === -1 ? 'AYER'
+      : ('0' + d.getUTCDate()).slice(-2) + ' ' + MESES[d.getUTCMonth()];
+    return { hora: hora, dia: dia, cercano: dias >= 0 && dias <= 1 };
+  }
+
   function fechaCorta(d) {
     if (!d) return '';
     var dd = ('0' + d.getUTCDate()).slice(-2), mm = ('0' + (d.getUTCMonth() + 1)).slice(-2);
@@ -6118,10 +6226,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       var quedan = (hasta - ahora) / 60000;
       return {
         clase: 'vigente', minutos: quedan, pronto: quedan <= PRONTO,
-        texto: 'vigente · termina en ' + cuantoFalta(quedan)
+        texto: 'termina en ' + cuantoFalta(quedan)
       };
     }
-    return { clase: 'vigente', minutos: null, pronto: false, texto: 'vigente · sin hora de término' };
+    return { clase: 'vigente', minutos: null, pronto: false, texto: 'al aire, sin hora de término' };
   }
 
   /* Los grupos en que se parte la lista, en el orden en que importan */
@@ -6162,13 +6270,23 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     });
     cajones.expirado.sort(function (a, b) { return a.est.minutos - b.est.minutos; });
 
+    /* Un extremo del rango: la hora en grande, el día debajo */
+    function extremo(rotulo, partes) {
+      if (!partes) {
+        return '<span class="nh vacio"><span class="nhrot">' + rotulo + '</span>' +
+          '<b class="nhhora">—</b><span class="nhdia">sin término</span></span>';
+      }
+      return '<span class="nh' + (partes.cercano ? ' cerca' : '') + '">' +
+        '<span class="nhrot">' + rotulo + '</span>' +
+        '<b class="nhhora">' + escapeHtml(partes.hora) + '</b>' +
+        '<span class="nhdia">' + escapeHtml(partes.dia) + '</span></span>';
+    }
+
     function fila(x) {
       var n = x.n, i = x.i, est = x.est;
       var condicion = (n.es.plain || n.raw).replace(/\s+/g, ' ');
       var ajeno = n.meta.propio === false
         ? '<span class="badge fut">' + escapeHtml(n.meta.location) + '</span>' : '';
-      var rango = escapeHtml(fechaCorta(n.meta.desde)) +
-        (n.meta.hasta ? ' → ' + escapeHtml(fechaCorta(n.meta.hasta)) : '');
 
       var html = '<div class="notamrow ' + (n.include ? 'on' : 'off') +
           ' e-' + est.clase + (est.pronto ? ' pronto' : '') + '">' +
@@ -6176,9 +6294,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           ' title="transmitir">' +
         '<span class="nid">' + escapeHtml(n.meta.id || ('#' + (i + 1))) + '</span>' +
         '<span class="ncond" title="' + escapeHtml(condicion) + '">' + escapeHtml(condicion) + '</span>' +
+        '<span class="nhoras" title="horas en UTC">' +
+          extremo('Desde', fechaPartes(n.meta.desde, ahora)) +
+          '<span class="nhsep">&rarr;</span>' +
+          extremo('Hasta', fechaPartes(n.meta.hasta, ahora)) +
+        '</span>' +
         '<span class="nwhen">' +
           '<span class="ncuando">' + ajeno + escapeHtml(est.texto) + '</span>' +
-          '<span class="nrango" title="horas UTC">' + rango + '</span>' +
         '</span>' +
         '<button class="nmore" data-more="' + i + '">' + (n.expanded ? 'ocultar' : 'ver') + '</button>' +
       '</div>';
@@ -6209,7 +6331,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       (porEmpezar ? ' · <b class="avisa">' + porEmpezar + ' empieza(n) dentro de 2 h</b>' : '') +
       (ocultos ? ' · ' + ocultos + ' ocultos por vigencia' : '') + '</div>' + html;
 
-    el.notamList.scrollTop = desplazado;
+    /* Devolver la lista a donde estaba. Se pide una medida antes de colocarla
+       para que el navegador ya tenga calculado el alto del contenido nuevo. */
+    if (desplazado) {
+      void el.notamList.scrollHeight;
+      el.notamList.scrollTop = desplazado;
+    }
   }
 
   /* Las horas que faltan se mueven solas: la lista se refresca cada minuto
@@ -6363,12 +6490,22 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       piezas[i].classList.toggle('dicha', i < desde);
       if (activa && !primero) primero = piezas[i];
     }
-    /* Que lo que suena quede siempre a la vista, sin saltos bruscos */
-    if (primero && primero.scrollIntoView) {
-      var caja = nodos[lang].getBoundingClientRect();
+    /* Que lo que suena quede a la vista DENTRO del recuadro del guion.
+       Aquí no se puede usar scrollIntoView: además del recuadro mueve todo lo
+       que se pueda desplazar por encima, la ventana incluida. Al transmitir
+       eso arrastraba la pantalla sola hasta el guion —que está hasta abajo—
+       una y otra vez, y no dejaba escribir el METAR nuevo. Esto mueve el
+       recuadro y nada más. */
+    if (primero) {
+      var caja = nodos[lang];
+      var r = caja.getBoundingClientRect();
       var pos = primero.getBoundingClientRect();
-      if (pos.top < caja.top + 4 || pos.bottom > caja.bottom - 4) {
-        primero.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (pos.top < r.top + 4 || pos.bottom > r.bottom - 4) {
+        var destino = caja.scrollTop + (pos.top - r.top) -
+          Math.max(0, (caja.clientHeight - pos.height) / 2);
+        destino = Math.max(0, Math.min(destino, caja.scrollHeight - caja.clientHeight));
+        if (caja.scrollTo) caja.scrollTo({ top: destino, behavior: 'smooth' });
+        else caja.scrollTop = destino;
       }
     }
   }

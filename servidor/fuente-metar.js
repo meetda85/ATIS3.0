@@ -1,29 +1,46 @@
 /* ATIS 3.0 — Lectura del METAR desde la red AFTN del CAPMA
  *
- * La página del CAPMA (http://capma.mx/reportemetar/elegir_samx_3.php) publica
- * los METAR y SPECI en una lista, el más reciente arriba. Esto los extrae.
+ * El CAPMA se mudó: la página vieja (capma.mx/reportemetar) ya no contesta, y
+ * el portal nuevo —capma.seneam.gob.mx— no trae los METAR en el HTML, los pide
+ * a su propio servicio:
  *
- * No se analiza la estructura HTML a propósito: se quitan las etiquetas y se
- * buscan los informes por su propio formato. Así sigue funcionando aunque el
- * sitio cambie de tablas a párrafos o le muevan el diseño.
+ *     https://capma.seneam.gob.mx:444/api/v1/sigimet/bdma/public/samxs/MMMX
+ *
+ * que devuelve los informes de esa estación con el texto en «mensaje». Es la
+ * misma dirección que usa la página al escribir el indicador OACI en
+ * «Búsqueda por aeropuerto», así que se pide igual que lo pediría el
+ * navegador. Ojo con el puerto 444: hay redes que solo dejan salir por el 443,
+ * y entonces esta fuente no se alcanza aunque haya internet. Para eso está
+ * «Probar la conexión», que lo dice con todas sus letras.
+ *
+ * Si la dirección configurada es una página en lugar del servicio, se lee como
+ * antes: se quitan las etiquetas y se buscan los informes por su propio
+ * formato, sin analizar la estructura HTML, para que siga sirviendo aunque le
+ * muevan el diseño.
  */
 'use strict';
 
 const http = require('http');
 const https = require('https');
 
-const URL_CAPMA = 'http://capma.mx/reportemetar/elegir_samx_3.php';
+/* El servicio del portal nuevo. Se le pega el indicador OACI al final. */
+const URL_CAPMA_API = 'https://capma.seneam.gob.mx:444/api/v1/sigimet/bdma/public/samxs/';
+const URL_CAPMA = URL_CAPMA_API;
+
+/* La de antes, que quedó muerta. Está aquí solo para reconocerla en las
+   configuraciones guardadas y cambiarla sola por la nueva. */
+const URL_CAPMA_VIEJA = 'http://capma.mx/reportemetar/elegir_samx_3.php';
 
 /* Respaldo mundial: el servicio del NOAA. Sirve cuando la red del CAPMA no se
    alcanza, o para una estación que esa página no publica. Da el METAR oficial,
    aunque con unos minutos más de retraso que la AFTN. */
 const URL_AWC = 'https://aviationweather.gov/api/data/metar?format=raw&hours=3&ids=';
 
-/* Cuánto se espera a cada fuente. La del CAPMA es una página hecha a mano que
-   arma la lista de todo el país en cada visita: puede tardar más de diez
-   segundos, y es normal. Como esto va en segundo plano y nada se detiene
-   mientras tanto, más vale esperarla que darla por muerta. */
-const ESPERA_CAPMA = 45000;
+/* Cuánto se espera a cada fuente. El servicio nuevo del CAPMA contesta en
+   menos de un segundo cuando se alcanza; lo que tarda es cuando el puerto 444
+   está cerrado y la conexión se queda colgada esperando. Veinte segundos
+   bastan para darla por perdida y pasar al NOAA sin dejar esperando a nadie. */
+const ESPERA_CAPMA = 20000;
 const ESPERA_AWC = 15000;
 
 /* Cada informe empieza en el indicador de estación y termina en "=" */
@@ -101,6 +118,31 @@ function normalizarLineas(texto) {
     .join('\n');
 }
 
+/* ¿La dirección es el servicio nuevo, o una página? */
+function esServicio(url) {
+  return /\/samxs(\/|$)/i.test(String(url || ''));
+}
+
+/* El servicio entrega una lista de informes con el texto en «mensaje». Se
+   admite también un objeto suelto o envuelto en «data», y se le quita la
+   marca TX_OPMET con que vienen encabezados. Si lo que llegó no es JSON,
+   devuelve null y el que llama lo tratará como página. */
+function mensajesDeJSON(texto) {
+  let d;
+  try { d = JSON.parse(texto); } catch (e) { return null; }
+  if (!d) return [];
+  if (d.code === -1) return [];          /* así avisa el servicio que no trae nada */
+  const lista = Array.isArray(d) ? d
+    : (Array.isArray(d.data) ? d.data : (Array.isArray(d.content) ? d.content : [d]));
+  const salida = [];
+  lista.forEach((it) => {
+    if (!it || typeof it !== 'object') return;
+    const m = it.mensaje || it.message || it.texto || it.metar || '';
+    if (typeof m === 'string' && m.trim()) salida.push(m.replace(/TX_OPMET/gi, ' '));
+  });
+  return salida;
+}
+
 /** El informe más reciente de una estación, o null */
 function masReciente(html, estacion) {
   const lista = extraer(html, estacion);
@@ -120,7 +162,7 @@ function descargar(url, tiempoLimite, metodo) {
       hostname: destino.hostname,
       port: destino.port || (destino.protocol === 'https:' ? 443 : 80),
       path: destino.pathname + destino.search,
-      headers: { 'User-Agent': 'ATIS3.0 (laboratorio de torre)', 'Accept': 'text/html,*/*' }
+      headers: { 'User-Agent': 'ATIS3.0 (laboratorio de torre)', 'Accept': 'application/json,text/html,*/*' }
     }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
@@ -153,13 +195,26 @@ function descargar(url, tiempoLimite, metodo) {
   });
 }
 
-/** Consulta la fuente y devuelve el informe más reciente de la estación */
+/**
+ * Consulta la fuente y devuelve el informe más reciente de la estación.
+ * Sirve igual para el servicio nuevo (JSON) que para una página (HTML): al
+ * servicio se le pega el indicador al final, y de lo que conteste se sacan los
+ * informes por su propio formato, que es el mismo en los dos casos.
+ */
 async function consultar(url, estacion, tiempoLimite) {
-  const html = await descargar(url || URL_CAPMA, tiempoLimite);
-  const lista = extraer(html, estacion);
+  const sitio = String(estacion || '').toUpperCase();
+  let dir = url || URL_CAPMA;
+  if (esServicio(dir)) {
+    if (!/^[A-Z]{4}$/.test(sitio)) throw new Error('el indicador debe ser de cuatro letras');
+    dir = dir.replace(/\/+$/, '') + '/' + encodeURIComponent(sitio);
+  }
+  const cuerpo = await descargar(dir, tiempoLimite);
+  const mensajes = mensajesDeJSON(cuerpo);
+  const texto = mensajes === null ? cuerpo : normalizarLineas(mensajes.join('\n'));
+  const lista = extraer(texto, sitio);
   return {
-    url: url || URL_CAPMA,
-    estacion: String(estacion || '').toUpperCase(),
+    url: dir,
+    estacion: sitio,
     total: lista.length,
     ultimo: lista[0] || null,
     recientes: lista.slice(0, 8)
@@ -245,8 +300,9 @@ async function buscar(estacion, opciones) {
 const PRUEBAS = [
   { nombre: 'Internet', url: 'https://www.google.com/generate_204', espera: 8000,
     para: 'una dirección cualquiera, solo para ver si hay salida a internet' },
-  { nombre: 'CAPMA', url: URL_CAPMA, espera: 20000,
-    para: 'la fuente operativa del METAR (red AFTN)' },
+  { nombre: 'CAPMA', url: URL_CAPMA_API + 'MMMX', espera: 20000,
+    para: 'la fuente operativa del METAR (red AFTN). Sale por el puerto 444: ' +
+      'si esta es la única que falla, lo tiene cerrado la red de la oficina' },
   { nombre: 'NOAA', url: URL_AWC + 'MMMX', espera: 15000,
     para: 'el respaldo del METAR' },
   { nombre: 'Voces neuronales', espera: 15000,
@@ -296,7 +352,7 @@ function resumirRed(lista, hayInternet) {
 }
 
 module.exports = {
-  URL_CAPMA, URL_AWC, PRUEBAS, ESPERA_CAPMA, ESPERA_AWC,
+  URL_CAPMA, URL_CAPMA_API, URL_CAPMA_VIEJA, URL_AWC, PRUEBAS, ESPERA_CAPMA, ESPERA_AWC,
   extraer, masReciente, descargar, consultar, consultarAWC,
-  buscar, probarRed, quitarEtiquetas, normalizarLineas
+  buscar, probarRed, quitarEtiquetas, normalizarLineas, esServicio, mensajesDeJSON
 };

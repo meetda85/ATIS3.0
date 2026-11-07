@@ -238,21 +238,24 @@
       <button id="btnNotamClear" class="ghost">Vaciar lista</button>
       <span id="notamStatus" class="status"></span>
     </div>
-    <p class="help">
-      <b>Bajar de la FAA</b> los trae solo, sin archivos: del servicio NMS si est&aacute;n
-      puestas las llaves, o del &uacute;ltimo Excel de la carpeta vigilada. Se configura una vez
-      en <i>Ajustes &rarr; NOTAM autom&aacute;ticos</i>, y usa la estaci&oacute;n que est&eacute; arriba.
-      Muestra lo que encontr&oacute; y usted decide si lo carga.
-    </p>
-    <p class="help">
-      Tambi&eacute;n se puede cargar la hoja de cálculo tal como se descarga del FNS
-      (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla, o arrastrarla a este recuadro.
-      No hace falta tener Excel instalado: el programa lee el archivo por su cuenta. Quedan marcados para transmitir
-      solo los de pista, rodaje, iluminación y radioayudas; las posiciones de
-      estacionamiento y las frecuencias se cargan pero no salen al aire.
-      Al aire va únicamente la condición, un renglón por NOTAM: las fechas de vigencia
-      quedan a la vista en esta lista, no se locutan.
-    </p>
+    <details class="ayuda">
+      <summary>C&oacute;mo se cargan y qu&eacute; sale al aire</summary>
+      <p class="help">
+        <b>Bajar de la FAA</b> los trae solo, sin archivos: del servicio NMS si est&aacute;n
+        puestas las llaves, o del &uacute;ltimo Excel de la carpeta vigilada. Se configura una vez
+        en <i>Administraci&oacute;n &rarr; NOTAM autom&aacute;ticos</i>, y usa la estaci&oacute;n que est&eacute;
+        arriba. Muestra lo que encontr&oacute; y usted decide si lo carga.
+      </p>
+      <p class="help">
+        Tambi&eacute;n se puede cargar la hoja de cálculo tal como se descarga del FNS
+        (<i>fnsNotams_…​.xls</i>) sin abrirla ni convertirla, o arrastrarla a este recuadro.
+        No hace falta tener Excel instalado: el programa lee el archivo por su cuenta. Quedan
+        marcados para transmitir solo los de pista, rodaje, iluminación y radioayudas; las
+        posiciones de estacionamiento y las frecuencias se cargan pero no salen al aire.
+        Al aire va únicamente la condición, un renglón por NOTAM: las horas de vigencia
+        quedan a la vista en esta lista, no se locutan.
+      </p>
+    </details>
     <div class="row buttons">
       <button id="btnNotamAll" class="small ghost">Marcar todos</button>
       <button id="btnNotamNone" class="small ghost">Desmarcar todos</button>
@@ -264,8 +267,11 @@
     <div id="notamList" class="notamlist"></div>
   </section>
 
+  <!-- Lo que se escribe a mano, en dos columnas: cabe en un solo renglón -->
+  <div class="banda2 span2">
+
   <!-- ============ INFORMACIÓN ADICIONAL ============ -->
-  <section class="card span2" id="secAdic">
+  <section class="card" id="secAdic">
     <h2><span class="num">6</span>Información adicional</h2>
     <div class="grid2">
       <label class="field"><span>Español (una idea por línea)</span>
@@ -282,7 +288,7 @@
   </section>
 
   <!-- ============ TEXTO LIBRE ============ -->
-  <section class="card span2" id="cardLibre">
+  <section class="card" id="cardLibre">
     <h2><span class="num">7</span>Texto libre</h2>
     <label class="checkline grande">
       <input type="checkbox" id="libreActivo">
@@ -306,6 +312,8 @@
       cinco derecha, Alfa cuatro, uno uno ocho punto cuatro siete cinco.
     </p>
   </section>
+
+  </div><!-- /banda2 -->
 
   <!-- ============ GUION ============ -->
   <section class="card span2" id="secGuion">
@@ -535,13 +543,22 @@
         m&aacute;s de retraso. Abajo se ve de cu&aacute;l de las dos sali&oacute;. As&iacute;, que una
         fuente se caiga no deja al ATIS sin METAR.
       </p>
+      <p class="help">
+        El CAPMA se mud&oacute; a <b>capma.seneam.gob.mx</b>, y el METAR ya no est&aacute; en la
+        p&aacute;gina: lo entrega su propio servicio, que es la direcci&oacute;n de aqu&iacute; abajo
+        (a la que el programa le pega el indicador de la estaci&oacute;n). Ese servicio
+        sale por el <b>puerto 444</b>; si en esta red solo dejan salir por el 443,
+        no se alcanza aunque haya internet, y entonces el ATIS se queda con el NOAA.
+        El bot&oacute;n <i>Probar la conexi&oacute;n</i> lo dice con todas sus letras.
+      </p>
       <label class="checkline grande">
         <input type="checkbox" id="vigActiva">
         <span><b>Revisar el METAR automáticamente</b></span>
       </label>
       <div class="grid3">
         <label class="field"><span>Dirección de la fuente</span>
-          <input id="vigUrl" spellcheck="false" value="http://capma.mx/reportemetar/elegir_samx_3.php">
+          <input id="vigUrl" spellcheck="false"
+                 value="https://capma.seneam.gob.mx:444/api/v1/sigimet/bdma/public/samxs/">
         </label>
         <label class="field"><span>Estación</span>
           <input id="vigEstacion" maxlength="4" value="MMMX">

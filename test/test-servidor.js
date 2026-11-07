@@ -1,5 +1,6 @@
 /* Pruebas del servidor de control remoto (node test/test-servidor.js) */
 const { spawn } = require('child_process');
+const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const assert = require('assert');
@@ -119,6 +120,71 @@ function conPase(opciones) {
     assert.ok(!/==/.test(l[0].raw + l[1].raw));
   });
 
+  /* ---- El CAPMA nuevo: ya no es una pagina, es un servicio que da JSON ---- */
+  await test('reconoce la direccion del servicio y la de una pagina', async () => {
+    assert.strictEqual(fuente.esServicio(fuente.URL_CAPMA_API), true);
+    assert.strictEqual(fuente.esServicio(fuente.URL_CAPMA_API + 'MMMX'), true);
+    assert.strictEqual(fuente.esServicio(fuente.URL_CAPMA_VIEJA), false);
+    assert.strictEqual(fuente.esServicio('https://ejemplo.mx/metar.html'), false);
+  });
+
+  await test('saca los informes del JSON del CAPMA, con o sin TX_OPMET', async () => {
+    const cuerpo = JSON.stringify([
+      { id: 9, mensaje: 'TX_OPMET\nMETAR MMMX 071644Z 05008KT 6SM HZ SCT020 22/11 A3025=' },
+      { id: 8, mensaje: 'METAR MMMX 071544Z 04006KT 7SM FEW020 21/11 A3026=' }
+    ]);
+    const m = fuente.mensajesDeJSON(cuerpo);
+    assert.strictEqual(m.length, 2);
+    assert.ok(m[0].indexOf('TX_OPMET') < 0, 'quedo la marca TX_OPMET: ' + m[0]);
+    const lista = fuente.extraer(fuente.normalizarLineas(m.join('\n')), 'MMMX');
+    assert.strictEqual(lista.length, 2);
+    assert.strictEqual(lista[0].hhmm, '1644', 'el mas reciente va primero');
+  });
+
+  await test('el JSON vacio del servicio no es un error, es "no hay nada"', async () => {
+    assert.deepStrictEqual(fuente.mensajesDeJSON('{"code":-1}'), []);
+    assert.deepStrictEqual(fuente.mensajesDeJSON('[]'), []);
+    /* y lo que no es JSON se devuelve como tal, para leerlo como pagina */
+    assert.strictEqual(fuente.mensajesDeJSON('<html>hola</html>'), null);
+  });
+
+  await test('consulta el servicio pegandole el indicador de la estacion', async () => {
+    const cuerpo = JSON.stringify([
+      { mensaje: 'METAR MMMX 071644Z 05008KT 6SM HZ SCT020 22/11 A3025=' }
+    ]);
+    let pedido = '';
+    const srv = http.createServer((req, res) => {
+      pedido = req.url;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(cuerpo);
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const base = 'http://127.0.0.1:' + srv.address().port + '/api/v1/sigimet/bdma/public/samxs';
+    try {
+      const c = await fuente.consultar(base, 'MMMX', 4000);
+      assert.strictEqual(pedido, '/api/v1/sigimet/bdma/public/samxs/MMMX',
+        'no le pego la estacion a la direccion: ' + pedido);
+      assert.strictEqual(c.total, 1);
+      assert.ok(/A3025/.test(c.ultimo.raw), 'no saco el informe: ' + JSON.stringify(c.ultimo));
+      const b = await fuente.buscar('MMMX', { url: base, awc: false });
+      assert.strictEqual(b.ok, true);
+      assert.strictEqual(b.fuente, 'CAPMA');
+    } finally { srv.close(); }
+  });
+
+  await test('una pagina de las de antes se sigue leyendo igual', async () => {
+    const html = fs.readFileSync(path.join(__dirname, 'fixtures', 'capma_tabla.html'), 'utf8');
+    const srv = http.createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    try {
+      const c = await fuente.consultar('http://127.0.0.1:' + srv.address().port + '/pagina.php', 'MMMX', 4000);
+      assert.ok(c.total > 0, 'dejo de leer las paginas viejas');
+    } finally { srv.close(); }
+  });
+
   await test('buscar cae a la segunda fuente cuando la primera no sirve', async () => {
     /* La primera direccion no existe: tiene que seguir con la otra sin rendirse */
     const r = await fuente.buscar('MMMX', { url: 'http://127.0.0.1:1/nada', tiempoLimite: 2000, awc: false });
@@ -234,7 +300,6 @@ function conPase(opciones) {
 
   /* Un sitio de mentiras con la pagina del CAPMA, para probar sin salir a la red */
   await test('el servidor trae el METAR de la estacion que le pidan', async () => {
-    const http = require('http');
     const pagina = fs.readFileSync(path.join(__dirname, 'fixtures', 'capma_parrafos.html'));
     const falso = http.createServer((pet, resp) => {
       resp.writeHead(200, { 'Content-Type': 'text/html; charset=windows-1252' });

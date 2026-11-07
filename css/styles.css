@@ -292,6 +292,38 @@ main {
   .banda { grid-template-columns: 1fr; }
   .banda > #secInfo, .banda > #secViento, .banda > #secCielo { grid-area: auto; }
 }
+
+/* ---- Segunda banda: lo que se escribe a mano, en dos columnas ----
+   Información adicional y Texto libre ocupaban un renglón cada una y las dos
+   se quedaban a medio llenar. Juntas caben en uno solo. */
+.banda2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 16px;
+}
+@media (max-width: 1180px) { .banda2 { grid-template-columns: 1fr; } }
+
+/* Las dos tarjetas terminan parejas, y en lugar de dejar un hueco al final
+   de la más corta, lo que crece es el espacio para escribir. */
+.banda2 > .card { display: flex; flex-direction: column; }
+.banda2 > .card > .grid2 { flex: 1 1 auto; }
+.banda2 > .card > .grid2 > .field { margin-bottom: 0; }
+.banda2 > .card > .grid2 textarea { flex: 1 1 auto; min-height: 104px; }
+
+/* ---- Ayuda que se despliega ----
+   La explicación completa sigue ahí, pero no ocupa media tarjeta todos los
+   días: se abre cuando hace falta. */
+details.ayuda { margin: 4px 0 10px; }
+details.ayuda > summary {
+  cursor: pointer; width: fit-content;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .04em;
+  color: var(--muted); padding: 3px 2px;
+}
+details.ayuda > summary:hover { color: var(--accent); }
+details.ayuda > summary::marker { color: var(--muted); }
+details.ayuda[open] > summary { color: var(--text-2); margin-bottom: 2px; }
+details.ayuda .help:last-child { margin-bottom: 0; }
 @media (max-width: 960px) {
   .page { grid-template-columns: 1fr; }
   main { padding: 0 16px 210px; }
@@ -1131,69 +1163,111 @@ input, select, textarea, .chips, .notamlist {
 }
 
 /* ==========================================================================
-   La lista de NOTAM, leída de un vistazo
-   Tres grupos —los que todavía no empiezan, los vigentes y los vencidos— y en
-   cada renglón, en grande, lo que importa: cuánto falta para que cambie. El
-   rango exacto queda debajo, en pequeño, para consultarlo.
+   La lista de NOTAM
+   Pensada para la pantalla de la torre, que es vieja y de poco contraste:
+   las horas de inicio y de fin van grandes, en columnas fijas y con su
+   rótulo; el día se dice HOY, MAÑANA o AYER en vez de hacer cuentas con la
+   fecha. Arriba, tres grupos: lo que no ha empezado, lo que está al aire y
+   lo vencido. Todo en UTC, que es la hora del ATIS.
    ========================================================================== */
 .ngrupo {
-  display: flex; align-items: center; gap: 8px;
-  margin: 14px 0 6px; padding-bottom: 5px;
-  border-bottom: 1px solid var(--line-soft);
+  display: flex; align-items: center; gap: 9px;
+  margin: 16px 0 7px; padding-bottom: 6px;
+  border-bottom: 2px solid var(--line);
 }
 .ngrupo:first-of-type { margin-top: 4px; }
 .ngtit {
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .14em;
-  color: var(--muted);
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--text-2);
 }
 .ngn {
-  font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: var(--r-pill);
-  background: var(--surface-3); color: var(--muted); font-variant-numeric: tabular-nums;
+  font-size: 11.5px; font-weight: 800; padding: 2px 9px; border-radius: var(--r-pill);
+  background: var(--surface-3); color: var(--text-2); font-variant-numeric: tabular-nums;
 }
-.ngnota { font-size: 10.5px; color: var(--muted); font-style: italic; }
+.ngnota { font-size: 11px; color: var(--muted); font-style: italic; }
 .g-futuro  .ngtit, .g-futuro  .ngn { color: var(--blue); }
 .g-vigente .ngtit, .g-vigente .ngn { color: var(--accent); }
-.g-futuro  .ngn { background: rgba(10, 86, 176, .10); }
+.g-futuro  .ngn { background: rgba(10, 86, 176, .12); }
 .g-vigente .ngn { background: var(--accent-weak); }
+.g-futuro  { border-bottom-color: var(--blue); }
+.g-vigente { border-bottom-color: var(--accent); }
 
-/* El renglón: la columna de la derecha pasa a dos renglones */
+/* ---- El renglón ---- */
+.notamrow {
+  grid-template-columns: auto 92px minmax(0, 1fr) auto auto auto;
+  gap: 14px; padding: 9px 14px; font-size: 14px;
+}
+.notamrow + .notamrow { margin-top: 6px; }
+.notamrow .nid { font-size: 12.5px; }
+.notamrow .ncond { font-size: 14px; }
+
+/* ---- Las horas: lo que hay que leer de lejos ---- */
+.nhoras {
+  display: flex; align-items: stretch; gap: 10px;
+  padding: 2px 12px; border-radius: 9px;
+  background: var(--surface); border: 1px solid var(--line-soft);
+}
+.nh {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 64px; line-height: 1.1;
+}
+.nhrot {
+  font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted);
+}
+.nhhora {
+  font-family: var(--ui-display);
+  font-size: 20px; font-weight: 700; letter-spacing: .01em;
+  color: var(--text); font-variant-numeric: tabular-nums;
+}
+.nhdia {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  color: var(--muted); white-space: nowrap;
+}
+.nh.cerca .nhdia { color: var(--text-2); }
+.nh.vacio .nhhora { color: var(--muted); font-weight: 500; }
+.nhsep {
+  align-self: center; color: var(--muted); font-size: 15px; padding-bottom: 2px;
+}
+
+/* ---- Qué le falta para cambiar ---- */
 .notamrow .nwhen {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
-  line-height: 1.25; min-width: 150px;
+  display: flex; align-items: center; justify-content: flex-end;
+  min-width: 132px;
 }
 .notamrow .ncuando {
-  font-size: 11.5px; font-weight: 650; color: var(--text-2); white-space: nowrap;
-}
-.notamrow .nrango {
-  font-size: 10px; color: var(--muted); white-space: nowrap; opacity: .85;
+  font-size: 12.5px; font-weight: 700; color: var(--text-2);
+  white-space: nowrap; text-align: right;
 }
 
 /* El estado se ve también en el renglón, sin tener que leer la hora */
-.notamrow.e-vigente  { border-left: 3px solid var(--accent); }
-.notamrow.e-futuro   { border-left: 3px solid var(--blue); }
-.notamrow.e-expirado { border-left: 3px solid var(--line); opacity: .62; }
+.notamrow.e-vigente  { border-left: 4px solid var(--accent); }
+.notamrow.e-futuro   { border-left: 4px solid var(--blue); }
+.notamrow.e-expirado { border-left: 4px solid var(--line); opacity: .6; }
 .notamrow.e-vigente  .ncuando { color: var(--accent); }
 .notamrow.e-futuro   .ncuando { color: var(--blue); }
-.notamrow.e-expirado .ncuando { color: var(--muted); font-weight: 500; }
+.notamrow.e-expirado .ncuando { color: var(--muted); font-weight: 600; }
+.notamrow.e-expirado .nhhora { color: var(--muted); }
 
 /* Lo que cambia dentro de las dos horas siguientes: eso es lo que hay que ver */
 .notamrow.pronto {
   border-left-color: var(--amber);
-  box-shadow: inset 3px 0 0 var(--amber), 0 0 0 1px var(--amber-weak);
+  box-shadow: inset 4px 0 0 var(--amber), 0 0 0 1px var(--amber-weak);
 }
-.notamrow.pronto .ncuando {
-  color: var(--amber); font-weight: 700;
-}
-.notamrow.pronto .ncuando::before {
-  content: "⏱ "; font-weight: 400;
-}
+.notamrow.pronto .ncuando { color: var(--amber); font-weight: 800; }
+.notamrow.pronto .ncuando::before { content: "\23F1  "; font-weight: 400; }
+.notamrow.pronto .nhoras { border-color: var(--amber); background: var(--amber-weak); }
+.notamcount { font-size: 12.5px; }
 .notamcount .avisa { color: var(--amber); }
 
 /* Con tres grupos, la lista necesita un poco más de alto antes de desplazarse */
-.notamlist { max-height: 440px; }
+.notamlist { max-height: 460px; }
 
-@media (max-width: 900px) {
-  .notamrow { grid-template-columns: auto 1fr auto; row-gap: 4px; }
-  .notamrow .ncond { grid-column: 1 / -1; white-space: normal; }
-  .notamrow .nwhen { align-items: flex-start; }
+/* En pantallas angostas el renglón se parte en dos pisos, pero las horas
+   siguen siendo lo más grande. */
+@media (max-width: 1100px) {
+  .notamrow { grid-template-columns: auto 92px minmax(0, 1fr) auto; row-gap: 8px; }
+  .notamrow .ncond { grid-column: 2 / -1; white-space: normal; }
+  .notamrow .nhoras { grid-column: 2 / 4; justify-self: start; }
+  .notamrow .nwhen { justify-content: flex-start; min-width: 0; }
 }

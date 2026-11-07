@@ -7,12 +7,12 @@
 (function (global) {
   'use strict';
   var datos = {
-    VERSION: '3.10',
-    FECHA: '2026-10-15',
+    VERSION: '3.11',
+    FECHA: '2026-11-07',
     /* Lo que trae esta versión, para saber qué esperar en pantalla */
-    NOVEDADES: 'Lista de NOTAM por grupos, con el tiempo que falta para que cada uno '
-      + 'entre o salga; la pantalla ya no se sube sola al cargarlos; y los botones de '
-      + 'administración vuelven a guardar de verdad'
+    NOVEDADES: 'Horas de los NOTAM en grande, la pantalla ya no se va sola al guion '
+      + 'mientras se transmite, las tarjetas sin huecos, y el METAR otra vez del CAPMA, '
+      + 'que se mudó de dirección'
   };
   var ATIS = global.ATIS = global.ATIS || {};
   ATIS.VERSION = datos.VERSION;

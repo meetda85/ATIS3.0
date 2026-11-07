@@ -552,7 +552,13 @@ const servidor = http.createServer(async (req, res) => {
     try {
       const c = await leerCuerpo(req);
       if (typeof c.activo === 'boolean') metar.activo = c.activo;
-      if (c.url) metar.url = String(c.url).slice(0, 400);
+      if (c.url) {
+        const dir = String(c.url).slice(0, 400).trim();
+        /* La página vieja del CAPMA ya no existe: si llega guardada de antes,
+           se cambia sola por el servicio nuevo en lugar de dejar al ATIS
+           esperando a una dirección muerta. */
+        metar.url = dir === fuente.URL_CAPMA_VIEJA ? fuente.URL_CAPMA : dir;
+      }
       if (c.estacion) metar.estacion = String(c.estacion).toUpperCase().slice(0, 4);
       if (c.minutos) metar.minutos = Math.max(2, Math.min(60, parseInt(c.minutos, 10) || 5));
       programarMetar();

@@ -136,8 +136,7 @@ está el problema.
 
 Con el servidor andando, el ATIS puede vigilar la fuente y avisar cuando hay
 un METAR nuevo. Se configura en *Ajustes → METAR automático*: dirección de la fuente
-(por omisión `http://capma.mx/reportemetar/elegir_samx_3.php`), estación y cada cuántos
-minutos revisar.
+(por omisión el servicio del CAPMA, abajo), estación y cada cuántos minutos revisar.
 
 **Nunca cambia el ATIS por su cuenta.** Cuando aparece uno nuevo, la consola lo muestra
 con dos botones: *Usar este METAR* y *Ahora no*. Al aceptarlo se llena el formulario, se
@@ -145,9 +144,29 @@ avanza la letra y —si se está transmitiendo— el cambio entra **al terminar 
 Esa decisión es deliberada: un ATIS no debe cambiar solo mientras alguien lo está
 escuchando.
 
-El lector no depende de cómo esté armada la página: quita las etiquetas HTML y busca los
-informes por su propio formato, así que sigue funcionando aunque al sitio le cambien el
-diseño. Distingue METAR, SPECI y corregidos, y se queda con el más reciente de la estación.
+#### El CAPMA se mudó
+
+La página de antes (`capma.mx/reportemetar`) ya no contesta: devuelve *503*. El CAPMA está
+ahora en **capma.seneam.gob.mx**, y ahí el METAR no viene en el HTML: la página se lo pide
+a su propio servicio, el mismo que el ATIS usa ahora:
+
+```
+https://capma.seneam.gob.mx:444/api/v1/sigimet/bdma/public/samxs/MMMX
+```
+
+Es la dirección que la página consulta al escribir el indicador OACI en *Búsqueda por
+aeropuerto*; devuelve los informes de esa estación con el texto en el campo `mensaje`. El
+ATIS le pega el indicador al final y lee lo que llegue.
+
+> **Ojo con el puerto 444.** Ese servicio no sale por el 443 como todo lo demás. Hay redes
+> de oficina que solo dejan salir por los puertos de siempre, y entonces el CAPMA no se
+> alcanza aunque haya internet. No es una falla del programa: *Probar la conexión* lo dice
+> con todas sus letras, y mientras tanto el ATIS sigue trayendo el METAR del NOAA.
+
+El lector sirve para las dos formas: si la dirección configurada es el servicio, lee el
+JSON; si es una página, quita las etiquetas HTML. En los dos casos busca los informes por
+su propio formato, así que sigue funcionando aunque al sitio le cambien el diseño.
+Distingue METAR, SPECI y corregidos, y se queda con el más reciente de la estación.
 
 Si el sitio no responde o deja de publicar, se avisa en pantalla y **la transmisión sigue**
 con los últimos datos buenos.
@@ -170,9 +189,9 @@ Con eso se distingue de una vez lo que antes era un mismo error para todo:
 | Responden unas sí y otras no | hay internet, pero el cortafuegos o el proxy del trabajo bloquea las demás |
 | Todas responden pero el METAR no llega | el problema está en la página, no en la red |
 
-La página del CAPMA arma la lista de todo el país en cada visita y puede tardar **más de
-diez segundos**; el ATIS la espera hasta 45, porque esto va en segundo plano y nada se
-detiene mientras tanto.
+El servicio del CAPMA contesta en menos de un segundo cuando se alcanza; lo que tarda es
+cuando el puerto 444 está cerrado y la conexión se queda colgada. El ATIS lo espera 20
+segundos y pasa al NOAA, para no dejar esperando a nadie.
 
 ### El puerto
 
@@ -211,9 +230,13 @@ sería peor que no avisar. Quien la encienda sabrá si en su instalación eso ap
 ## El guion se subraya mientras se locuta
 
 Durante la transmisión, la pieza del guion que está sonando queda **resaltada**, y las que
-ya se dijeron se apagan. Se ve de un vistazo por dónde va el mensaje, y el panel se
-desplaza solo para que lo que suena quede siempre a la vista. Solo se subraya el idioma que
-está al aire.
+ya se dijeron se apagan. Se ve de un vistazo por dónde va el mensaje, y el recuadro del
+guion se desplaza solo para que lo que suena quede siempre a la vista. Solo se subraya el
+idioma que está al aire.
+
+Lo que se desplaza es **el recuadro del guion, no la página**: se puede estar escribiendo
+el METAR nuevo arriba mientras el ATIS transmite, sin que la pantalla se vaya sola hacia
+abajo a cada frase.
 
 Los tiempos no son una estimación:
 
@@ -455,12 +478,27 @@ duplica los que ya estaban cargados.
 
 La lista va partida en tres grupos, en el orden en que importan en turno:
 **Todavía no empiezan** (el más próximo arriba), **Vigentes ahora** (el que termina antes,
-arriba) y **Vencidos**. Cada renglón dice en grande **cuánto falta** para que cambie —
-*empieza en 40 min*, *vigente · termina en 3 h 20*, *venció hace 5 h*— y debajo, en
-pequeño, el rango exacto en UTC, que es lo que hay que citar. Lo que entra o sale **dentro
-de las dos horas siguientes** se marca en ámbar con un reloj: es lo que no se puede pasar
-por alto al armar el ATIS de la hora. El contador de arriba lo repite: *2 empieza(n)
-dentro de 2 h*. El tiempo que falta se recalcula solo cada minuto, sin tocar nada.
+arriba) y **Vencidos**.
+
+Cada renglón lleva las **dos horas en grande**, en su propio recuadro, con su rótulo
+*Desde* y *Hasta* y el día debajo dicho como se dice en la torre —**HOY**, **MAÑANA**,
+**AYER**, y si está más lejos, `09 NOV`—:
+
+```
+  A0001/25   pista 05 derecha, 23 izquierda cerrada     DESDE    HASTA     ⏱ termina en 50 min
+                                                        06:32  → 17:22
+                                                         HOY      HOY
+```
+
+Está pensado así a propósito: la pantalla de la torre es vieja y de poco contraste, y la
+hora es lo que hay que leer de un vistazo, sin acercarse. Todo en **UTC**, que es la hora
+del ATIS.
+
+A la derecha, **cuánto falta** para que cambie: *empieza en 40 min*, *termina en 3 h 20*,
+*venció hace 5 h*. Lo que entra o sale **dentro de las dos horas siguientes** se marca en
+ámbar con un reloj, recuadro de horas incluido: es lo que no se puede pasar por alto al
+armar el ATIS de la hora. El contador de arriba lo repite: *2 empieza(n) dentro de 2 h*.
+El tiempo que falta se recalcula solo cada minuto, sin tocar nada.
 
 ## Estructura del mensaje
 
@@ -508,7 +546,7 @@ extraída. Conserva la carpeta `voz` y el último ATIS guardado.
 INSTALAR.bat          instalador para Windows
 SERVIDOR.bat          arranca el servidor de control remoto
 servidor/servidor.js  servidor local: sirve la app y guarda el estado compartido
-servidor/fuente-metar.js  lectura del METAR desde la página del CAPMA
+servidor/fuente-metar.js  lectura del METAR: servicio del CAPMA y respaldo del NOAA
 servidor/admin.js         la clave de la pagina de administracion
 servidor/fuente-notam.js  NOTAM desde el NMS de la FAA o desde una carpeta vigilada
 servidor/voz-piper.js     voz neuronal local: genera el audio y lo guarda

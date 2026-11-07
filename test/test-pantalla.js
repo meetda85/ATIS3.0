@@ -220,6 +220,25 @@ async function main() {
     await p.close();
   });
 
+  await prueba('Información adicional y Texto libre comparten renglón', async () => {
+    const p = await abrir(navegador);
+    const d = await p.evaluate(() => {
+      const a = document.getElementById('secAdic').getBoundingClientRect();
+      const b = document.getElementById('cardLibre').getBoundingClientRect();
+      const g = document.getElementById('secGuion').getBoundingClientRect();
+      return {
+        mismaFila: Math.abs(a.top - b.top) < 2,
+        ladoALado: a.right <= b.left + 1,
+        mismoAlto: Math.abs(a.height - b.height) < 2,
+        hueco: Math.round(g.top - Math.max(a.bottom, b.bottom))
+      };
+    });
+    assert.ok(d.mismaFila && d.ladoALado, 'las dos tarjetas no quedaron una al lado de la otra');
+    assert.ok(d.mismoAlto, 'no terminan a la misma altura: una deja un hueco');
+    assert.ok(d.hueco < 40, 'queda un hueco de ' + d.hueco + ' px antes del guion');
+    await p.close();
+  });
+
   /* ---------------- La lista de NOTAM ---------------- */
   /* Un juego de NOTAM relativos a esta hora: uno que empieza en 40 minutos,
      uno vigente que termina en 50, uno de mañana, uno vencido y uno largo. */
@@ -260,12 +279,17 @@ async function main() {
   await prueba('cada NOTAM dice cuánto falta, y el más próximo va arriba', async () => {
     const p = await abrir(navegador);
     await conNotam(p);
-    const filas = await p.$$eval('.notamrow', ns => ns.map(n => ({
-      id: n.querySelector('.nid').textContent,
-      cuando: n.querySelector('.ncuando').textContent,
-      rango: n.querySelector('.nrango').textContent,
-      pronto: n.classList.contains('pronto')
-    })));
+    const filas = await p.$$eval('.notamrow', ns => ns.map(n => {
+      const h = [...n.querySelectorAll('.nh')];
+      return {
+        id: n.querySelector('.nid').textContent,
+        cuando: n.querySelector('.ncuando').textContent,
+        rotulos: h.map(x => x.querySelector('.nhrot').textContent),
+        horas: h.map(x => x.querySelector('.nhhora').textContent),
+        dias: h.map(x => x.querySelector('.nhdia').textContent),
+        pronto: n.classList.contains('pronto')
+      };
+    }));
     /* El que empieza en 40 minutos va primero de todos */
     assert.strictEqual(filas[0].id, 'A0002/25', 'arriba no quedó el que empieza antes');
     assert.ok(/empieza en \d+ min/.test(filas[0].cuando), 'no dijo cuánto falta: ' + filas[0].cuando);
@@ -275,14 +299,19 @@ async function main() {
     assert.ok(!filas[1].pronto, 'marcó como próximo uno que es de mañana');
     /* El vigente que termina pronto también se avisa */
     const term = filas.find(f => f.id === 'A0001/25');
-    assert.ok(/vigente .* termina en/.test(term.cuando), 'no dijo cuándo termina: ' + term.cuando);
+    assert.ok(/termina en/.test(term.cuando), 'no dijo cuándo termina: ' + term.cuando);
     assert.ok(term.pronto, 'no avisó del que termina dentro de 2 h');
     /* El vencido lo dice sin rodeos */
     const vencido = filas.find(f => f.id === 'A0004/25');
     assert.ok(/venció hace/.test(vencido.cuando), 'no dijo que estaba vencido: ' + vencido.cuando);
-    /* Y el rango exacto sigue a la vista en todos */
-    filas.forEach(f => assert.ok(/\d\d\/\d\d \d\d:\d\d/.test(f.rango),
-      'se perdió el rango exacto de ' + f.id));
+    /* Y las dos horas, con su rótulo y su día, están en todos */
+    filas.forEach(f => {
+      assert.deepStrictEqual(f.rotulos, ['Desde', 'Hasta'], 'faltan los rótulos en ' + f.id);
+      f.horas.forEach(h => assert.ok(/^\d\d:\d\d$/.test(h), 'hora rara en ' + f.id + ': ' + h));
+      assert.strictEqual(f.dias.length, 2, 'falta el día en ' + f.id);
+    });
+    /* El que empieza hoy lo dice con todas sus letras, no con una fecha */
+    assert.strictEqual(filas[0].dias[0], 'HOY', 'el día de hoy no se dijo como HOY');
     await p.close();
   });
 
@@ -320,16 +349,85 @@ async function main() {
     await conNotam(p);
     const movida = await p.evaluate(() => {
       const l = document.getElementById('notamList');
+      l.style.maxHeight = '180px';     /* para que seguro haya que desplazarla */
       l.scrollTop = 60;
       return l.scrollTop;
     });
     if (!movida) { /* con pocos NOTAM puede no haber desplazamiento que conservar */
       await p.close(); return;
     }
-    await p.click('.notamrow .n-inc');
+    /* La casilla se cambia sin clic: un clic de verdad arrastraría la lista
+       para alcanzarla, y eso es cosa del navegador, no del programa. */
+    await p.evaluate(() => {
+      const c = document.querySelectorAll('.notamrow .n-inc')[0];
+      c.checked = !c.checked;
+      c.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     await p.waitForTimeout(300);
     const queda = await p.evaluate(() => document.getElementById('notamList').scrollTop);
     assert.strictEqual(queda, movida, 'la lista se fue al principio al redibujarse');
+    await p.close();
+  });
+
+  /* ---------------- Al transmitir, la pantalla no se mueve sola ----------------
+     El subrayado del guion seguía a la frase que sonaba. Lo hacía con
+     scrollIntoView, que arrastra todo lo que se pueda desplazar por encima,
+     la ventana incluida: al transmitir, la pantalla se iba sola hasta el
+     guion y no dejaba escribir el METAR nuevo. */
+  await prueba('al transmitir, el guion se desplaza solo, no la pantalla', async () => {
+    const p = await navegador.newPage({ viewport: { width: 1280, height: 800 } });
+    await p.addInitScript(() => {
+      try { localStorage.clear(); } catch (e) {}
+      const v = [{ name: 'Dalia', lang: 'es-MX', localService: false },
+                 { name: 'Aria', lang: 'en-US', localService: false }];
+      window.speechSynthesis.getVoices = () => v;
+      /* Una voz que tarda lo suyo en cada fragmento, para que el subrayado
+         avance de verdad mientras se mira */
+      window.speechSynthesis.speak = (u) => setTimeout(() => u.onend && u.onend(), 300);
+      window.speechSynthesis.cancel = () => {};
+    });
+    await p.goto(PAGINA); await p.waitForTimeout(600);
+    await p.click('#btnSample'); await p.waitForTimeout(250);
+    await p.click('.chip[data-rwy="05"]');
+    await p.fill('#notamRaw', notamDePrueba());
+    await p.click('#btnNotamAdd'); await p.waitForTimeout(300);
+    /* Texto libre largo, para que el guion no quepa en su recuadro: es ahí
+       donde el subrayado tiene que desplazar algo. */
+    await p.check('#libreActivo');
+    const largo = l => Array(4).fill(l).join('\n');
+    await p.fill('#libreEs', largo('Aeropuerto Internacional de la Ciudad de Mexico, prueba del ' +
+      'sistema de informacion automatica terminal, mantengase a la escucha en esta frecuencia.'));
+    await p.fill('#libreEn', largo('Mexico City International Airport, automatic terminal ' +
+      'information service test, stand by on this frequency.'));
+    await p.evaluate(() => {
+      const g = document.getElementById('gap');
+      g.value = '0'; g.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await p.waitForTimeout(300);
+
+    const caben = await p.$eval('#scriptEs', e => e.scrollHeight > e.clientHeight + 4);
+    assert.ok(caben, 'la prueba no logró que el guion desbordara su recuadro');
+
+    await p.evaluate(() => window.scrollTo(0, 0));
+    await p.click('#btnPlay'); await p.waitForTimeout(300);
+    if (!(await p.evaluate(() => document.getElementById('preflight').hidden))) {
+      await p.click('#btnIgual');
+    }
+    /* El controlador se pone a escribir el METAR nuevo, arriba */
+    await p.click('#metarRaw');
+    const ventana = [], caja = [];
+    for (let i = 0; i < 18; i++) {
+      await p.waitForTimeout(200);
+      const d = await p.evaluate(() => ({
+        y: Math.round(window.scrollY),
+        caja: Math.round(document.getElementById('scriptEs').scrollTop)
+      }));
+      ventana.push(d.y); caja.push(d.caja);
+    }
+    assert.strictEqual(Math.max.apply(null, ventana), 0,
+      'la pantalla se fue sola a ' + Math.max.apply(null, ventana) + ' px mientras transmitía');
+    assert.ok(Math.max.apply(null, caja) > 0,
+      'el recuadro del guion no siguió a lo que se estaba locutando');
     await p.close();
   });
 

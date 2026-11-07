@@ -538,6 +538,23 @@
     renderNotams(); render();
   }
 
+  /* La hora y el día, partidos, para poder poner la hora en grande y el día
+     en pequeño debajo. El día se dice como se dice en la torre: HOY, MAÑANA,
+     AYER, y si no, el día y el mes. Todo en UTC, que es la hora del ATIS. */
+  var MESES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
+               'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+
+  function fechaPartes(d, ahora) {
+    if (!d) return null;
+    var hora = ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
+    var hoy = Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate());
+    var suyo = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    var dias = Math.round((suyo - hoy) / 86400000);
+    var dia = dias === 0 ? 'HOY' : dias === 1 ? 'MAÑANA' : dias === -1 ? 'AYER'
+      : ('0' + d.getUTCDate()).slice(-2) + ' ' + MESES[d.getUTCMonth()];
+    return { hora: hora, dia: dia, cercano: dias >= 0 && dias <= 1 };
+  }
+
   function fechaCorta(d) {
     if (!d) return '';
     var dd = ('0' + d.getUTCDate()).slice(-2), mm = ('0' + (d.getUTCMonth() + 1)).slice(-2);
@@ -579,10 +596,10 @@
       var quedan = (hasta - ahora) / 60000;
       return {
         clase: 'vigente', minutos: quedan, pronto: quedan <= PRONTO,
-        texto: 'vigente · termina en ' + cuantoFalta(quedan)
+        texto: 'termina en ' + cuantoFalta(quedan)
       };
     }
-    return { clase: 'vigente', minutos: null, pronto: false, texto: 'vigente · sin hora de término' };
+    return { clase: 'vigente', minutos: null, pronto: false, texto: 'al aire, sin hora de término' };
   }
 
   /* Los grupos en que se parte la lista, en el orden en que importan */
@@ -623,13 +640,23 @@
     });
     cajones.expirado.sort(function (a, b) { return a.est.minutos - b.est.minutos; });
 
+    /* Un extremo del rango: la hora en grande, el día debajo */
+    function extremo(rotulo, partes) {
+      if (!partes) {
+        return '<span class="nh vacio"><span class="nhrot">' + rotulo + '</span>' +
+          '<b class="nhhora">—</b><span class="nhdia">sin término</span></span>';
+      }
+      return '<span class="nh' + (partes.cercano ? ' cerca' : '') + '">' +
+        '<span class="nhrot">' + rotulo + '</span>' +
+        '<b class="nhhora">' + escapeHtml(partes.hora) + '</b>' +
+        '<span class="nhdia">' + escapeHtml(partes.dia) + '</span></span>';
+    }
+
     function fila(x) {
       var n = x.n, i = x.i, est = x.est;
       var condicion = (n.es.plain || n.raw).replace(/\s+/g, ' ');
       var ajeno = n.meta.propio === false
         ? '<span class="badge fut">' + escapeHtml(n.meta.location) + '</span>' : '';
-      var rango = escapeHtml(fechaCorta(n.meta.desde)) +
-        (n.meta.hasta ? ' → ' + escapeHtml(fechaCorta(n.meta.hasta)) : '');
 
       var html = '<div class="notamrow ' + (n.include ? 'on' : 'off') +
           ' e-' + est.clase + (est.pronto ? ' pronto' : '') + '">' +
@@ -637,9 +664,13 @@
           ' title="transmitir">' +
         '<span class="nid">' + escapeHtml(n.meta.id || ('#' + (i + 1))) + '</span>' +
         '<span class="ncond" title="' + escapeHtml(condicion) + '">' + escapeHtml(condicion) + '</span>' +
+        '<span class="nhoras" title="horas en UTC">' +
+          extremo('Desde', fechaPartes(n.meta.desde, ahora)) +
+          '<span class="nhsep">&rarr;</span>' +
+          extremo('Hasta', fechaPartes(n.meta.hasta, ahora)) +
+        '</span>' +
         '<span class="nwhen">' +
           '<span class="ncuando">' + ajeno + escapeHtml(est.texto) + '</span>' +
-          '<span class="nrango" title="horas UTC">' + rango + '</span>' +
         '</span>' +
         '<button class="nmore" data-more="' + i + '">' + (n.expanded ? 'ocultar' : 'ver') + '</button>' +
       '</div>';
@@ -670,7 +701,12 @@
       (porEmpezar ? ' · <b class="avisa">' + porEmpezar + ' empieza(n) dentro de 2 h</b>' : '') +
       (ocultos ? ' · ' + ocultos + ' ocultos por vigencia' : '') + '</div>' + html;
 
-    el.notamList.scrollTop = desplazado;
+    /* Devolver la lista a donde estaba. Se pide una medida antes de colocarla
+       para que el navegador ya tenga calculado el alto del contenido nuevo. */
+    if (desplazado) {
+      void el.notamList.scrollHeight;
+      el.notamList.scrollTop = desplazado;
+    }
   }
 
   /* Las horas que faltan se mueven solas: la lista se refresca cada minuto
@@ -824,12 +860,22 @@
       piezas[i].classList.toggle('dicha', i < desde);
       if (activa && !primero) primero = piezas[i];
     }
-    /* Que lo que suena quede siempre a la vista, sin saltos bruscos */
-    if (primero && primero.scrollIntoView) {
-      var caja = nodos[lang].getBoundingClientRect();
+    /* Que lo que suena quede a la vista DENTRO del recuadro del guion.
+       Aquí no se puede usar scrollIntoView: además del recuadro mueve todo lo
+       que se pueda desplazar por encima, la ventana incluida. Al transmitir
+       eso arrastraba la pantalla sola hasta el guion —que está hasta abajo—
+       una y otra vez, y no dejaba escribir el METAR nuevo. Esto mueve el
+       recuadro y nada más. */
+    if (primero) {
+      var caja = nodos[lang];
+      var r = caja.getBoundingClientRect();
       var pos = primero.getBoundingClientRect();
-      if (pos.top < caja.top + 4 || pos.bottom > caja.bottom - 4) {
-        primero.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (pos.top < r.top + 4 || pos.bottom > r.bottom - 4) {
+        var destino = caja.scrollTop + (pos.top - r.top) -
+          Math.max(0, (caja.clientHeight - pos.height) / 2);
+        destino = Math.max(0, Math.min(destino, caja.scrollHeight - caja.clientHeight));
+        if (caja.scrollTo) caja.scrollTo({ top: destino, behavior: 'smooth' });
+        else caja.scrollTop = destino;
       }
     }
   }
