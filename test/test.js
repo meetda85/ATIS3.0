@@ -463,6 +463,44 @@ test('TXL CN se locuta, no se deletrea', () => {
   assert.ok(ATIS.notam.parse('E) TWY CN CLSD', 'es').plain.indexOf('calle de rodaje') === 0);
 });
 
+test('los designadores de dos letras, los de MMMX incluidos', () => {
+  /* CM, CN, CS, LA, LB, LC... El mecanismo ya los cubria; lo que faltaba era
+     la palabra TXL. Esto lo deja fijo. */
+  const casos = {
+    CM: ['Charli Maik', 'Charlie Mike'],
+    CN: ['Charli November', 'Charlie November'],
+    CS: ['Charli Sierra', 'Charlie Sierra'],
+    LA: ['Lima Alfa', 'Lima Alfa'],
+    LB: ['Lima Bravo', 'Lima Bravo'],
+    LC: ['Lima Charli', 'Lima Charlie'],
+    PH: ['Papa Hotel', 'Papa Hotel'],
+    D4: ['Delta cuatro', 'Delta four']
+  };
+  Object.keys(casos).forEach(function (d) {
+    assert.strictEqual(ATIS.script.paraLocutar(ATIS.notam.parse('E) TXL ' + d + ' CLSD', 'es').plain, 'es'),
+      'calle de acceso ' + casos[d][0] + ' cerrada', 'en espanol con ' + d);
+    assert.strictEqual(ATIS.script.paraLocutar(ATIS.notam.parse('E) TXL ' + d + ' CLSD', 'en').plain, 'en'),
+      'taxilane ' + casos[d][1] + ' closed', 'en ingles con ' + d);
+  });
+
+  /* Los que se parecen a una palabra espanola tampoco se confunden: detras de
+     la clave y en mayusculas, son designadores y nada mas. */
+  [['LA', 'Lima Alfa'], ['NO', 'November Oscar'], ['DE', 'Delta Eco'],
+   ['EL', 'Eco Lima'], ['UN', 'Uniform November'], ['SI', 'Sierra India'],
+   ['Y', 'Yanki'], ['O', 'Oscar']].forEach(function (c) {
+    assert.strictEqual(ATIS.script.paraLocutar(ATIS.notam.parse('E) TXL ' + c[0] + ' CLSD', 'es').plain, 'es'),
+      'calle de acceso ' + c[1] + ' cerrada', 'se confundio con la palabra ' + c[0]);
+  });
+
+  /* Y varios juntos, que es como vienen */
+  assert.strictEqual(
+    ATIS.script.paraLocutar(ATIS.notam.parse('E) TXLS LA, LB AND LC CLSD', 'es').plain, 'es'),
+    'calles de acceso Lima Alfa, Lima Bravo y Lima Charli cerrada');
+  assert.strictEqual(
+    ATIS.script.paraLocutar(ATIS.notam.parse('E) TWY D AND TXL LB CLSD', 'es').plain, 'es'),
+    'calle de rodaje Delta y calle de acceso Lima Bravo cerrada');
+});
+
 test('no queda ninguna sigla sin traducir en los NOTAM reales', () => {
   /* La prueba de fondo: si manana falta otra abreviatura como TXL, el
      sintetizador la deletreara y esto lo cacha antes que la torre. Solo se
